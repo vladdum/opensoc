@@ -1,0 +1,11 @@
+build/
+*.o
+*.d
+*.elf
+*.bin
+*.vmem
+*.log
+*.fst
+*.vcd
+__pycache__/
+*.pyc
