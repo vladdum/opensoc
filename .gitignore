@@ -1,4 +1,8 @@
+# FuseSoC build output
 build/
+
+# Claude Code
+.claude/
 *.o
 *.d
 *.elf

@@ -1,0 +1,65 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:soc:opensoc_top"
+description: "OpenSoC top-level based on ibex_simple_system"
+filesets:
+  files_rtl:
+    depend:
+      - lowrisc:ibex:ibex_top_tracing
+      - lowrisc:ibex:sim_shared
+    files:
+      - rtl/opensoc_top.sv
+    file_type: systemVerilogSource
+
+  files_lint_verilator:
+    files:
+      - lint/verilator_waiver.vlt: {file_type: vlt}
+
+parameters:
+  RV32M:
+    datatype: str
+    default: ibex_pkg::RV32MFast
+    paramtype: vlogdefine
+    description: "RV32M implementation parameter enum"
+
+  RV32B:
+    datatype: str
+    default: ibex_pkg::RV32BNone
+    paramtype: vlogdefine
+    description: "Bitmanip implementation parameter enum"
+
+  RV32ZC:
+    datatype: str
+    default: ibex_pkg::RV32ZcaZcbZcmp
+    paramtype: vlogdefine
+    description: "Compressed instructions parameter enum"
+
+  RegFile:
+    datatype: str
+    default: ibex_pkg::RegFileFF
+    paramtype: vlogdefine
+    description: "Register file implementation parameter enum"
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+      - tool_verilator ? (files_lint_verilator)
+    toplevel: opensoc_top
+    parameters:
+      - RV32M
+      - RV32B
+      - RV32ZC
+      - RegFile
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "--unroll-count 72"

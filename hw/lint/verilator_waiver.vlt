@@ -1,0 +1,18 @@
+// Copyright OpenSoC contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
+// Lint waivers for OpenSoC top-level with Verilator
+//
+// See https://verilator.org/guide/latest/exe_verilator.html#configuration-files
+// for documentation.
+//
+// Important: This file must be included *before* any other Verilog file is read.
+// Otherwise, only global waivers are applied, but not file-specific waivers.
+
+`verilator_config
+
+// Boolean top-level parameters set via fusesoc with -GRV32E=1 (rather than
+// -GRV32E=1'b1) cause WIDTH warnings. Waive for opensoc_top.sv.
+lint_off -rule WIDTH -file "*/rtl/opensoc_top.sv"
+         -match "*expects 1 bits*Initial value's CONST '32'h1'*"
