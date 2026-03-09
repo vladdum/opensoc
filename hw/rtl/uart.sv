@@ -71,6 +71,28 @@ module uart (
   wire  rx_fifo_not_empty = (rx_count != '0);
 
   // ---------------------------------------------------------------------------
+  // Free-running baud reference tick (for waveform debugging)
+  // ---------------------------------------------------------------------------
+  logic [15:0] baud_ref_cnt_q;
+  logic        baud_ref_tick;
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      baud_ref_cnt_q <= '0;
+      baud_ref_tick  <= 1'b0;
+    end else if (div_q == '0) begin
+      baud_ref_cnt_q <= '0;
+      baud_ref_tick  <= 1'b0;
+    end else if (baud_ref_cnt_q == '0) begin
+      baud_ref_cnt_q <= div_q - 16'd1;
+      baud_ref_tick  <= 1'b1;
+    end else begin
+      baud_ref_cnt_q <= baud_ref_cnt_q - 16'd1;
+      baud_ref_tick  <= 1'b0;
+    end
+  end
+
+  // ---------------------------------------------------------------------------
   // TX shift register
   // ---------------------------------------------------------------------------
   typedef enum logic [1:0] {
