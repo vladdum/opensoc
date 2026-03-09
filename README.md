@@ -8,20 +8,26 @@ A RISC-V System-on-Chip built on the lowRISC [Ibex](https://github.com/lowRISC/i
 opensoc_top (hw/rtl/opensoc_top.sv)
 ├── ibex_top_tracing    — Ibex RISC-V core with trace output
 ├── axi_from_mem ×2     — OBI-to-AXI bridges (instr port + data port)
-├── axi_xbar            — AXI4 crossbar (2 masters × 3 slaves)
-├── axi_to_mem ×3       — AXI-to-memory bridges (RAM, SimCtrl, Timer)
+├── axi_xbar            — AXI4 crossbar (2 masters × 6 slaves)
+├── axi_to_mem ×6       — AXI-to-memory bridges
 ├── ram_1p              — 1 MB single-port SRAM
 ├── simulator_ctrl      — ASCII output and simulation halt
-└── timer               — Timer with interrupt
+├── timer               — Timer with interrupt
+├── uart                — UART with TX/RX FIFOs
+├── gpio                — 32-bit GPIO with IRQ support
+└── i2c_controller      — I2C master controller
 ```
 
 ### Memory Map
 
 | Peripheral     | Base Address | Size  |
 |----------------|--------------|-------|
-| RAM            | `0x100000`   | 1 MB  |
 | Simulator Ctrl | `0x20000`    | 1 kB  |
 | Timer          | `0x30000`    | 1 kB  |
+| UART           | `0x40000`    | 1 kB  |
+| GPIO           | `0x50000`    | 1 kB  |
+| I2C            | `0x60000`    | 1 kB  |
+| RAM            | `0x100000`   | 1 MB  |
 
 Boot address: `0x100080` (RAM base + 0x80).
 
@@ -97,8 +103,8 @@ hw/ip/ibex/          — Ibex submodule (CPU core + shared sim RTL)
 hw/ip/pulp_axi/      — PULP AXI submodule (crossbar, bridges)
 hw/ip/common_cells/  — PULP common_cells submodule (required by pulp_axi)
 hw/ip/pulp_obi/      — PULP OBI submodule (for future use)
-dv/                  — Design verification
-sw/                  — Software
+dv/verilator/        — Verilator simulation testbench
+sw/tests/            — Test software (hello, UART, GPIO, I2C, dual-UART)
 ```
 
 ## License
