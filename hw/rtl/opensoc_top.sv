@@ -42,9 +42,10 @@
  * simulators, a small amount of work may be required to support the
  * simulator_ctrl module.
  *
- * The interconnect uses a PULP AXI4 crossbar (axi_xbar) with two master ports
- * (instruction fetch and data) bridged via axi_from_mem, and six slave ports
- * (RAM, SimCtrl, Timer, UART, GPIO, I2C) bridged via axi_to_mem.
+ * The interconnect uses a PULP AXI4 crossbar (axi_xbar) with three master ports
+ * (instruction fetch, data, and ReLU DMA) bridged via axi_from_mem, and seven
+ * slave ports (RAM, SimCtrl, Timer, UART, GPIO, I2C, ReLU ctrl) bridged via
+ * axi_to_mem.
  */
 
 module opensoc_top (
@@ -97,6 +98,7 @@ module opensoc_top (
   logic uart_irq;
   logic gpio_irq;
   logic i2c_irq;
+  logic relu_irq;
 
   // -------------------------------------------------------------------------
   // AXI type parameters
@@ -105,7 +107,7 @@ module opensoc_top (
   localparam int unsigned AxiDataWidth  = 32;
   localparam int unsigned AxiStrbWidth  = AxiDataWidth / 8;
   localparam int unsigned AxiIdWidthIn  = 1;   // ID width at xbar slave ports (master side)
-  localparam int unsigned AxiIdWidthOut = AxiIdWidthIn + $clog2(2); // xbar prepends bits for 2 slave ports
+  localparam int unsigned AxiIdWidthOut = AxiIdWidthIn + $clog2(NumMasters); // xbar prepends bits for NumMasters slave ports
   localparam int unsigned AxiUserWidth  = 1;
 
   // AXI type definitions — slave-port side (master-facing, narrow ID)
@@ -125,9 +127,9 @@ module opensoc_top (
   // -------------------------------------------------------------------------
   // Crossbar configuration
   // -------------------------------------------------------------------------
-  localparam int unsigned NumMasters = 2; // instr + data (xbar "slave ports")
-  localparam int unsigned NumSlaves  = 6; // RAM, SimCtrl, Timer, UART, GPIO, I2C (xbar "master ports")
-  localparam int unsigned NumRules   = 6;
+  localparam int unsigned NumMasters = 3; // instr + data + ReLU DMA (xbar "slave ports")
+  localparam int unsigned NumSlaves  = 7; // RAM, SimCtrl, Timer, UART, GPIO, I2C, ReLU ctrl (xbar "master ports")
+  localparam int unsigned NumRules   = 7;
 
   localparam axi_pkg::xbar_cfg_t XbarCfg = '{
     NoSlvPorts:         NumMasters,
@@ -152,7 +154,8 @@ module opensoc_top (
     '{ idx: 32'd2, start_addr: 32'h0003_0000, end_addr: 32'h0003_0400 }, // Timer   1 kB
     '{ idx: 32'd3, start_addr: 32'h0004_0000, end_addr: 32'h0004_0400 }, // UART    1 kB
     '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }, // GPIO    1 kB
-    '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }  // I2C     1 kB
+    '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }, // I2C     1 kB
+    '{ idx: 32'd6, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }  // ReLU    1 kB
   };
 
   // -------------------------------------------------------------------------
@@ -309,7 +312,7 @@ module opensoc_top (
       .irq_software_i            (1'b0),
       .irq_timer_i               (timer_irq),
       .irq_external_i            (1'b0),
-      .irq_fast_i                ({12'b0, i2c_irq, gpio_irq, uart_irq}),
+      .irq_fast_i                ({11'b0, relu_irq, i2c_irq, gpio_irq, uart_irq}),
       .irq_nm_i                  (1'b0),
 
       .scramble_key_valid_i      ('0),
@@ -399,6 +402,46 @@ module opensoc_top (
   );
 
   // -------------------------------------------------------------------------
+  // ReLU DMA signals (between relu_accel and axi_from_mem)
+  // -------------------------------------------------------------------------
+  logic        relu_dma_req;
+  logic [31:0] relu_dma_addr;
+  logic        relu_dma_we;
+  logic [31:0] relu_dma_wdata;
+  logic [3:0]  relu_dma_be;
+  logic        relu_dma_gnt;
+  logic        relu_dma_rvalid;
+  logic [31:0] relu_dma_rdata;
+  logic        relu_dma_err;
+
+  // ReLU DMA port
+  axi_from_mem #(
+    .MemAddrWidth ( 32              ),
+    .AxiAddrWidth ( AxiAddrWidth    ),
+    .DataWidth    ( AxiDataWidth    ),
+    .MaxRequests  ( 2               ),
+    .AxiProt      ( 3'b000          ),
+    .axi_req_t    ( axi_in_req_t    ),
+    .axi_rsp_t    ( axi_in_resp_t   )
+  ) u_axi_from_mem_relu_dma (
+    .clk_i           (clk_sys),
+    .rst_ni          (rst_sys_n),
+    .mem_req_i       (relu_dma_req),
+    .mem_addr_i      (relu_dma_addr),
+    .mem_we_i        (relu_dma_we),
+    .mem_wdata_i     (relu_dma_wdata),
+    .mem_be_i        (relu_dma_be),
+    .mem_gnt_o       (relu_dma_gnt),
+    .mem_rsp_valid_o (relu_dma_rvalid),
+    .mem_rsp_rdata_o (relu_dma_rdata),
+    .mem_rsp_error_o (relu_dma_err),
+    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
+    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
+    .axi_req_o       (xbar_slv_req[2]),
+    .axi_rsp_i       (xbar_slv_resp[2])
+  );
+
+  // -------------------------------------------------------------------------
   // AXI crossbar
   // -------------------------------------------------------------------------
   axi_xbar #(
@@ -473,6 +516,7 @@ module opensoc_top (
   assign mem_gnt[3] = mem_req[3]; // UART
   assign mem_gnt[4] = mem_req[4]; // GPIO
   assign mem_gnt[5] = mem_req[5]; // I2C
+  assign mem_gnt[6] = mem_req[6]; // ReLU
 
   // -------------------------------------------------------------------------
   // SRAM (single-port, crossbar arbitrates instr vs data)
@@ -600,6 +644,34 @@ module opensoc_top (
     .i2c_sda_o  (i2c_sda_o),
     .i2c_sda_oe (i2c_sda_oe),
     .i2c_sda_i  (i2c_sda_i)
+  );
+
+  // -------------------------------------------------------------------------
+  // ReLU Accelerator
+  // -------------------------------------------------------------------------
+  relu_accel u_relu_accel (
+    .clk_i          (clk_sys),
+    .rst_ni         (rst_sys_n),
+
+    .ctrl_req_i     (mem_req[6]),
+    .ctrl_addr_i    (mem_addr[6]),
+    .ctrl_we_i      (mem_we[6]),
+    .ctrl_be_i      (mem_strb[6]),
+    .ctrl_wdata_i   (mem_wdata[6]),
+    .ctrl_rvalid_o  (mem_rvalid[6]),
+    .ctrl_rdata_o   (mem_rdata[6]),
+
+    .dma_req_o      (relu_dma_req),
+    .dma_addr_o     (relu_dma_addr),
+    .dma_we_o       (relu_dma_we),
+    .dma_wdata_o    (relu_dma_wdata),
+    .dma_be_o       (relu_dma_be),
+    .dma_gnt_i      (relu_dma_gnt),
+    .dma_rvalid_i   (relu_dma_rvalid),
+    .dma_rdata_i    (relu_dma_rdata),
+    .dma_err_i      (relu_dma_err),
+
+    .irq_o          (relu_irq)
   );
 
   export "DPI-C" function mhpmcounter_num;

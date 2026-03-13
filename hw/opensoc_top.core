@@ -10,6 +10,7 @@ filesets:
       - lowrisc:ibex:ibex_top_tracing
       - lowrisc:ibex:sim_shared
       - "pulp-platform.org::axi"
+      - "opensoc:ip:relu_accel"
     files:
       - rtl/opensoc_top.sv
       - rtl/uart.sv
@@ -90,6 +91,7 @@ targets:
         verilator_options:
           - "-Wall"
           - "-Wno-REDEFMACRO"
+          - "-Wno-UNOPTFLAT"
           - "--unroll-count 72"
           - "--trace-fst"
           - "--trace-structs"

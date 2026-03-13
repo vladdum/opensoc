@@ -1,0 +1,17 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:relu_accel"
+description: "ReLU accelerator with DMA"
+filesets:
+  rtl:
+    files:
+      - rtl/dma_accel_core.sv
+      - rtl/relu_accel.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - rtl
