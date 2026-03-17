@@ -5,7 +5,8 @@
 FUSESOC = fusesoc
 CORES_ROOT = --cores-root=. --cores-root=hw/ip/ibex --cores-root=hw/ip/ibex/vendor/lowrisc_ip \
              --cores-root=hw/ip/common_cells --cores-root=hw/ip/pulp_axi \
-             --cores-root=hw/ip/relu_accel
+             --cores-root=hw/ip/relu_accel \
+             --cores-root=hw/ip/vec_mac
 
 .PHONY: help
 help:
@@ -22,6 +23,8 @@ help:
 	@echo "  make run-i2c         - Build and run i2c_test on simulator"
 	@echo "  make sw-relu         - Build relu_test SW binary"
 	@echo "  make run-relu        - Build and run relu_test on simulator"
+	@echo "  make sw-vmac         - Build vmac_test SW binary"
+	@echo "  make run-vmac        - Build and run vmac_test on simulator"
 	@echo "  make sim-dual-uart   - Build dual-UART Verilator simulator"
 	@echo "  make sw-uart-send    - Build uart_send SW binary"
 	@echo "  make sw-uart-recv    - Build uart_recv SW binary"
@@ -112,6 +115,18 @@ sw-relu:
 run-relu: sw-relu
 	cd $(SIM_DIR) && \
 	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/relu_test/relu_test.elf $(SIM_TRACE_FLAGS)
+	@echo "--- Program output ---"
+	@cat $(SIM_DIR)/opensoc_top.log
+	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
+
+.PHONY: sw-vmac
+sw-vmac:
+	$(MAKE) -C $(SW_TEST_DIR)/vmac_test ARCH=$(SW_ARCH)
+
+.PHONY: run-vmac
+run-vmac: sw-vmac
+	cd $(SIM_DIR) && \
+	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/vmac_test/vmac_test.elf $(SIM_TRACE_FLAGS)
 	@echo "--- Program output ---"
 	@cat $(SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)

@@ -99,6 +99,7 @@ module opensoc_top (
   logic gpio_irq;
   logic i2c_irq;
   logic relu_irq;
+  logic vmac_irq;
 
   // -------------------------------------------------------------------------
   // AXI type parameters
@@ -127,9 +128,9 @@ module opensoc_top (
   // -------------------------------------------------------------------------
   // Crossbar configuration
   // -------------------------------------------------------------------------
-  localparam int unsigned NumMasters = 3; // instr + data + ReLU DMA (xbar "slave ports")
-  localparam int unsigned NumSlaves  = 7; // RAM, SimCtrl, Timer, UART, GPIO, I2C, ReLU ctrl (xbar "master ports")
-  localparam int unsigned NumRules   = 7;
+  localparam int unsigned NumMasters = 4; // instr + data + ReLU DMA + VMAC DMA (xbar "slave ports")
+  localparam int unsigned NumSlaves  = 8; // RAM, SimCtrl, Timer, UART, GPIO, I2C, ReLU ctrl, VMAC ctrl (xbar "master ports")
+  localparam int unsigned NumRules   = 8;
 
   localparam axi_pkg::xbar_cfg_t XbarCfg = '{
     NoSlvPorts:         NumMasters,
@@ -155,7 +156,8 @@ module opensoc_top (
     '{ idx: 32'd3, start_addr: 32'h0004_0000, end_addr: 32'h0004_0400 }, // UART    1 kB
     '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }, // GPIO    1 kB
     '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }, // I2C     1 kB
-    '{ idx: 32'd6, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }  // ReLU    1 kB
+    '{ idx: 32'd6, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }, // ReLU    1 kB
+    '{ idx: 32'd7, start_addr: 32'h0008_0000, end_addr: 32'h0008_0400 }  // VMAC    1 kB
   };
 
   // -------------------------------------------------------------------------
@@ -312,7 +314,7 @@ module opensoc_top (
       .irq_software_i            (1'b0),
       .irq_timer_i               (timer_irq),
       .irq_external_i            (1'b0),
-      .irq_fast_i                ({11'b0, relu_irq, i2c_irq, gpio_irq, uart_irq}),
+      .irq_fast_i                ({10'b0, vmac_irq, relu_irq, i2c_irq, gpio_irq, uart_irq}),
       .irq_nm_i                  (1'b0),
 
       .scramble_key_valid_i      ('0),
@@ -442,6 +444,46 @@ module opensoc_top (
   );
 
   // -------------------------------------------------------------------------
+  // VMAC DMA signals (between vec_mac and axi_from_mem)
+  // -------------------------------------------------------------------------
+  logic        vmac_dma_req;
+  logic [31:0] vmac_dma_addr;
+  logic        vmac_dma_we;
+  logic [31:0] vmac_dma_wdata;
+  logic [3:0]  vmac_dma_be;
+  logic        vmac_dma_gnt;
+  logic        vmac_dma_rvalid;
+  logic [31:0] vmac_dma_rdata;
+  logic        vmac_dma_err;
+
+  // VMAC DMA port
+  axi_from_mem #(
+    .MemAddrWidth ( 32              ),
+    .AxiAddrWidth ( AxiAddrWidth    ),
+    .DataWidth    ( AxiDataWidth    ),
+    .MaxRequests  ( 2               ),
+    .AxiProt      ( 3'b000          ),
+    .axi_req_t    ( axi_in_req_t    ),
+    .axi_rsp_t    ( axi_in_resp_t   )
+  ) u_axi_from_mem_vmac_dma (
+    .clk_i           (clk_sys),
+    .rst_ni          (rst_sys_n),
+    .mem_req_i       (vmac_dma_req),
+    .mem_addr_i      (vmac_dma_addr),
+    .mem_we_i        (vmac_dma_we),
+    .mem_wdata_i     (vmac_dma_wdata),
+    .mem_be_i        (vmac_dma_be),
+    .mem_gnt_o       (vmac_dma_gnt),
+    .mem_rsp_valid_o (vmac_dma_rvalid),
+    .mem_rsp_rdata_o (vmac_dma_rdata),
+    .mem_rsp_error_o (vmac_dma_err),
+    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
+    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
+    .axi_req_o       (xbar_slv_req[3]),
+    .axi_rsp_i       (xbar_slv_resp[3])
+  );
+
+  // -------------------------------------------------------------------------
   // AXI crossbar
   // -------------------------------------------------------------------------
   axi_xbar #(
@@ -517,6 +559,7 @@ module opensoc_top (
   assign mem_gnt[4] = mem_req[4]; // GPIO
   assign mem_gnt[5] = mem_req[5]; // I2C
   assign mem_gnt[6] = mem_req[6]; // ReLU
+  assign mem_gnt[7] = mem_req[7]; // VMAC
 
   // -------------------------------------------------------------------------
   // SRAM (single-port, crossbar arbitrates instr vs data)
@@ -672,6 +715,34 @@ module opensoc_top (
     .dma_err_i      (relu_dma_err),
 
     .irq_o          (relu_irq)
+  );
+
+  // -------------------------------------------------------------------------
+  // Vector MAC Accelerator
+  // -------------------------------------------------------------------------
+  vec_mac u_vec_mac (
+    .clk_i          (clk_sys),
+    .rst_ni         (rst_sys_n),
+
+    .ctrl_req_i     (mem_req[7]),
+    .ctrl_addr_i    (mem_addr[7]),
+    .ctrl_we_i      (mem_we[7]),
+    .ctrl_be_i      (mem_strb[7]),
+    .ctrl_wdata_i   (mem_wdata[7]),
+    .ctrl_rvalid_o  (mem_rvalid[7]),
+    .ctrl_rdata_o   (mem_rdata[7]),
+
+    .dma_req_o      (vmac_dma_req),
+    .dma_addr_o     (vmac_dma_addr),
+    .dma_we_o       (vmac_dma_we),
+    .dma_wdata_o    (vmac_dma_wdata),
+    .dma_be_o       (vmac_dma_be),
+    .dma_gnt_i      (vmac_dma_gnt),
+    .dma_rvalid_i   (vmac_dma_rvalid),
+    .dma_rdata_i    (vmac_dma_rdata),
+    .dma_err_i      (vmac_dma_err),
+
+    .irq_o          (vmac_irq)
   );
 
   export "DPI-C" function mhpmcounter_num;

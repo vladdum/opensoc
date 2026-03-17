@@ -39,6 +39,8 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/gpio.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/i2c_controller.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/relu_accel.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/dma_accel_core.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/vec_mac.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/vec_mac_core.sv"
 
 // Dual-SoC wrapper: unused GPIO/I2C output signals
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_dual_uart.sv"

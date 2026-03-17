@@ -1,0 +1,17 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:vec_mac"
+description: "INT8 vector MAC accelerator with DMA"
+filesets:
+  rtl:
+    files:
+      - rtl/vec_mac_core.sv
+      - rtl/vec_mac.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - rtl

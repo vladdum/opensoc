@@ -11,6 +11,7 @@ filesets:
       - lowrisc:ibex:sim_shared
       - "pulp-platform.org::axi"
       - "opensoc:ip:relu_accel"
+      - "opensoc:ip:vec_mac"
     files:
       - rtl/opensoc_top.sv
       - rtl/uart.sv
