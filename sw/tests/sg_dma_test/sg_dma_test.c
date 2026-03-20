@@ -11,24 +11,8 @@
  */
 
 #include "simple_system_common.h"
+#include "opensoc_regs.h"
 #include <stdint.h>
-
-// ---------------------------------------------------------------------------
-// SG DMA registers (base 0x90000)
-// ---------------------------------------------------------------------------
-#define SGDMA_BASE          0x90000
-#define SGDMA_DESC_ADDR     (SGDMA_BASE + 0x00)
-#define SGDMA_CTRL          (SGDMA_BASE + 0x04)
-#define SGDMA_STATUS        (SGDMA_BASE + 0x08)
-#define SGDMA_IER           (SGDMA_BASE + 0x0C)
-#define SGDMA_COMPLETED_CNT (SGDMA_BASE + 0x10)
-#define SGDMA_ACTIVE_SRC    (SGDMA_BASE + 0x14)
-#define SGDMA_ACTIVE_DST    (SGDMA_BASE + 0x18)
-#define SGDMA_ACTIVE_LEN    (SGDMA_BASE + 0x1C)
-
-#define SGDMA_CTRL_GO       0x1
-#define SGDMA_STATUS_BUSY   0x1
-#define SGDMA_STATUS_DONE   0x2
 
 // ---------------------------------------------------------------------------
 // Descriptor struct layout (must be word-aligned, 20 bytes)
@@ -40,9 +24,6 @@ typedef struct __attribute__((packed, aligned(4))) {
   uint32_t ctrl;       // [0] IRQ_ON_DONE, [1] CHAIN
   uint32_t next_desc_addr;
 } sg_desc_t;
-
-#define DESC_CTRL_IRQ_ON_DONE 0x1
-#define DESC_CTRL_CHAIN       0x2
 
 // ---------------------------------------------------------------------------
 // Test buffers
@@ -205,13 +186,13 @@ static void test_chain_3desc(void) {
   chain_descs[0].src_addr       = (uint32_t)src_a;
   chain_descs[0].dst_addr       = (uint32_t)dst_a;
   chain_descs[0].word_len       = 4;
-  chain_descs[0].ctrl           = DESC_CTRL_CHAIN;
+  chain_descs[0].ctrl           = SGDMA_DESC_CTRL_CHAIN;
   chain_descs[0].next_desc_addr = (uint32_t)&chain_descs[1];
 
   chain_descs[1].src_addr       = (uint32_t)src_b;
   chain_descs[1].dst_addr       = (uint32_t)dst_b;
   chain_descs[1].word_len       = 4;
-  chain_descs[1].ctrl           = DESC_CTRL_CHAIN;
+  chain_descs[1].ctrl           = SGDMA_DESC_CTRL_CHAIN;
   chain_descs[1].next_desc_addr = (uint32_t)&chain_descs[2];
 
   chain_descs[2].src_addr       = (uint32_t)src_c;
@@ -343,13 +324,13 @@ static void test_chain_with_zero_len(void) {
   chain_descs[0].src_addr       = (uint32_t)src_a;
   chain_descs[0].dst_addr       = (uint32_t)dst_a;
   chain_descs[0].word_len       = 4;
-  chain_descs[0].ctrl           = DESC_CTRL_CHAIN;
+  chain_descs[0].ctrl           = SGDMA_DESC_CTRL_CHAIN;
   chain_descs[0].next_desc_addr = (uint32_t)&chain_descs[1];
 
   chain_descs[1].src_addr       = 0;
   chain_descs[1].dst_addr       = 0;
   chain_descs[1].word_len       = 0; // Zero length — skip
-  chain_descs[1].ctrl           = DESC_CTRL_CHAIN;
+  chain_descs[1].ctrl           = SGDMA_DESC_CTRL_CHAIN;
   chain_descs[1].next_desc_addr = (uint32_t)&chain_descs[2];
 
   chain_descs[2].src_addr       = (uint32_t)src_c;

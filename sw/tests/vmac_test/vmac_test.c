@@ -12,25 +12,8 @@
  */
 
 #include "simple_system_common.h"
+#include "opensoc_regs.h"
 #include <stdint.h>
-
-// ---------------------------------------------------------------------------
-// VMAC accelerator registers (base 0x80000)
-// ---------------------------------------------------------------------------
-#define VMAC_BASE       0x80000
-#define VMAC_SRC_A_ADDR (VMAC_BASE + 0x00)
-#define VMAC_SRC_B_ADDR (VMAC_BASE + 0x04)
-#define VMAC_DST_ADDR   (VMAC_BASE + 0x08)
-#define VMAC_LEN        (VMAC_BASE + 0x0C)
-#define VMAC_CTRL       (VMAC_BASE + 0x10)
-#define VMAC_STATUS     (VMAC_BASE + 0x14)
-#define VMAC_IER        (VMAC_BASE + 0x18)
-#define VMAC_RESULT     (VMAC_BASE + 0x1C)
-
-#define VMAC_CTRL_GO             0x1
-#define VMAC_CTRL_NO_ACCUM_CLEAR 0x2
-#define VMAC_STATUS_BUSY         0x1
-#define VMAC_STATUS_DONE         0x2
 
 // ---------------------------------------------------------------------------
 // Test buffers

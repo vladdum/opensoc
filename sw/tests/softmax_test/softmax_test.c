@@ -11,24 +11,8 @@
  */
 
 #include "simple_system_common.h"
+#include "opensoc_regs.h"
 #include <stdint.h>
-
-// ---------------------------------------------------------------------------
-// Softmax registers (base 0xA0000)
-// ---------------------------------------------------------------------------
-#define SMAX_BASE      0xA0000
-#define SMAX_CTRL      (SMAX_BASE + 0x00)
-#define SMAX_STATUS    (SMAX_BASE + 0x04)
-#define SMAX_SRC_ADDR  (SMAX_BASE + 0x08)
-#define SMAX_DST_ADDR  (SMAX_BASE + 0x0C)
-#define SMAX_VEC_LEN   (SMAX_BASE + 0x10)
-#define SMAX_IER       (SMAX_BASE + 0x14)
-#define SMAX_MAX_VAL   (SMAX_BASE + 0x18)
-#define SMAX_SUM_VAL   (SMAX_BASE + 0x1C)
-
-#define SMAX_CTRL_GO      0x1
-#define SMAX_STATUS_BUSY  0x1
-#define SMAX_STATUS_DONE  0x2
 
 // ---------------------------------------------------------------------------
 // exp LUT table (must match hardware exp_lut.sv, scale=46)

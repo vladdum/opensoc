@@ -48,7 +48,7 @@ module vec_mac_core #(
       automatic logic signed [7:0] a_val = signed'(a_data_i[8*i +: 8]);
       automatic logic signed [7:0] b_val = signed'(b_data_i[8*i +: 8]);
       products[i] = a_val * b_val;
-      partial_sum = partial_sum + 33'(signed'({1'b0, products[i]}));
+      partial_sum = partial_sum + 33'(products[i]);
     end
   end
 

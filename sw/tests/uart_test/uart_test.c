@@ -3,24 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "simple_system_common.h"
-
-#define UART_BASE    0x40000
-#define UART_THR     0x00
-#define UART_LSR     0x04
-#define UART_IER     0x08
-#define UART_DIV     0x0C
-
-#define UART_LSR_TX_READY  (1 << 0)
+#include "opensoc_regs.h"
 
 static void uart_init(uint32_t divisor) {
-  DEV_WRITE(UART_BASE + UART_DIV, divisor);
+  DEV_WRITE(UART_DIV, divisor);
 }
 
 static void uart_putc(char c) {
   // Poll until TX FIFO has space
-  while (!(DEV_READ(UART_BASE + UART_LSR, 0) & UART_LSR_TX_READY))
+  while (!(DEV_READ(UART_LSR, 0) & UART_LSR_TX_READY))
     ;
-  DEV_WRITE(UART_BASE + UART_THR, (uint32_t)c);
+  DEV_WRITE(UART_THR, (uint32_t)c);
 }
 
 static void uart_puts(const char *s) {

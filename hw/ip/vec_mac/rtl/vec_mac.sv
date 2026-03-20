@@ -98,6 +98,7 @@ module vec_mac #(
     RD_A_WAIT,
     RD_B_REQ,
     RD_B_WAIT,
+    COMPUTE,
     WR_REQ,
     WR_WAIT
   } state_e;
@@ -234,13 +235,18 @@ module vec_mac #(
 
       RD_B_WAIT: begin
         if (dma_rvalid_i) begin
-          // Trigger MAC accumulate (data latched in sequential block)
-          mac_valid = 1'b1;
-          if (remaining_q == 32'd1) begin
-            state_d = WR_REQ;
-          end else begin
-            state_d = RD_A_REQ;
-          end
+          // b_data_q latched in sequential block; go to COMPUTE next cycle
+          state_d = COMPUTE;
+        end
+      end
+
+      COMPUTE: begin
+        // b_data_q is now valid — trigger MAC accumulate
+        mac_valid = 1'b1;
+        if (remaining_q == 32'd0) begin
+          state_d = WR_REQ;
+        end else begin
+          state_d = RD_A_REQ;
         end
       end
 

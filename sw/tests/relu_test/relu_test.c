@@ -15,20 +15,7 @@
  */
 
 #include "simple_system_common.h"
-
-// ---------------------------------------------------------------------------
-// ReLU accelerator registers (base 0x70000)
-// ---------------------------------------------------------------------------
-#define RELU_BASE       0x70000
-#define RELU_SRC_ADDR   (RELU_BASE + 0x00)
-#define RELU_DST_ADDR   (RELU_BASE + 0x04)
-#define RELU_LEN        (RELU_BASE + 0x08)
-#define RELU_CTRL       (RELU_BASE + 0x0C)
-#define RELU_STATUS     (RELU_BASE + 0x10)
-#define RELU_IER        (RELU_BASE + 0x14)
-
-#define RELU_STATUS_BUSY 0x1
-#define RELU_STATUS_DONE 0x2
+#include "opensoc_regs.h"
 
 // ---------------------------------------------------------------------------
 // Test buffer size — 8192 words (32 KB per array, 64 KB total)

@@ -14,17 +14,7 @@
 #define UART_PROTOCOL_H_
 
 #include "simple_system_common.h"
-
-// ---------------------------------------------------------------------------
-// UART hardware registers (same base for both SoCs)
-// ---------------------------------------------------------------------------
-#define UART_BASE          0x40000
-#define UART_THR           0x00   // TX hold / RX buffer
-#define UART_LSR           0x04   // Line status
-#define UART_DIV           0x0C   // Baud divisor
-
-#define UART_LSR_TX_READY  (1 << 0)  // TX FIFO not full
-#define UART_LSR_RX_READY  (1 << 1)  // RX FIFO not empty
+#include "opensoc_regs.h"
 
 // ---------------------------------------------------------------------------
 // Protocol constants
@@ -55,19 +45,19 @@ typedef struct {
 // Low-level UART I/O (polling)
 // ---------------------------------------------------------------------------
 static inline void uart_init(uint32_t divisor) {
-  DEV_WRITE(UART_BASE + UART_DIV, divisor);
+  DEV_WRITE(UART_DIV, divisor);
 }
 
 static inline void uart_putc(uint8_t c) {
-  while (!(DEV_READ(UART_BASE + UART_LSR, 0) & UART_LSR_TX_READY))
+  while (!(DEV_READ(UART_LSR, 0) & UART_LSR_TX_READY))
     ;
-  DEV_WRITE(UART_BASE + UART_THR, (uint32_t)c);
+  DEV_WRITE(UART_THR, (uint32_t)c);
 }
 
 static inline uint8_t uart_getc(void) {
-  while (!(DEV_READ(UART_BASE + UART_LSR, 0) & UART_LSR_RX_READY))
+  while (!(DEV_READ(UART_LSR, 0) & UART_LSR_RX_READY))
     ;
-  return (uint8_t)(DEV_READ(UART_BASE + UART_THR, 0) & 0xFF);
+  return (uint8_t)(DEV_READ(UART_THR, 0) & 0xFF);
 }
 
 // ---------------------------------------------------------------------------
