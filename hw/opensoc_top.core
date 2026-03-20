@@ -12,6 +12,8 @@ filesets:
       - "pulp-platform.org::axi"
       - "opensoc:ip:relu_accel"
       - "opensoc:ip:vec_mac"
+      - "opensoc:ip:sg_dma"
+      - "opensoc:ip:softmax"
     files:
       - rtl/opensoc_top.sv
       - rtl/uart.sv

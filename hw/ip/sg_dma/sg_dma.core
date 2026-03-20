@@ -1,0 +1,16 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:sg_dma"
+description: "Scatter-gather DMA engine with descriptor chaining"
+filesets:
+  rtl:
+    files:
+      - rtl/sg_dma.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - rtl

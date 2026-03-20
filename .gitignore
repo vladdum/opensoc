@@ -3,6 +3,7 @@ build/
 
 # Claude Code
 .claude/
+docs/plans/
 *.o
 *.d
 *.elf
