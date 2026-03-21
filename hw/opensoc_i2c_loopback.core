@@ -1,0 +1,91 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:soc:opensoc_i2c_loopback"
+description: "I2C loopback wrapper (HW I2C master ↔ PIO I2C slave)"
+filesets:
+  files_rtl:
+    depend:
+      - opensoc:soc:opensoc_top
+    files:
+      - rtl/opensoc_i2c_loopback.sv
+    file_type: systemVerilogSource
+
+  files_lint_verilator:
+    files:
+      - lint/verilator_waiver.vlt: {file_type: vlt}
+
+  files_verilator_sim:
+    depend:
+      - lowrisc:dv_verilator:memutil_verilator
+      - lowrisc:dv_verilator:simutil_verilator
+    files:
+      - ../dv/verilator/opensoc_i2c_loopback_sim.cc: {file_type: cppSource}
+      - ../dv/verilator/opensoc_i2c_loopback_sim.h: {file_type: cppSource, is_include_file: true}
+      - ../dv/verilator/opensoc_i2c_loopback_main.cc: {file_type: cppSource}
+
+parameters:
+  RV32M:
+    datatype: str
+    default: ibex_pkg::RV32MFast
+    paramtype: vlogdefine
+    description: "RV32M implementation parameter enum"
+
+  RV32B:
+    datatype: str
+    default: ibex_pkg::RV32BNone
+    paramtype: vlogdefine
+    description: "Bitmanip implementation parameter enum"
+
+  RV32ZC:
+    datatype: str
+    default: ibex_pkg::RV32ZcaZcbZcmp
+    paramtype: vlogdefine
+    description: "Compressed instructions parameter enum"
+
+  RegFile:
+    datatype: str
+    default: ibex_pkg::RegFileFF
+    paramtype: vlogdefine
+    description: "Register file implementation parameter enum"
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+      - tool_verilator ? (files_lint_verilator)
+    toplevel: opensoc_i2c_loopback
+    parameters:
+      - RV32M
+      - RV32B
+      - RV32ZC
+      - RegFile
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-REDEFMACRO"
+          - "--unroll-count 72"
+
+  sim:
+    <<: *default_target
+    default_tool: verilator
+    filesets_append:
+      - files_verilator_sim
+    tools:
+      verilator:
+        mode: cc
+        verilator_options:
+          - "-Wall"
+          - "-Wno-REDEFMACRO"
+          - "--unroll-count 72"
+          - "--trace-fst"
+          - "--trace-structs"
+          - '-CFLAGS "-std=c++17 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=opensoc_i2c_loopback"'
+          - '-LDFLAGS "-pthread -lutil -lelf"'
