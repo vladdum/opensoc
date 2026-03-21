@@ -14,10 +14,10 @@ filesets:
       - "opensoc:ip:vec_mac"
       - "opensoc:ip:sg_dma"
       - "opensoc:ip:softmax"
+      - "opensoc:ip:pio"
     files:
       - rtl/opensoc_top.sv
       - rtl/uart.sv
-      - rtl/gpio.sv
       - rtl/i2c_controller.sv
     file_type: systemVerilogSource
 

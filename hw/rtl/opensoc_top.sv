@@ -42,10 +42,10 @@
  * simulators, a small amount of work may be required to support the
  * simulator_ctrl module.
  *
- * The interconnect uses a PULP AXI4 crossbar (axi_xbar) with three master ports
- * (instruction fetch, data, and ReLU DMA) bridged via axi_from_mem, and seven
- * slave ports (RAM, SimCtrl, Timer, UART, GPIO, I2C, ReLU ctrl) bridged via
- * axi_to_mem.
+ * The interconnect uses a PULP AXI4 crossbar (axi_xbar) with seven master ports
+ * (instruction fetch, data, ReLU DMA, VMAC DMA, SG DMA, Softmax DMA, PIO DMA)
+ * bridged via axi_from_mem, and ten slave ports (RAM, SimCtrl, Timer, UART, PIO,
+ * I2C, ReLU, VMAC, SG DMA, Softmax) bridged via axi_to_mem.
  */
 
 module opensoc_top (
@@ -96,7 +96,7 @@ module opensoc_top (
   // interrupts
   logic timer_irq;
   logic uart_irq;
-  logic gpio_irq;
+  logic pio_irq;
   logic i2c_irq;
   logic relu_irq;
   logic vmac_irq;
@@ -130,8 +130,8 @@ module opensoc_top (
   // -------------------------------------------------------------------------
   // Crossbar configuration
   // -------------------------------------------------------------------------
-  localparam int unsigned NumMasters = 6; // instr + data + ReLU DMA + VMAC DMA + SG DMA + Softmax DMA
-  localparam int unsigned NumSlaves  = 10; // RAM, SimCtrl, Timer, UART, GPIO, I2C, ReLU, VMAC, SG DMA, Softmax
+  localparam int unsigned NumMasters = 7; // instr + data + ReLU DMA + VMAC DMA + SG DMA + Softmax DMA + PIO DMA
+  localparam int unsigned NumSlaves  = 10; // RAM, SimCtrl, Timer, UART, PIO, I2C, ReLU, VMAC, SG DMA, Softmax
   localparam int unsigned NumRules   = 10;
 
   localparam axi_pkg::xbar_cfg_t XbarCfg = '{
@@ -156,7 +156,7 @@ module opensoc_top (
     '{ idx: 32'd1, start_addr: 32'h0002_0000, end_addr: 32'h0002_0400 }, // SimCtrl 1 kB
     '{ idx: 32'd2, start_addr: 32'h0003_0000, end_addr: 32'h0003_0400 }, // Timer   1 kB
     '{ idx: 32'd3, start_addr: 32'h0004_0000, end_addr: 32'h0004_0400 }, // UART    1 kB
-    '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }, // GPIO    1 kB
+    '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }, // PIO     1 kB
     '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }, // I2C     1 kB
     '{ idx: 32'd6, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }, // ReLU    1 kB
     '{ idx: 32'd7, start_addr: 32'h0008_0000, end_addr: 32'h0008_0400 }, // VMAC    1 kB
@@ -318,7 +318,7 @@ module opensoc_top (
       .irq_software_i            (1'b0),
       .irq_timer_i               (timer_irq),
       .irq_external_i            (1'b0),
-      .irq_fast_i                ({8'b0, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, gpio_irq, uart_irq}),
+      .irq_fast_i                ({8'b0, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq}),
       .irq_nm_i                  (1'b0),
 
       .scramble_key_valid_i      ('0),
@@ -568,6 +568,46 @@ module opensoc_top (
   );
 
   // -------------------------------------------------------------------------
+  // PIO DMA signals (between pio and axi_from_mem)
+  // -------------------------------------------------------------------------
+  logic        pio_dma_req;
+  logic [31:0] pio_dma_addr;
+  logic        pio_dma_we;
+  logic [31:0] pio_dma_wdata;
+  logic [3:0]  pio_dma_be;
+  logic        pio_dma_gnt;
+  logic        pio_dma_rvalid;
+  logic [31:0] pio_dma_rdata;
+  logic        pio_dma_err;
+
+  // PIO DMA port
+  axi_from_mem #(
+    .MemAddrWidth ( 32              ),
+    .AxiAddrWidth ( AxiAddrWidth    ),
+    .DataWidth    ( AxiDataWidth    ),
+    .MaxRequests  ( 2               ),
+    .AxiProt      ( 3'b000          ),
+    .axi_req_t    ( axi_in_req_t    ),
+    .axi_rsp_t    ( axi_in_resp_t   )
+  ) u_axi_from_mem_pio_dma (
+    .clk_i           (clk_sys),
+    .rst_ni          (rst_sys_n),
+    .mem_req_i       (pio_dma_req),
+    .mem_addr_i      (pio_dma_addr),
+    .mem_we_i        (pio_dma_we),
+    .mem_wdata_i     (pio_dma_wdata),
+    .mem_be_i        (pio_dma_be),
+    .mem_gnt_o       (pio_dma_gnt),
+    .mem_rsp_valid_o (pio_dma_rvalid),
+    .mem_rsp_rdata_o (pio_dma_rdata),
+    .mem_rsp_error_o (pio_dma_err),
+    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
+    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
+    .axi_req_o       (xbar_slv_req[6]),
+    .axi_rsp_i       (xbar_slv_resp[6])
+  );
+
+  // -------------------------------------------------------------------------
   // AXI crossbar
   // -------------------------------------------------------------------------
   axi_xbar #(
@@ -640,7 +680,7 @@ module opensoc_top (
   assign mem_gnt[1] = mem_req[1]; // SimCtrl
   assign mem_gnt[2] = mem_req[2]; // Timer
   assign mem_gnt[3] = mem_req[3]; // UART
-  assign mem_gnt[4] = mem_req[4]; // GPIO
+  assign mem_gnt[4] = mem_req[4]; // PIO
   assign mem_gnt[5] = mem_req[5]; // I2C
   assign mem_gnt[6] = mem_req[6]; // ReLU
   assign mem_gnt[7] = mem_req[7]; // VMAC
@@ -729,25 +769,35 @@ module opensoc_top (
   );
 
   // -------------------------------------------------------------------------
-  // GPIO
+  // PIO (replaces GPIO — provides GPIO-compatible DIR/OUT/IN registers)
   // -------------------------------------------------------------------------
-  gpio u_gpio (
-    .clk_i     (clk_sys),
-    .rst_ni    (rst_sys_n),
+  pio u_pio (
+    .clk_i          (clk_sys),
+    .rst_ni         (rst_sys_n),
 
-    .req_i     (mem_req[4]),
-    .addr_i    (mem_addr[4]),
-    .we_i      (mem_we[4]),
-    .be_i      (mem_strb[4]),
-    .wdata_i   (mem_wdata[4]),
-    .rvalid_o  (mem_rvalid[4]),
-    .rdata_o   (mem_rdata[4]),
+    .ctrl_req_i     (mem_req[4]),
+    .ctrl_addr_i    (mem_addr[4]),
+    .ctrl_we_i      (mem_we[4]),
+    .ctrl_be_i      (mem_strb[4]),
+    .ctrl_wdata_i   (mem_wdata[4]),
+    .ctrl_rvalid_o  (mem_rvalid[4]),
+    .ctrl_rdata_o   (mem_rdata[4]),
 
-    .irq_o     (gpio_irq),
+    .dma_req_o      (pio_dma_req),
+    .dma_addr_o     (pio_dma_addr),
+    .dma_we_o       (pio_dma_we),
+    .dma_wdata_o    (pio_dma_wdata),
+    .dma_be_o       (pio_dma_be),
+    .dma_gnt_i      (pio_dma_gnt),
+    .dma_rvalid_i   (pio_dma_rvalid),
+    .dma_rdata_i    (pio_dma_rdata),
+    .dma_err_i      (pio_dma_err),
 
-    .gpio_i    (gpio_i),
-    .gpio_o    (gpio_o),
-    .gpio_oe   (gpio_oe)
+    .irq_o          (pio_irq),
+
+    .gpio_i         (gpio_i),
+    .gpio_o         (gpio_o),
+    .gpio_oe        (gpio_oe)
   );
 
   // -------------------------------------------------------------------------

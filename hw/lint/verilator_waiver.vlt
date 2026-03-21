@@ -35,7 +35,8 @@ lint_off -rule UNUSED -file "*/rtl/opensoc_top.sv"
 
 // New peripherals: unused upper bits of bus signals (addr, be, wdata) are expected
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/uart.sv"
-lint_off -rule UNUSEDSIGNAL  -file "*/rtl/gpio.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/pio.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/pio_sm.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/i2c_controller.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/relu_accel.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/dma_accel_core.sv"

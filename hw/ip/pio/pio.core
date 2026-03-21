@@ -1,0 +1,17 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:pio"
+description: "Programmable I/O block with 4 state machines and GPIO compatibility"
+filesets:
+  rtl:
+    files:
+      - rtl/pio_sm.sv
+      - rtl/pio.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - rtl

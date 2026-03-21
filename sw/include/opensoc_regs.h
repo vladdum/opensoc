@@ -15,7 +15,6 @@
 // SIM_CTRL_BASE (0x20000) and TIMER_BASE (0x30000) are defined in
 // simple_system_regs.h (included via simple_system_common.h).
 #define UART_BASE       0x40000
-#define GPIO_BASE       0x50000
 #define I2C_BASE        0x60000
 #define RELU_BASE       0x70000
 #define VMAC_BASE       0x80000
@@ -39,13 +38,72 @@
 #define UART_LSR_RX_READY  (1 << 1)
 
 // ---------------------------------------------------------------------------
-// GPIO (0x50000)
+// PIO (0x50000) — Programmable I/O block (replaces GPIO)
 // ---------------------------------------------------------------------------
-#define GPIO_DIR        (GPIO_BASE + 0x00)  // Direction (1=output)
-#define GPIO_OUT        (GPIO_BASE + 0x04)  // Output data
-#define GPIO_IN         (GPIO_BASE + 0x08)  // Input data (read-only)
-#define GPIO_IRQ_EN     (GPIO_BASE + 0x0C)  // IRQ enable mask
-#define GPIO_IRQ_STATUS (GPIO_BASE + 0x10)  // IRQ status (write-1-clear)
+#define PIO_BASE        0x50000
+
+#define PIO_CTRL        (PIO_BASE + 0x000)  // SM enable[3:0], restart[7:4], clkdiv_restart[11:8]
+#define PIO_FSTAT       (PIO_BASE + 0x004)  // FIFO status (TX empty/full, RX empty/full)
+#define PIO_TXF0        (PIO_BASE + 0x010)  // TX FIFO SM0 (write)
+#define PIO_TXF1        (PIO_BASE + 0x014)  // TX FIFO SM1 (write)
+#define PIO_TXF2        (PIO_BASE + 0x018)  // TX FIFO SM2 (write)
+#define PIO_TXF3        (PIO_BASE + 0x01C)  // TX FIFO SM3 (write)
+#define PIO_RXF0        (PIO_BASE + 0x020)  // RX FIFO SM0 (read)
+#define PIO_RXF1        (PIO_BASE + 0x024)  // RX FIFO SM1 (read)
+#define PIO_RXF2        (PIO_BASE + 0x028)  // RX FIFO SM2 (read)
+#define PIO_RXF3        (PIO_BASE + 0x02C)  // RX FIFO SM3 (read)
+#define PIO_IRQ         (PIO_BASE + 0x030)  // IRQ flags (W1C)
+#define PIO_IRQ_FORCE   (PIO_BASE + 0x034)  // IRQ force (W1S)
+#define PIO_DBG_PADOUT  (PIO_BASE + 0x03C)  // Debug: pin output state
+#define PIO_DBG_PADOE   (PIO_BASE + 0x040)  // Debug: pin OE state
+#define PIO_DBG_CFGINFO (PIO_BASE + 0x044)  // Debug: config info
+#define PIO_INSTR_MEM0  (PIO_BASE + 0x048)  // Instruction memory [0]
+// INSTR_MEM[n] = PIO_BASE + 0x048 + n*4 (n=0..31)
+
+// Per-SM registers: base = PIO_BASE + 0x0C8 + sm*0x20
+#define PIO_SM0_BASE    (PIO_BASE + 0x0C8)
+#define PIO_SM_STRIDE   0x20
+#define PIO_SM_CLKDIV(sm)    (PIO_SM0_BASE + (sm)*PIO_SM_STRIDE + 0x00)
+#define PIO_SM_EXECCTRL(sm)  (PIO_SM0_BASE + (sm)*PIO_SM_STRIDE + 0x04)
+#define PIO_SM_SHIFTCTRL(sm) (PIO_SM0_BASE + (sm)*PIO_SM_STRIDE + 0x08)
+#define PIO_SM_ADDR(sm)      (PIO_SM0_BASE + (sm)*PIO_SM_STRIDE + 0x0C)
+#define PIO_SM_INSTR(sm)     (PIO_SM0_BASE + (sm)*PIO_SM_STRIDE + 0x10)
+#define PIO_SM_PINCTRL(sm)   (PIO_SM0_BASE + (sm)*PIO_SM_STRIDE + 0x14)
+
+// GPIO-compatible registers
+#define PIO_GPIO_DIR    (PIO_BASE + 0x148)  // Direction (1=output)
+#define PIO_GPIO_OUT    (PIO_BASE + 0x14C)  // Output data
+#define PIO_GPIO_IN     (PIO_BASE + 0x150)  // Input data (read-only)
+
+// DMA registers
+#define PIO_DMA_CTRL    (PIO_BASE + 0x154)  // DMA control: GO[0], BUSY[1], DONE[2], DIR[3], SM[5:4], LEN[21:6], IE[31]
+#define PIO_DMA_ADDR    (PIO_BASE + 0x158)  // DMA base address
+
+// PIO instruction encoding helpers
+#define PIO_INSTR_JMP(cond, addr)         (((0) << 13) | ((cond) << 5) | (addr))
+#define PIO_INSTR_WAIT(pol, src, idx)     (((1) << 13) | ((pol) << 7) | ((src) << 5) | (idx))
+#define PIO_INSTR_IN(src, cnt)            (((2) << 13) | ((src) << 5) | (cnt))
+#define PIO_INSTR_OUT(dst, cnt)           (((3) << 13) | ((dst) << 5) | (cnt))
+#define PIO_INSTR_PUSH(if_f, blk)         (((4) << 13) | ((if_f) << 6) | ((blk) << 5))
+#define PIO_INSTR_PULL(if_e, blk)         (((4) << 13) | (1 << 7) | ((if_e) << 6) | ((blk) << 5))
+#define PIO_INSTR_MOV(dst, op, src)       (((5) << 13) | ((dst) << 5) | ((op) << 3) | (src))
+#define PIO_INSTR_IRQ(wait, clr, idx)     (((6) << 13) | ((wait) << 6) | ((clr) << 5) | (idx))
+#define PIO_INSTR_SET(dst, data)          (((7) << 13) | ((dst) << 5) | (data))
+#define PIO_INSTR_NOP                     PIO_INSTR_MOV(0, 0, 0)  // MOV PINS, PINS (no-op equivalent)
+
+// With delay: OR in (delay << 8) to any instruction
+#define PIO_DELAY(instr, d)               ((instr) | ((d) << 8))
+
+// FSTAT bit positions
+#define PIO_FSTAT_TX_EMPTY(sm)  (1 << (24 + (sm)))
+#define PIO_FSTAT_TX_FULL(sm)   (1 << (16 + (sm)))
+#define PIO_FSTAT_RX_EMPTY(sm)  (1 << (8  + (sm)))
+#define PIO_FSTAT_RX_FULL(sm)   (1 << (0  + (sm)))
+
+// Legacy GPIO compatibility (same bus address, different register offsets)
+#define GPIO_DIR        PIO_GPIO_DIR
+#define GPIO_OUT        PIO_GPIO_OUT
+#define GPIO_IN         PIO_GPIO_IN
 
 // ---------------------------------------------------------------------------
 // I2C Controller (0x60000)
@@ -136,7 +194,7 @@
 // IRQ assignments (irq_fast_i bit positions)
 // ---------------------------------------------------------------------------
 #define IRQ_UART    0
-#define IRQ_GPIO    1
+#define IRQ_PIO     1
 #define IRQ_I2C     2
 #define IRQ_RELU    3
 #define IRQ_VMAC    4
