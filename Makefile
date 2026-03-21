@@ -24,6 +24,8 @@ help:
 	@echo "  make run-pio         - Build and run pio_test on simulator"
 	@echo "  make sw-pio-sdk      - Build pio_sdk_test SW binary"
 	@echo "  make run-pio-sdk     - Build and run pio_sdk_test on simulator"
+	@echo "  make sw-pio-i2c      - Build pio_i2c_test SW binary"
+	@echo "  make run-pio-i2c     - Build and run pio_i2c_test on simulator"
 	@echo "  make sw-i2c          - Build i2c_test SW binary"
 	@echo "  make run-i2c         - Build and run i2c_test on simulator"
 	@echo "  make sw-relu         - Build relu_test SW binary"
@@ -112,6 +114,18 @@ sw-pio-sdk:
 run-pio-sdk: sw-pio-sdk
 	cd $(SIM_DIR) && \
 	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/pio_sdk_test/pio_sdk_test.elf $(SIM_TRACE_FLAGS)
+	@echo "--- Program output ---"
+	@cat $(SIM_DIR)/opensoc_top.log
+	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
+
+.PHONY: sw-pio-i2c
+sw-pio-i2c:
+	$(MAKE) -C $(SW_TEST_DIR)/pio_i2c_test ARCH=$(SW_ARCH)
+
+.PHONY: run-pio-i2c
+run-pio-i2c: sw-pio-i2c
+	cd $(SIM_DIR) && \
+	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/pio_i2c_test/pio_i2c_test.elf $(SIM_TRACE_FLAGS)
 	@echo "--- Program output ---"
 	@cat $(SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
