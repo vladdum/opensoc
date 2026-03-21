@@ -8,7 +8,16 @@ OpenSoC is a RISC-V SoC built on the lowRISC **Ibex** CPU core. The top-level mo
 
 ## Build Commands
 
-All builds use **FuseSoC** and must run under WSL/Linux (not native Windows):
+All builds use **FuseSoC** and must run under WSL/Linux (not native Windows).
+
+**Always invoke make via WSL from the Windows shell:**
+
+```bash
+wsl bash -lc "cd /mnt/c/GitHub/opensoc && make lint"
+wsl bash -lc "cd /mnt/c/GitHub/opensoc && make run-hello"
+```
+
+The login shell (`-lc`) is required so that PATH includes FuseSoC, Verilator, and the RISC-V toolchain.
 
 ```bash
 # Verilator lint (the primary build target today)
@@ -64,7 +73,8 @@ Memory map: RAM at 0x100000 (1 MB), SimCtrl at 0x20000, Timer at 0x30000, UART a
   - `hardware/pio_instructions.h` — Instruction encoders + `enum pio_src_dest`
   - `hardware/structs/pio.h` — `pio_hw_t` / `pio_sm_hw_t` register struct definitions
   - `hardware_pio_compat.h` — OpenSoC-specific glue (`hw_set_bits`, `clock_get_hz`, GPIO stubs)
-- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, relu, vmac, sg_dma, softmax)
+  - `pio_programs/i2c.pio.h` — PIO I2C TX program (pioasm-format header with init/write helpers)
+- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, pio_i2c, relu, vmac, sg_dma, softmax)
 
 ## FuseSoC Core Dependencies
 
