@@ -45,6 +45,8 @@ module pio_sm (
   input  logic [4:0]  pinctrl_in_base_i,
   input  logic [4:0]  pinctrl_sideset_base_i,
   input  logic [2:0]  pinctrl_sideset_count_i,
+  input  logic        execctrl_side_en_i,     // EXECCTRL[30]: optional sideset enable
+  input  logic        execctrl_side_pindir_i,  // EXECCTRL[29]: sideset targets pindirs
 
   // FIFO interface
   output logic        tx_pull_o,
@@ -114,6 +116,10 @@ module pio_sm (
   logic        stall;
   logic        do_sideset;
 
+  // EXEC pending register (for OUT EXEC / MOV EXEC)
+  logic [15:0] exec_pending_q;
+  logic        exec_pending_valid_q;
+
   // ===========================================================================
   // Output assigns
   // ===========================================================================
@@ -128,8 +134,10 @@ module pio_sm (
   // Delay
   assign in_delay = (delay_cnt_q != 5'd0);
 
-  // Instruction selection: forced vs. normal fetch
-  assign exec_instr = use_forced_q ? force_instr_i : instr_i;
+  // Instruction selection: forced > exec_pending > normal fetch
+  assign exec_instr = use_forced_q      ? force_instr_i :
+                       exec_pending_valid_q ? exec_pending_q :
+                                              instr_i;
 
   // Instruction decode fields
   assign opcode        = exec_instr[15:13];
@@ -274,47 +282,91 @@ module pio_sm (
   // ===========================================================================
   // Delay and side-set field split — combinational
   // ===========================================================================
-  // Side-set uses top N bits of delay_sideset field
-  // Delay uses remaining bits
+  // Side-set uses top N bits of delay_sideset field (N = pinctrl_sideset_count).
+  // When SIDE_EN=1, the MSB of those N bits is an enable flag, and the
+  // remaining (N-1) bits are the actual sideset data.
+  // Delay uses the remaining bits below the sideset field.
   always_comb begin
     sideset_val = 5'd0;
     instr_delay = 5'd0;
+    do_sideset  = 1'b0;
     case (pinctrl_sideset_count_i)
       3'd0: begin
         instr_delay = delay_sideset;
+        do_sideset  = 1'b0;
       end
       3'd1: begin
-        sideset_val = {4'd0, delay_sideset[4]};
-        instr_delay = {1'b0, delay_sideset[3:0]};
+        if (execctrl_side_en_i) begin
+          // 1 bit allocated: MSB is enable, 0 data bits
+          do_sideset  = delay_sideset[4];
+          sideset_val = 5'd0;
+          instr_delay = {1'b0, delay_sideset[3:0]};
+        end else begin
+          sideset_val = {4'd0, delay_sideset[4]};
+          instr_delay = {1'b0, delay_sideset[3:0]};
+          do_sideset  = 1'b1;
+        end
       end
       3'd2: begin
-        sideset_val = {3'd0, delay_sideset[4:3]};
-        instr_delay = {2'b0, delay_sideset[2:0]};
+        if (execctrl_side_en_i) begin
+          // 2 bits allocated: MSB is enable, 1 data bit
+          do_sideset  = delay_sideset[4];
+          sideset_val = {4'd0, delay_sideset[3]};
+          instr_delay = {2'b0, delay_sideset[2:0]};
+        end else begin
+          sideset_val = {3'd0, delay_sideset[4:3]};
+          instr_delay = {2'b0, delay_sideset[2:0]};
+          do_sideset  = 1'b1;
+        end
       end
       3'd3: begin
-        sideset_val = {2'd0, delay_sideset[4:2]};
-        instr_delay = {3'b0, delay_sideset[1:0]};
+        if (execctrl_side_en_i) begin
+          // 3 bits allocated: MSB is enable, 2 data bits
+          do_sideset  = delay_sideset[4];
+          sideset_val = {3'd0, delay_sideset[3:2]};
+          instr_delay = {3'b0, delay_sideset[1:0]};
+        end else begin
+          sideset_val = {2'd0, delay_sideset[4:2]};
+          instr_delay = {3'b0, delay_sideset[1:0]};
+          do_sideset  = 1'b1;
+        end
       end
       3'd4: begin
-        sideset_val = {1'd0, delay_sideset[4:1]};
-        instr_delay = {4'b0, delay_sideset[0]};
+        if (execctrl_side_en_i) begin
+          // 4 bits allocated: MSB is enable, 3 data bits
+          do_sideset  = delay_sideset[4];
+          sideset_val = {2'd0, delay_sideset[3:1]};
+          instr_delay = {4'b0, delay_sideset[0]};
+        end else begin
+          sideset_val = {1'd0, delay_sideset[4:1]};
+          instr_delay = {4'b0, delay_sideset[0]};
+          do_sideset  = 1'b1;
+        end
       end
       3'd5: begin
-        sideset_val = delay_sideset;
-        instr_delay = 5'd0;
+        if (execctrl_side_en_i) begin
+          // 5 bits allocated: MSB is enable, 4 data bits
+          do_sideset  = delay_sideset[4];
+          sideset_val = {1'd0, delay_sideset[3:0]};
+          instr_delay = 5'd0;
+        end else begin
+          sideset_val = delay_sideset;
+          instr_delay = 5'd0;
+          do_sideset  = 1'b1;
+        end
       end
       default: begin
         instr_delay = delay_sideset;
+        do_sideset  = 1'b0;
       end
     endcase
   end
 
   // ===========================================================================
-  // Stall / side-set control — combinational
+  // Stall control — combinational
   // ===========================================================================
   always_comb begin
-    stall      = 1'b0;
-    do_sideset = 1'b1;
+    stall = 1'b0;
   end
 
   // ===========================================================================
@@ -331,7 +383,9 @@ module pio_sm (
       osr_cnt_q   <= 6'd0;
       pins_out_q  <= 32'd0;
       pins_oe_q   <= 32'd0;
-      delay_cnt_q <= 5'd0;
+      delay_cnt_q          <= 5'd0;
+      exec_pending_q       <= 16'd0;
+      exec_pending_valid_q <= 1'b0;
       irq_set_o   <= 8'd0;
       irq_clr_o   <= 8'd0;
       tx_pull_o   <= 1'b0;
@@ -346,14 +400,15 @@ module pio_sm (
 
       // Restart: reset PC and registers but NOT FIFOs
       if (restart_i) begin
-        pc_q        <= execctrl_wrap_bot_i;
-        isr_q       <= 32'd0;
-        osr_q       <= 32'd0;
-        x_q         <= 32'd0;
-        y_q         <= 32'd0;
-        isr_cnt_q   <= 6'd0;
-        osr_cnt_q   <= 6'd0;
-        delay_cnt_q <= 5'd0;
+        pc_q                 <= execctrl_wrap_bot_i;
+        isr_q                <= 32'd0;
+        osr_q                <= 32'd0;
+        x_q                  <= 32'd0;
+        y_q                  <= 32'd0;
+        isr_cnt_q            <= 6'd0;
+        osr_cnt_q            <= 6'd0;
+        delay_cnt_q          <= 5'd0;
+        exec_pending_valid_q <= 1'b0;
       end else if (tick) begin
         // ---------------------------------------------------------------
         // Delay phase: count down, no instruction execution
@@ -397,10 +452,22 @@ module pio_sm (
           automatic logic [2:0]  irq_flag_idx = irq_rel_idx(irq_idx_raw, sm_idx_i);
 
           // Side-set: apply on first cycle of instruction (including first stall cycle)
-          if (pinctrl_sideset_count_i != 3'd0) begin
-            pins_out_q <= write_pins(pins_out_q, {27'd0, sideset_val},
-                                     pinctrl_sideset_base_i,
-                                     {3'd0, pinctrl_sideset_count_i});
+          // When SIDE_EN=1, do_sideset comes from the instruction enable bit.
+          // When SIDE_PINDIR=1, sideset targets pindirs (pins_oe_q) not pins_out_q.
+          // Effective sideset width: sideset_count when !SIDE_EN, sideset_count-1 when SIDE_EN.
+          if (do_sideset) begin
+            automatic logic [2:0] ss_width = execctrl_side_en_i ?
+                                             (pinctrl_sideset_count_i - 3'd1) :
+                                             pinctrl_sideset_count_i;
+            if (execctrl_side_pindir_i) begin
+              pins_oe_q <= write_pins(pins_oe_q, {27'd0, sideset_val},
+                                      pinctrl_sideset_base_i,
+                                      {3'd0, ss_width});
+            end else begin
+              pins_out_q <= write_pins(pins_out_q, {27'd0, sideset_val},
+                                       pinctrl_sideset_base_i,
+                                       {3'd0, ss_width});
+            end
           end
 
           case (opcode)
@@ -543,7 +610,10 @@ module pio_sm (
                     isr_q     <= out_data;
                     isr_cnt_q <= 6'd0;
                   end
-                  // 3'd7: EXEC — Phase 2, ignored
+                  3'd7: begin // EXEC — latch instruction from OSR, execute next tick
+                    exec_pending_q       <= out_data[15:0];
+                    exec_pending_valid_q <= 1'b1;
+                  end
                   default: ;
                 endcase
               end
@@ -640,7 +710,10 @@ module pio_sm (
                                                 pinctrl_out_count_i);
                 3'd1: x_q <= mov_val;
                 3'd2: y_q <= mov_val;
-                // 3'd4: EXEC — Phase 2
+                3'd4: begin // EXEC — latch instruction from MOV source, execute next tick
+                  exec_pending_q       <= mov_val[15:0];
+                  exec_pending_valid_q <= 1'b1;
+                end
                 3'd5: pc_q <= mov_val[4:0];   // PC
                 3'd6: begin isr_q <= mov_val; isr_cnt_q <= 6'd0; end
                 3'd7: osr_q <= mov_val;
@@ -724,14 +797,19 @@ module pio_sm (
             end
           endcase
 
-          // Forced instruction: don't advance PC unless instr itself changes it
-          if (use_forced_q && !do_stall) begin
-            // For forced instructions, only JMP/OUT PC/MOV PC change PC
-            // For other opcodes, PC should remain unchanged after forced exec
+          // Forced / exec_pending instruction: don't advance PC unless instr itself changes it
+          if ((use_forced_q || exec_pending_valid_q) && !do_stall) begin
+            // For forced/exec instructions, only JMP/OUT PC/MOV PC change PC
+            // For other opcodes, PC should remain unchanged after forced/exec
             if (opcode != 3'b000 && !(opcode == 3'b011 && out_dst == 3'd5) &&
                 !(opcode == 3'b101 && mov_dst == 3'd5)) begin
               pc_q <= pc_q; // Keep PC at current value
             end
+          end
+
+          // Clear exec_pending after execution (unless stalled)
+          if (exec_pending_valid_q && !do_stall) begin
+            exec_pending_valid_q <= 1'b0;
           end
         end // !in_delay
       end // tick

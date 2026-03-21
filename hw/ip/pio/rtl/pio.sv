@@ -621,6 +621,8 @@ module pio (
         .pinctrl_in_base_i       (sm_pinctrl_q[gi][19:15]),
         .pinctrl_sideset_base_i  (sm_pinctrl_q[gi][14:10]),
         .pinctrl_sideset_count_i (sm_pinctrl_q[gi][31:29]),
+        .execctrl_side_en_i      (sm_execctrl_q[gi][30]),
+        .execctrl_side_pindir_i  (sm_execctrl_q[gi][29]),
 
         .tx_pull_o  (sm_tx_pull[gi]),
         .tx_data_i  (sm_tx_data[gi]),
