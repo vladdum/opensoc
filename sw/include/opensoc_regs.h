@@ -79,6 +79,40 @@
 #define PIO_DMA_CTRL    (PIO_BASE + 0x154)  // DMA control: GO[0], BUSY[1], DONE[2], DIR[3], SM[5:4], LEN[21:6], IE[31]
 #define PIO_DMA_ADDR    (PIO_BASE + 0x158)  // DMA base address
 
+// PIO instruction operand constants (named alternatives to magic numbers)
+// JMP conditions (bits 7:5)
+#define PIO_JMP_ALWAYS    0  // Unconditional
+#define PIO_JMP_NOT_X     1  // !X (X is zero)
+#define PIO_JMP_X_DEC     2  // X-- (post-decrement, jump if old X nonzero)
+#define PIO_JMP_NOT_Y     3  // !Y (Y is zero)
+#define PIO_JMP_Y_DEC     4  // Y-- (post-decrement, jump if old Y nonzero)
+#define PIO_JMP_X_NE_Y    5  // X != Y
+#define PIO_JMP_PIN       6  // Input pin
+#define PIO_JMP_NOT_OSRE  7  // !OSRE (output shift register not empty)
+
+// IN sources / OUT destinations / MOV sources & destinations / SET destinations
+#define PIO_PINS      0  // IN src, OUT dst, SET dst, MOV src/dst
+#define PIO_X         1  // IN src, OUT dst, SET dst, MOV src/dst
+#define PIO_Y         2  // IN src, OUT dst, SET dst, MOV src/dst
+#define PIO_NULL      3  // IN src, OUT dst
+#define PIO_PINDIRS   4  // OUT dst, SET dst
+#define PIO_EXEC_MOV  4  // MOV dst only (execute shifted value)
+#define PIO_STATUS    5  // MOV src only
+#define PIO_PC        5  // OUT dst, MOV dst
+#define PIO_ISR       6  // IN src, OUT dst, MOV src/dst
+#define PIO_OSR       7  // IN src, MOV src/dst
+#define PIO_EXEC_OUT  7  // OUT dst only (execute shifted value)
+
+// MOV operations (bits 4:3)
+#define PIO_MOV_OP_NONE    0  // No operation
+#define PIO_MOV_OP_INVERT  1  // Bitwise invert
+#define PIO_MOV_OP_REVERSE 2  // Bit-reverse
+
+// WAIT sources (bits 6:5)
+#define PIO_WAIT_GPIO  0  // Absolute GPIO number
+#define PIO_WAIT_PIN   1  // Relative to IN_BASE
+#define PIO_WAIT_IRQ   2  // IRQ flag
+
 // PIO instruction encoding helpers
 #define PIO_INSTR_JMP(cond, addr)         (((0) << 13) | ((cond) << 5) | (addr))
 #define PIO_INSTR_WAIT(pol, src, idx)     (((1) << 13) | ((pol) << 7) | ((src) << 5) | (idx))

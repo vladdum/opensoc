@@ -59,7 +59,12 @@ Memory map: RAM at 0x100000 (1 MB), SimCtrl at 0x20000, Timer at 0x30000, UART a
 - `hw/ip/sg_dma/` — Scatter-gather DMA engine IP
 - `hw/ip/softmax/` — Softmax pipeline IP
 - `dv/` — Design verification (Verilator testbench)
-- `sw/tests/` — Test software (uart, i2c, pio, relu, vmac, sg_dma, softmax)
+- `sw/lib/` — Pico SDK-compatible PIO library (header-only)
+  - `hardware/pio.h` — Main API (PIO type, SM config, FIFO, program loading)
+  - `hardware/pio_instructions.h` — Instruction encoders + `enum pio_src_dest`
+  - `hardware/structs/pio.h` — `pio_hw_t` / `pio_sm_hw_t` register struct definitions
+  - `hardware_pio_compat.h` — OpenSoC-specific glue (`hw_set_bits`, `clock_get_hz`, GPIO stubs)
+- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, relu, vmac, sg_dma, softmax)
 
 ## FuseSoC Core Dependencies
 
