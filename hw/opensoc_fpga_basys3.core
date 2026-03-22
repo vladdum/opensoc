@@ -1,0 +1,39 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:fpga:basys3"
+description: "OpenSoC FPGA build for Digilent Basys 3 (Artix-7 XC7A35T)"
+
+filesets:
+  files_rtl:
+    depend:
+      - "opensoc:soc:opensoc_top"
+    files:
+      - fpga/basys3/opensoc_fpga_top.sv
+    file_type: systemVerilogSource
+
+  files_constraints:
+    files:
+      - fpga/basys3/basys3.xdc
+    file_type: xdc
+
+targets:
+  synth:
+    default_tool: vivado
+    filesets:
+      - files_rtl
+      - files_constraints
+    toplevel: opensoc_fpga_top
+    tools:
+      vivado:
+        part: xc7a35tcpg236-1
+    parameters:
+      - SYNTHESIS=true
+
+parameters:
+  SYNTHESIS:
+    datatype: bool
+    default: true
+    paramtype: vlogdefine
+    description: "Defined during FPGA synthesis to select direct clock assignment"

@@ -90,6 +90,7 @@ module opensoc_top (
   parameter bit                 ICacheECC                = 1'b0;
   parameter bit                 BranchPredictor          = 1'b0;
   parameter                     SRAMInitFile             = "";
+  parameter int unsigned        RamDepth                 = 1024*1024/4;
 
   logic clk_sys = 1'b0, rst_sys_n;
 
@@ -218,6 +219,9 @@ module opensoc_top (
   // Clock and reset
   // -------------------------------------------------------------------------
   `ifdef VERILATOR
+    assign clk_sys = IO_CLK;
+    assign rst_sys_n = IO_RST_N;
+  `elsif SYNTHESIS
     assign clk_sys = IO_CLK;
     assign rst_sys_n = IO_RST_N;
   `else
@@ -691,7 +695,7 @@ module opensoc_top (
   // SRAM (single-port, crossbar arbitrates instr vs data)
   // -------------------------------------------------------------------------
   ram_1p #(
-      .Depth(1024*1024/4),
+      .Depth(RamDepth),
       .MemInitFile(SRAMInitFile)
     ) u_ram (
       .clk_i       (clk_sys),

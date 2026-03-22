@@ -43,6 +43,7 @@ help:
 	@echo "  make sim-i2c-loopback - Build I2C loopback Verilator simulator"
 	@echo "  make sw-i2c-loopback  - Build I2C loopback test SW binary"
 	@echo "  make run-i2c-loopback - Build and run I2C loopback test"
+	@echo "  make synth           - Synthesize for Basys 3 FPGA (Vivado)"
 	@echo "  make clean           - Remove build directory"
 	@echo ""
 	@echo "Options:"
@@ -237,7 +238,13 @@ run-i2c-loopback: sw-i2c-loopback
 	cd $(I2C_LB_SIM_DIR) && \
 	  ./Vopensoc_i2c_loopback \
 	    --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/i2c_loopback_test/i2c_loopback_test.elf \
+	    -c 500000 \
 	    $(SIM_TRACE_FLAGS)
 	@echo "--- I2C Loopback output ---"
 	@cat $(I2C_LB_SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(I2C_LB_SIM_DIR)/sim.fst &,)
+
+# FPGA synthesis (Basys 3)
+.PHONY: synth
+synth:
+	$(FUSESOC) $(CORES_ROOT) run --target=synth opensoc:fpga:basys3
