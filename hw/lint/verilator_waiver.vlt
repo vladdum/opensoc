@@ -50,6 +50,9 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/exp_lut.sv"
 // Dual-SoC wrapper: unused GPIO/I2C output signals
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_dual_uart.sv"
 
+// I2C loopback wrapper: unused output signals (i2c_*_o, gpio_o, uart_tx)
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_i2c_loopback.sv"
+
 // Third-party IP: PULP AXI modules — waive all lint rules
 lint_off -rule WIDTH          -file "*/pulp-platform.org*axi*"
 lint_off -rule UNUSED         -file "*/pulp-platform.org*axi*"

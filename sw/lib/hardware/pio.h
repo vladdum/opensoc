@@ -23,6 +23,14 @@
 #include "hardware/structs/pio.h"
 #include "hardware/pio_instructions.h"
 #include "../hardware_pio_compat.h"
+
+// Portable count-trailing-zeros (avoids _pio_ctz → __ctzsi2 on bare-metal)
+static inline unsigned _pio_ctz(uint32_t v) {
+    unsigned n = 0;
+    if (v == 0) return 32;
+    while ((v & 1u) == 0) { v >>= 1; n++; }
+    return n;
+}
 #include "../../include/opensoc_regs.h"
 
 // -----------------------------------------------------------------------
@@ -464,7 +472,7 @@ static inline void pio_sm_set_pins_with_mask(PIO pio, unsigned sm,
                                                uint32_t pin_values, uint32_t pin_mask) {
     uint32_t pinctrl_saved = pio->sm[sm].pinctrl;
     while (pin_mask) {
-        unsigned base = __builtin_ctz(pin_mask);  // lowest set bit
+        unsigned base = _pio_ctz(pin_mask);  // lowest set bit
         pio->sm[sm].pinctrl = (base << PIO_SM0_PINCTRL_SET_BASE_LSB)
                             | (1u << PIO_SM0_PINCTRL_SET_COUNT_LSB);
         pio_sm_exec(pio, sm, pio_encode_set(pio_pins, (pin_values >> base) & 1u));
@@ -477,7 +485,7 @@ static inline void pio_sm_set_pindirs_with_mask(PIO pio, unsigned sm,
                                                   uint32_t pin_dirs, uint32_t pin_mask) {
     uint32_t pinctrl_saved = pio->sm[sm].pinctrl;
     while (pin_mask) {
-        unsigned base = __builtin_ctz(pin_mask);
+        unsigned base = _pio_ctz(pin_mask);
         pio->sm[sm].pinctrl = (base << PIO_SM0_PINCTRL_SET_BASE_LSB)
                             | (1u << PIO_SM0_PINCTRL_SET_COUNT_LSB);
         pio_sm_exec(pio, sm, pio_encode_set(pio_pindirs, (pin_dirs >> base) & 1u));

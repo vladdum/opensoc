@@ -75,7 +75,8 @@ module i2c_controller (
     I2C_STOP_A,     // SCL low, SDA low
     I2C_STOP_B,     // SCL high
     I2C_STOP_C,     // SDA high (release)
-    I2C_DONE
+    I2C_DONE,
+    I2C_WAIT_NEXT   // SCL low, wait for CPU to queue next byte
   } i2c_state_e;
 
   i2c_state_e state_q;
@@ -84,8 +85,11 @@ module i2c_controller (
   logic [7:0]  shift_q;
   logic        busy;
   logic        xfer_done;
+  logic        ctrl_pending_q;  // set when CPU writes CTRL, cleared when FSM consumes
+  logic [3:0]  xfer_ctrl_q;    // latched ctrl bits for current byte transfer
 
-  assign busy = (state_q != I2C_IDLE) && (state_q != I2C_DONE);
+  // WAIT_NEXT reports not-busy so CPU can queue next byte
+  assign busy = (state_q != I2C_IDLE) && (state_q != I2C_DONE) && (state_q != I2C_WAIT_NEXT);
 
   // Open-drain: drive low when oe=1, o=0; release (high-Z) when oe=0
   assign i2c_scl_o = 1'b0;
@@ -100,16 +104,18 @@ module i2c_controller (
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      state_q    <= I2C_IDLE;
-      clk_cnt_q  <= '0;
-      bit_cnt_q  <= '0;
-      shift_q    <= '0;
-      scl_oe_q   <= 1'b0;
-      sda_oe_q   <= 1'b0;
-      ack_recv_q <= 1'b0;
-      arb_lost_q <= 1'b0;
-      rx_data_q  <= '0;
-      xfer_done  <= 1'b0;
+      state_q        <= I2C_IDLE;
+      clk_cnt_q      <= '0;
+      bit_cnt_q      <= '0;
+      shift_q        <= '0;
+      scl_oe_q       <= 1'b0;
+      sda_oe_q       <= 1'b0;
+      ack_recv_q     <= 1'b0;
+      arb_lost_q     <= 1'b0;
+      rx_data_q      <= '0;
+      xfer_done      <= 1'b0;
+      ctrl_pending_q <= 1'b0;
+      xfer_ctrl_q    <= '0;
     end else begin
       xfer_done <= 1'b0;
 
@@ -119,6 +125,7 @@ module i2c_controller (
           sda_oe_q <= 1'b0; // release SDA
           if (ctrl_q[0]) begin // start requested
             // Begin start condition: SDA goes low while SCL is high
+            xfer_ctrl_q <= ctrl_q;  // latch STOP/RW/ACK bits
             shift_q   <= tx_data_q;
             bit_cnt_q <= 3'd7;
             clk_cnt_q <= prescale_q - 16'd1;
@@ -142,7 +149,7 @@ module i2c_controller (
           if (clk_tick) begin
             clk_cnt_q <= prescale_q - 16'd1;
             // Set up first data bit on SDA
-            sda_oe_q  <= ctrl_q[2] ? 1'b0 : ~shift_q[7]; // read: release SDA; write: drive bit
+            sda_oe_q  <= xfer_ctrl_q[2] ? 1'b0 : ~shift_q[7]; // read: release SDA; write: drive bit
             state_q   <= I2C_DATA_SCL_LO;
           end else begin
             clk_cnt_q <= clk_cnt_q - 16'd1;
@@ -165,7 +172,7 @@ module i2c_controller (
           // SCL high — sample SDA for read, check arb for write
           if (clk_tick) begin
             // Sample
-            if (ctrl_q[2]) begin
+            if (xfer_ctrl_q[2]) begin
               // Read mode: capture bit from SDA
               shift_q <= {shift_q[6:0], i2c_sda_i};
             end else begin
@@ -185,8 +192,8 @@ module i2c_controller (
               state_q  <= I2C_ACK_SCL_LO;
               // For write: release SDA to let slave ACK
               // For read: drive ACK/NACK based on ack_enable
-              if (ctrl_q[2]) begin
-                sda_oe_q <= ctrl_q[3] ? 1'b1 : 1'b0; // ACK (pull low) or NACK (release)
+              if (xfer_ctrl_q[2]) begin
+                sda_oe_q <= xfer_ctrl_q[3] ? 1'b1 : 1'b0; // ACK (pull low) or NACK (release)
               end else begin
                 sda_oe_q <= 1'b0; // release for slave ACK
               end
@@ -194,10 +201,10 @@ module i2c_controller (
               bit_cnt_q <= bit_cnt_q - 3'd1;
               state_q   <= I2C_DATA_SCL_LO;
               // Set up next data bit
-              if (ctrl_q[2]) begin
+              if (xfer_ctrl_q[2]) begin
                 sda_oe_q <= 1'b0; // read: keep SDA released
               end else begin
-                sda_oe_q <= ~shift_q[6]; // next bit (shift_q already shifted conceptually)
+                sda_oe_q <= ~shift_q[bit_cnt_q - 3'd1]; // next bit
               end
             end
           end else begin
@@ -219,23 +226,25 @@ module i2c_controller (
         I2C_ACK_SCL_HI: begin
           // SCL high — sample ACK
           if (clk_tick) begin
-            if (!ctrl_q[2]) begin
+            if (!xfer_ctrl_q[2]) begin
               // Write mode: sample slave's ACK (SDA low = ACK)
               ack_recv_q <= ~i2c_sda_i;
             end
-            if (ctrl_q[2]) begin
+            if (xfer_ctrl_q[2]) begin
               rx_data_q <= shift_q;
             end
 
             scl_oe_q  <= 1'b1; // pull SCL low
             clk_cnt_q <= prescale_q - 16'd1;
 
-            if (ctrl_q[1]) begin
+            if (xfer_ctrl_q[1]) begin
               // Stop requested
               sda_oe_q <= 1'b1; // pull SDA low for stop setup
               state_q  <= I2C_STOP_A;
             end else begin
-              state_q <= I2C_DONE;
+              // No stop — hold SCL low, wait for next byte from CPU
+              ctrl_pending_q <= 1'b0;
+              state_q <= I2C_WAIT_NEXT;
             end
           end else begin
             clk_cnt_q <= clk_cnt_q - 16'd1;
@@ -267,6 +276,31 @@ module i2c_controller (
 
         I2C_STOP_C: begin
           state_q <= I2C_DONE;
+        end
+
+        I2C_WAIT_NEXT: begin
+          // SCL held low from ACK_SCL_HI. Wait for CPU to write new CTRL.
+          scl_oe_q <= 1'b1;  // keep SCL low
+          if (ctrl_pending_q) begin
+            ctrl_pending_q <= 1'b0;
+            xfer_ctrl_q    <= ctrl_q;  // latch new ctrl bits for this byte
+            if (ctrl_q[0]) begin
+              // Repeated START requested
+              sda_oe_q  <= 1'b0; // release SDA before START
+              scl_oe_q  <= 1'b0; // release SCL
+              clk_cnt_q <= prescale_q - 16'd1;
+              shift_q   <= tx_data_q;
+              bit_cnt_q <= 3'd7;
+              state_q   <= I2C_START_A;
+            end else begin
+              // Continue: send next byte (may include STOP after ACK)
+              shift_q   <= tx_data_q;
+              bit_cnt_q <= 3'd7;
+              clk_cnt_q <= prescale_q - 16'd1;
+              sda_oe_q  <= ctrl_q[2] ? 1'b0 : ~tx_data_q[7]; // first data bit
+              state_q   <= I2C_DATA_SCL_LO;
+            end
+          end
         end
 
         I2C_DONE: begin
@@ -309,7 +343,10 @@ module i2c_controller (
         if (we_i) begin
           case (addr_i[9:0])
             REG_CTRL: begin
-              if (be_i[0]) ctrl_q <= wdata_i[3:0];
+              if (be_i[0]) begin
+                ctrl_q <= wdata_i[3:0];
+                ctrl_pending_q <= 1'b1;
+              end
             end
             REG_TX_DATA: begin
               if (be_i[0]) tx_data_q <= wdata_i[7:0];

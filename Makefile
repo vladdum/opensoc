@@ -40,6 +40,10 @@ help:
 	@echo "  make sw-uart-send    - Build uart_send SW binary"
 	@echo "  make sw-uart-recv    - Build uart_recv SW binary"
 	@echo "  make run-dual-uart   - Build and run dual-UART test"
+	@echo "  make sim-i2c-loopback - Build I2C loopback Verilator simulator"
+	@echo "  make sw-i2c-loopback  - Build I2C loopback test SW binary"
+	@echo "  make run-i2c-loopback - Build and run I2C loopback test"
+	@echo "  make synth           - Synthesize for Basys 3 FPGA (Vivado)"
 	@echo "  make clean           - Remove build directory"
 	@echo ""
 	@echo "Options:"
@@ -216,3 +220,31 @@ run-dual-uart: sw-uart-send sw-uart-recv
 	@echo "--- SoC0 output ---"
 	@cat $(DUAL_SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(DUAL_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_dual_uart.gtkw) &,)
+
+# I2C loopback targets
+I2C_LB_SIM_BIN = build/opensoc_soc_opensoc_i2c_loopback_0/sim-verilator/Vopensoc_i2c_loopback
+I2C_LB_SIM_DIR = build/opensoc_soc_opensoc_i2c_loopback_0/sim-verilator
+
+.PHONY: sim-i2c-loopback
+sim-i2c-loopback:
+	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build opensoc:soc:opensoc_i2c_loopback
+
+.PHONY: sw-i2c-loopback
+sw-i2c-loopback:
+	$(MAKE) -C $(SW_TEST_DIR)/i2c_loopback_test ARCH=$(SW_ARCH)
+
+.PHONY: run-i2c-loopback
+run-i2c-loopback: sw-i2c-loopback
+	cd $(I2C_LB_SIM_DIR) && \
+	  ./Vopensoc_i2c_loopback \
+	    --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/i2c_loopback_test/i2c_loopback_test.elf \
+	    -c 500000 \
+	    $(SIM_TRACE_FLAGS)
+	@echo "--- I2C Loopback output ---"
+	@cat $(I2C_LB_SIM_DIR)/opensoc_top.log
+	$(if $(WAVES),gtkwave $(I2C_LB_SIM_DIR)/sim.fst &,)
+
+# FPGA synthesis (Basys 3)
+.PHONY: synth
+synth:
+	$(FUSESOC) $(CORES_ROOT) run --target=synth opensoc:fpga:basys3

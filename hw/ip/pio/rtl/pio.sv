@@ -242,7 +242,8 @@ module pio (
       // Instruction memory: 0x048 to 0x0C4 (offsets 0x048 + i*4)
       if (ctrl_addr_i[9:0] >= REG_INSTR_MEM0 &&
           ctrl_addr_i[9:0] < (REG_INSTR_MEM0 + 10'(ImemSize * 4))) begin
-        automatic logic [4:0] imem_idx = ctrl_addr_i[6:2]; // bits [6:2] select 0-31
+        automatic logic [9:0] imem_off = ctrl_addr_i[9:0] - REG_INSTR_MEM0;
+        automatic logic [4:0] imem_idx = imem_off[6:2]; // word index 0-31
         instr_mem[imem_idx] <= ctrl_wdata_i[15:0];
       end
     end
@@ -488,8 +489,9 @@ module pio (
             // Per-SM register read
             if (ctrl_addr_i[9:0] >= REG_SM0_BASE &&
                 ctrl_addr_i[9:0] < (REG_SM0_BASE + 10'(NumSm * 'h20))) begin
-              automatic logic [1:0] sm = ctrl_addr_i[6:5];
-              case (ctrl_addr_i[4:0])
+              automatic logic [9:0] sm_off_r = ctrl_addr_i[9:0] - REG_SM0_BASE;
+              automatic logic [1:0] sm = sm_off_r[6:5];
+              case (sm_off_r[4:0])
                 SM_CLKDIV:    ctrl_rdata_o <= sm_clkdiv_q[sm];
                 SM_EXECCTRL:  ctrl_rdata_o <= {sm_stalled[sm], sm_execctrl_q[sm][30:0]};
                 SM_SHIFTCTRL: ctrl_rdata_o <= sm_shiftctrl_q[sm];
@@ -541,8 +543,9 @@ module pio (
             // Per-SM register write
             if (ctrl_addr_i[9:0] >= REG_SM0_BASE &&
                 ctrl_addr_i[9:0] < (REG_SM0_BASE + 10'(NumSm * 'h20))) begin
-              automatic logic [1:0] sm = ctrl_addr_i[6:5];
-              case (ctrl_addr_i[4:0])
+              automatic logic [9:0] sm_off_w = ctrl_addr_i[9:0] - REG_SM0_BASE;
+              automatic logic [1:0] sm = sm_off_w[6:5];
+              case (sm_off_w[4:0])
                 SM_CLKDIV:    sm_clkdiv_q[sm]    <= ctrl_wdata_i;
                 SM_EXECCTRL:  sm_execctrl_q[sm]   <= ctrl_wdata_i;
                 SM_SHIFTCTRL: sm_shiftctrl_q[sm]  <= ctrl_wdata_i;
@@ -621,6 +624,8 @@ module pio (
         .pinctrl_in_base_i       (sm_pinctrl_q[gi][19:15]),
         .pinctrl_sideset_base_i  (sm_pinctrl_q[gi][14:10]),
         .pinctrl_sideset_count_i (sm_pinctrl_q[gi][31:29]),
+        .execctrl_side_en_i      (sm_execctrl_q[gi][30]),
+        .execctrl_side_pindir_i  (sm_execctrl_q[gi][29]),
 
         .tx_pull_o  (sm_tx_pull[gi]),
         .tx_data_i  (sm_tx_data[gi]),
