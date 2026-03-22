@@ -140,6 +140,27 @@ static void i2c_master_send_byte_stop(uint8_t data) {
     i2c_wait_idle();
 }
 
+// Send START + address byte (7-bit addr + R bit) for master-read
+static void i2c_master_start_read(uint8_t addr) {
+    DEV_WRITE(I2C_TX_DATA, (addr << 1) | 1);  // address + read bit
+    DEV_WRITE(I2C_CTRL, I2C_CTRL_START);
+    i2c_wait_idle();
+}
+
+// Read a data byte from slave (master ACK, no STOP — for multi-byte reads)
+static uint32_t i2c_master_read_byte_ack(void) {
+    DEV_WRITE(I2C_CTRL, I2C_CTRL_RW | I2C_CTRL_ACK_EN);
+    if (i2c_wait_idle()) return 0xFFFFFFFF;
+    return DEV_READ(I2C_RX_DATA, 0) & 0xFF;
+}
+
+// Read a data byte from slave (master NAK + STOP — for last byte)
+static uint32_t i2c_master_read_byte_nak_stop(void) {
+    DEV_WRITE(I2C_CTRL, I2C_CTRL_RW | I2C_CTRL_STOP);
+    if (i2c_wait_idle()) return 0xFFFFFFFF;
+    return DEV_READ(I2C_RX_DATA, 0) & 0xFF;
+}
+
 // -----------------------------------------------------------------------
 // PIO slave setup
 // -----------------------------------------------------------------------
@@ -333,6 +354,152 @@ static void test_back_to_back(void) {
 }
 
 // -----------------------------------------------------------------------
+// Test 6: Single byte read (master reads from PIO slave via SM1)
+// -----------------------------------------------------------------------
+static void test_single_byte_read(void) {
+    puts("\n[Test: Single Byte Read]\n");
+
+    // Restart both SMs, clear FIFOs
+    pio_sm_restart(pio0, 0);
+    pio_sm_restart(pio0, 1);
+    pio_sm_clear_fifos(pio0, 0);
+    pio_sm_clear_fifos(pio0, 1);
+    pio_sm_set_enabled(pio0, 0, true);
+    pio_sm_set_enabled(pio0, 1, true);
+    spin(100);
+
+    // Master sends START + addr(0x42, R)
+    i2c_master_start_read(SLAVE_ADDR);
+    if (timed_out) return;
+
+    // SM0 received address byte
+    uint32_t addr_byte = slave_read_byte();
+    if (addr_byte == 0xFFFFFFFF) return;
+    check("Read: addr byte", addr_byte, (SLAVE_ADDR << 1) | 1);
+
+    // Disable SM0 so it doesn't try to read data bits or drive ACK
+    pio_sm_set_enabled(pio0, 0, false);
+
+    // Load data into SM1 TX FIFO (bit-inverted, left-aligned for shift-left)
+    uint8_t tx_val = 0xBE;
+    pio_sm_put_blocking(pio0, 1, (uint32_t)(~tx_val & 0xFFu) << 24);
+
+    // Signal SM1 to start transmitting
+    pio0->irq_force = (1u << 4);
+    spin(10);  // SM1 wakes, pulls data, sets up first bit on SDA
+
+    // Master reads byte with NAK + STOP (single byte read)
+    uint32_t rx_val = i2c_master_read_byte_nak_stop();
+    if (rx_val == 0xFFFFFFFF) return;
+    check("Read: data=0xBE", rx_val, 0xBE);
+}
+
+// -----------------------------------------------------------------------
+// Test 7: Multi-byte read (master reads 4 bytes from PIO slave)
+// -----------------------------------------------------------------------
+static void test_multi_byte_read(void) {
+    puts("\n[Test: Multi-Byte Read]\n");
+
+    uint8_t tx_data[] = {0x11, 0x22, 0x33, 0x44};
+
+    // Restart both SMs, clear FIFOs
+    pio_sm_restart(pio0, 0);
+    pio_sm_restart(pio0, 1);
+    pio_sm_clear_fifos(pio0, 0);
+    pio_sm_clear_fifos(pio0, 1);
+    pio_sm_set_enabled(pio0, 0, true);
+    pio_sm_set_enabled(pio0, 1, true);
+    spin(100);
+
+    // Master sends START + addr(0x42, R)
+    i2c_master_start_read(SLAVE_ADDR);
+    if (timed_out) return;
+
+    // SM0 received address byte
+    uint32_t addr = slave_read_byte();
+    if (addr == 0xFFFFFFFF) return;
+    check("Multi-read: addr byte", addr, (SLAVE_ADDR << 1) | 1);
+
+    // Disable SM0 to prevent interference during data phase
+    pio_sm_set_enabled(pio0, 0, false);
+
+    // Read 4 bytes: SM1 transmits, master reads
+    for (int i = 0; i < 4; i++) {
+        // Load byte into SM1 FIFO and signal it
+        pio_sm_put_blocking(pio0, 1, (uint32_t)(~tx_data[i] & 0xFFu) << 24);
+        pio0->irq_force = (1u << 4);  // Wake SM1 via IRQ 4
+        spin(10);
+
+        // Master reads byte
+        uint32_t got;
+        if (i < 3) {
+            // Middle bytes: ACK, no STOP
+            got = i2c_master_read_byte_ack();
+        } else {
+            // Last byte: NAK + STOP
+            got = i2c_master_read_byte_nak_stop();
+        }
+        if (got == 0xFFFFFFFF) return;
+
+        if (i == 0) check("Multi-read: data[0]=0x11", got, 0x11);
+        else if (i == 1) check("Multi-read: data[1]=0x22", got, 0x22);
+        else if (i == 2) check("Multi-read: data[2]=0x33", got, 0x33);
+        else check("Multi-read: data[3]=0x44", got, 0x44);
+
+        // Clear SM1's IRQ (relative flag 0 for SM1 = flag 1)
+        // so it returns to wait_signal for the next byte
+        if (i < 3) {
+            spin(10);
+            pio0->irq = (1u << 1);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------
+// Test 8: Clock stretching (delayed CPU servicing)
+// -----------------------------------------------------------------------
+static void test_clock_stretching(void) {
+    puts("\n[Test: Clock Stretching]\n");
+
+    // Restart SM0 for write test
+    pio_sm_restart(pio0, 0);
+    pio_sm_clear_fifos(pio0, 0);
+    pio_sm_set_enabled(pio0, 0, true);
+    spin(100);
+
+    // Master sends START + addr + 2 data bytes + STOP
+    // The CPU deliberately delays between sending and reading
+    // to verify the master-slave handshake tolerates processing delays
+    // (master holds SCL low in WAIT_NEXT while CPU is busy)
+    i2c_master_start_write(SLAVE_ADDR);
+
+    uint32_t addr = slave_read_byte();
+    if (addr == 0xFFFFFFFF) return;
+
+    // Long CPU processing delay — master waits in WAIT_NEXT
+    spin(1000);
+
+    // Send first data byte
+    i2c_master_send_byte(0xCA);
+
+    // Another long delay before reading slave FIFO
+    spin(1000);
+
+    uint32_t got1 = slave_read_byte();
+    if (got1 == 0xFFFFFFFF) return;
+    check("Stretch: data[0]=0xCA after delay", got1, 0xCA);
+
+    // Send second data byte with STOP
+    i2c_master_send_byte_stop(0xFE);
+
+    spin(500);
+
+    uint32_t got2 = slave_read_byte();
+    if (got2 == 0xFFFFFFFF) return;
+    check("Stretch: data[1]=0xFE after delay", got2, 0xFE);
+}
+
+// -----------------------------------------------------------------------
 // Main
 // -----------------------------------------------------------------------
 int main(void) {
@@ -344,6 +511,9 @@ int main(void) {
     if (!timed_out) test_multi_byte_write();
     if (!timed_out) test_data_patterns();
     if (!timed_out) test_back_to_back();
+    if (!timed_out) test_single_byte_read();
+    if (!timed_out) test_multi_byte_read();
+    if (!timed_out) test_clock_stretching();
     if (timed_out) puts("\n*** ABORTED: timeout — remaining tests skipped ***\n");
 
     puts("\n--- Results: ");
