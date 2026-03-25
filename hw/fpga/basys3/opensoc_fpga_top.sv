@@ -16,7 +16,7 @@
 //   USB-UART   ↔ UART TX/RX          — directly connected to FTDI bridge
 //   btnC       → reset               — active-high, inverted internally
 
-module opensoc_fpga_top (
+module opensoc_fpga_top import axi_pkg::*; (
   input  CLK100MHZ,
 
   // Buttons
@@ -148,8 +148,13 @@ module opensoc_fpga_top (
   // SoC instance
   // -------------------------------------------------------------------------
   opensoc_top #(
-    .RamDepth    (16384),   // 64 KB (16384 × 4 bytes)
-    .SRAMInitFile("")
+    .RamDepth        (16384),   // 64 KB (16384 × 4 bytes)
+    .SRAMInitFile    (""),
+    .EnableReLU      (1'b0),
+    .EnableVMAC      (1'b0),
+    .EnableSgDma     (1'b0),
+    .EnableSoftmax   (1'b0),
+    .XbarLatencyMode (axi_pkg::CUT_ALL_PORTS)
   ) u_soc (
     .IO_CLK    (clk_50),
     .IO_RST_N  (rst_n),

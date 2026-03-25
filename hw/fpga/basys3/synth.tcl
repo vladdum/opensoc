@@ -5,14 +5,12 @@
 # Vivado synthesis script for OpenSoC on Basys 3 (XC7A35T-1CPG236C)
 #
 # Prerequisites:
-#   Run FuseSoC setup first (from WSL or any shell with fusesoc):
-#     fusesoc --cores-root=. ... run --target=synth --setup opensoc:fpga:basys3
+#   Run FuseSoC setup first:
+#     make synth-setup
 #
-# Usage (from repo root in Vivado Tcl console or batch mode):
-#   source hw/fpga/basys3/synth.tcl
-#
-# Or from command line:
-#   vivado -mode batch -source hw/fpga/basys3/synth.tcl
+# Usage:
+#   make synth                  # full flow (setup + synthesis)
+#   vivado -mode batch -source hw/fpga/basys3/synth.tcl   # Vivado only
 
 # ============================================================================
 # Configuration — derive repo root from this script's location
@@ -32,13 +30,7 @@ set XDC_FILE    $REPO_ROOT/hw/fpga/basys3/basys3.xdc
 # ============================================================================
 if {![file exists $SRC_DIR]} {
     puts "ERROR: Source directory '$SRC_DIR' not found."
-    puts "Run FuseSoC setup first:"
-    puts "  wsl bash -lc \"cd /mnt/c/GitHub/opensoc && fusesoc --cores-root=. \\"
-    puts "    --cores-root=hw/ip/ibex --cores-root=hw/ip/ibex/vendor/lowrisc_ip \\"
-    puts "    --cores-root=hw/ip/common_cells --cores-root=hw/ip/pulp_axi \\"
-    puts "    --cores-root=hw/ip/relu_accel --cores-root=hw/ip/vec_mac \\"
-    puts "    --cores-root=hw/ip/sg_dma --cores-root=hw/ip/softmax \\"
-    puts "    --cores-root=hw/ip/pio run --target=synth --setup opensoc:fpga:basys3\""
+    puts "Run FuseSoC setup first:  make synth-setup"
     return -code error "FuseSoC setup required"
 }
 
@@ -188,36 +180,36 @@ add_files -fileset constrs_1 -norecurse $XDC_FILE
 set_property top $TOP [current_fileset]
 
 # ============================================================================
-# Synthesis
+# Synthesis (in-process — reliable in batch mode, unlike launch_runs)
 # ============================================================================
 puts "=========================================="
 puts " Running Synthesis..."
 puts "=========================================="
-launch_runs synth_1 -jobs [expr {max(1, [llength [get_parts -quiet]] > 0 ? 4 : 4)}]
-wait_on_run synth_1
-set synth_status [get_property STATUS [get_runs synth_1]]
-puts "Synthesis status: $synth_status"
-
-if {[get_property PROGRESS [get_runs synth_1]] != "100%"} {
-    puts "ERROR: Synthesis failed!"
-    return -code error "Synthesis failed"
-}
+synth_design -top $TOP -part $PART
+write_checkpoint -force $PROJ_DIR/post_synth.dcp
+report_utilization -file $PROJ_DIR/post_synth_utilization.txt
+report_timing_summary -file $PROJ_DIR/post_synth_timing.txt
+puts ""
+puts "Post-synthesis reports:"
+puts "  $PROJ_DIR/post_synth_utilization.txt"
+puts "  $PROJ_DIR/post_synth_timing.txt"
 
 # ============================================================================
 # Implementation (place & route)
 # ============================================================================
 puts "=========================================="
-puts " Running Implementation..."
+puts " Running Place & Route..."
 puts "=========================================="
-launch_runs impl_1 -jobs 4
-wait_on_run impl_1
-set impl_status [get_property STATUS [get_runs impl_1]]
-puts "Implementation status: $impl_status"
-
-if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
-    puts "ERROR: Implementation failed!"
-    return -code error "Implementation failed"
-}
+opt_design
+place_design
+route_design
+write_checkpoint -force $PROJ_DIR/post_route.dcp
+report_utilization -file $PROJ_DIR/post_route_utilization.txt
+report_timing_summary -file $PROJ_DIR/post_route_timing.txt
+puts ""
+puts "Post-route reports:"
+puts "  $PROJ_DIR/post_route_utilization.txt"
+puts "  $PROJ_DIR/post_route_timing.txt"
 
 # ============================================================================
 # Bitstream generation
@@ -225,27 +217,9 @@ if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
 puts "=========================================="
 puts " Generating Bitstream..."
 puts "=========================================="
-launch_runs impl_1 -to_step write_bitstream -jobs 4
-wait_on_run impl_1
+write_bitstream -force $PROJ_DIR/$PROJ_NAME.bit
 
-set bit_file [glob -nocomplain $PROJ_DIR/$PROJ_NAME.runs/impl_1/*.bit]
-if {$bit_file ne ""} {
-    puts "=========================================="
-    puts " SUCCESS: Bitstream generated"
-    puts " $bit_file"
-    puts "=========================================="
-} else {
-    puts "ERROR: Bitstream generation failed!"
-    return -code error "Bitstream generation failed"
-}
-
-# ============================================================================
-# Resource utilization summary
-# ============================================================================
-open_run impl_1
-report_utilization -file $PROJ_DIR/utilization.txt
-report_timing_summary -file $PROJ_DIR/timing.txt
-puts ""
-puts "Reports written to:"
-puts "  $PROJ_DIR/utilization.txt"
-puts "  $PROJ_DIR/timing.txt"
+puts "=========================================="
+puts " SUCCESS: Bitstream generated"
+puts " $PROJ_DIR/$PROJ_NAME.bit"
+puts "=========================================="
