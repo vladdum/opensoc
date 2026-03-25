@@ -56,6 +56,7 @@ Memory map: RAM at 0x100000 (1 MB), SimCtrl at 0x20000, Timer at 0x30000, UART a
 ## Repository Structure
 
 - `hw/rtl/` — OpenSoC RTL (top-level, UART, I2C, dual-UART wrapper, I2C loopback wrapper)
+- `hw/fpga/` — FPGA targets (Basys 3 constraints, wrapper, synth script)
 - `hw/opensoc_top.core` — FuseSoC core file defining dependencies and build targets
 - `hw/lint/` — Verilator waiver files
 - `hw/ip/ibex/` — Ibex submodule (CPU core + shared sim RTL like bus, ram, timer)

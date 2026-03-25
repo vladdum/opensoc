@@ -245,6 +245,9 @@ run-i2c-loopback: sw-i2c-loopback
 	$(if $(WAVES),gtkwave $(I2C_LB_SIM_DIR)/sim.fst &,)
 
 # FPGA synthesis (Basys 3)
-.PHONY: synth
+.PHONY: synth synth-setup
 synth:
 	$(FUSESOC) $(CORES_ROOT) run --target=synth opensoc:fpga:basys3
+
+synth-setup:
+	$(FUSESOC) $(CORES_ROOT) run --target=synth --setup opensoc:fpga:basys3

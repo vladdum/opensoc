@@ -122,12 +122,53 @@ make lint             Run Verilator lint
 make sim              Build Verilator simulator
 make sw-<test>        Build SW binary    (e.g. make sw-relu)
 make run-<test>       Build and simulate (e.g. make run-softmax)
+make synth            Synthesize for Basys 3 FPGA (Vivado)
 make clean            Remove build directory
 ```
 
 Available tests: `hello`, `uart`, `pio`, `pio-sdk`, `pio-i2c`, `i2c`, `relu`, `vmac`, `sg-dma`, `softmax`, `dual-uart`, `i2c-loopback`.
 
 Options: `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GTKWave.
+
+### FPGA Synthesis (Basys 3)
+
+Targets the Digilent Basys 3 (Xilinx Artix-7 XC7A35T). Requires [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (free WebPACK edition works).
+
+**Option A — Fully automated** (WSL + Vivado on Windows):
+
+```bash
+make synth            # FuseSoC setup + Vivado batch synthesis in one step
+```
+
+**Option B — Two-step** (useful when iterating in the Vivado GUI):
+
+1. Run FuseSoC setup to collect all source files:
+   ```bash
+   make synth-setup
+   ```
+2. Open Vivado and source the Tcl script (from the Vivado Tcl console or batch mode):
+   ```tcl
+   # Tcl console inside Vivado:
+   source C:/GitHub/opensoc/hw/fpga/basys3/synth.tcl
+
+   # Or from command line:
+   vivado -mode batch -source hw/fpga/basys3/synth.tcl
+   ```
+   The script creates the project, runs synthesis, implementation, and bitstream generation automatically. When complete it reports the `.bit` file location and writes utilization/timing reports to `build/vivado/`.
+
+**Pin mapping:**
+
+| Board resource | SoC signal        | Notes                           |
+|----------------|-------------------|---------------------------------|
+| LED[15:0]      | gpio_o[15:0]      | Active-high                     |
+| SW[15:0]       | gpio_i[15:0]      | Direct sample                   |
+| Pmod JB[7:0]   | gpio[23:16]       | Bidirectional with OE           |
+| Pmod JA[0]     | I2C SDA           | Open-drain (external pullup)    |
+| Pmod JA[1]     | I2C SCL           | Open-drain (external pullup)    |
+| USB-UART       | UART TX/RX        | Via on-board FTDI bridge        |
+| btnC           | Reset             | Active-high, inverted internally|
+
+Clock: 100 MHz board oscillator → PLL → 50 MHz system clock. RAM: 64 KB block RAM (vs 1 MB in simulation).
 
 ### Waveform Viewing
 
@@ -163,6 +204,7 @@ hw/ip/relu_accel/    — ReLU accelerator IP (reusable DMA framework)
 hw/ip/vec_mac/       — Vector MAC accelerator IP (INT8 dot product)
 hw/ip/sg_dma/        — Scatter-gather DMA engine IP
 hw/ip/softmax/       — Softmax pipeline IP (3-pass, exp LUT)
+hw/fpga/             — FPGA targets (Basys 3 constraints + wrapper)
 dv/verilator/        — Verilator simulation testbench
 sw/lib/              — Pico SDK-compatible PIO library (header-only)
 sw/include/          — Shared headers (opensoc_regs.h)
