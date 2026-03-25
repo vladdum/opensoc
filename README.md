@@ -7,19 +7,19 @@ A RISC-V System-on-Chip built on the lowRISC [Ibex](https://github.com/lowRISC/i
 ```
 opensoc_top (hw/rtl/opensoc_top.sv)
 ├── ibex_top_tracing    — Ibex RISC-V core with trace output
-├── axi_from_mem ×7     — OBI-to-AXI bridges (CPU instr/data + 5 DMA masters)
-├── axi_xbar            — AXI4 crossbar (7 masters × 10 slaves)
-├── axi_to_mem ×10      — AXI-to-memory bridges
+├── axi_from_mem ×N     — OBI-to-AXI bridges (CPU instr/data + PIO DMA + accel DMAs)
+├── axi_xbar            — AXI4 crossbar (parameterized masters × slaves)
+├── axi_to_mem ×M       — AXI-to-memory bridges
 ├── ram_1p              — 1 MB single-port SRAM
 ├── simulator_ctrl      — ASCII output and simulation halt
 ├── timer               — Timer with interrupt
 ├── uart                — UART with TX/RX FIFOs
 ├── pio                 — Programmable I/O: 4 state machines, GPIO compat, DMA (hw/ip/pio/)
 ├── i2c_controller      — I2C master controller
-├── relu_accel          — ReLU accelerator with DMA (hw/ip/relu_accel/)
-├── vec_mac             — INT8 vector MAC accelerator with DMA (hw/ip/vec_mac/)
-├── sg_dma              — Scatter-gather DMA engine (hw/ip/sg_dma/)
-└── softmax             — Softmax pipeline accelerator with DMA (hw/ip/softmax/)
+├── relu_accel          — ReLU accelerator with DMA (hw/ip/relu_accel/) [optional]
+├── vec_mac             — INT8 vector MAC accelerator with DMA (hw/ip/vec_mac/) [optional]
+├── sg_dma              — Scatter-gather DMA engine (hw/ip/sg_dma/) [optional]
+└── softmax             — Softmax pipeline accelerator with DMA (hw/ip/softmax/) [optional]
 ```
 
 ### Memory Map
@@ -122,7 +122,8 @@ make lint             Run Verilator lint
 make sim              Build Verilator simulator
 make sw-<test>        Build SW binary    (e.g. make sw-relu)
 make run-<test>       Build and simulate (e.g. make run-softmax)
-make synth            Synthesize for Basys 3 FPGA (Vivado)
+make synth            Full FPGA synthesis (FuseSoC setup + Vivado batch)
+make synth-setup      FuseSoC setup only (collect sources)
 make clean            Remove build directory
 ```
 
@@ -180,7 +181,7 @@ make clean && make synth
 | USB-UART       | UART TX/RX        | Via on-board FTDI bridge        |
 | btnC           | Reset             | Active-high, inverted internally|
 
-Clock: 100 MHz board oscillator → PLL → 50 MHz system clock. RAM: 64 KB block RAM (vs 1 MB in simulation).
+Clock: 100 MHz board oscillator → PLL → 50 MHz system clock. RAM: 64 KB block RAM (vs 1 MB in simulation). Accelerators (ReLU, VMAC, SG DMA, Softmax) are disabled on Basys 3 to fit the XC7A35T — controlled by `Enable*` parameters in `opensoc_top`.
 
 ### Waveform Viewing
 

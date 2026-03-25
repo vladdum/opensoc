@@ -31,25 +31,43 @@ fusesoc --cores-root=. --cores-root=hw/ip/ibex --cores-root=hw/ip/ibex/vendor/lo
 
 After cloning, initialize submodules: `git submodule update --init --recursive`
 
+### FPGA Synthesis (Basys 3)
+
+Vivado runs natively in WSL/Linux. Add to `~/.bashrc`: `source /opt/Xilinx/Vivado/2025.2/settings64.sh`
+
+```bash
+make synth            # full flow: FuseSoC setup + Vivado batch
+make synth-setup      # FuseSoC setup only (collect sources)
+vivado -mode batch -source hw/fpga/basys3/synth.tcl   # Vivado only (after setup)
+```
+
+The `synth.tcl` script uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode.
+
+Reports are written to `build/vivado/`: `post_synth_timing.txt`, `post_synth_utilization.txt`, `post_route_timing.txt`, `post_route_utilization.txt`.
+
+Clean rebuild: `make clean && make synth`.
+
 ## Architecture
 
 ```
 opensoc_top (hw/rtl/opensoc_top.sv)
 ├── ibex_top_tracing       — Ibex RISC-V core with trace output
-├── axi_from_mem ×7        — OBI-to-AXI bridges (instr + data + ReLU/VMAC/SG DMA/Softmax/PIO DMA)
-├── axi_xbar               — AXI4 crossbar (7 masters × 10 slaves)
-├── axi_to_mem ×10         — AXI-to-memory bridges (RAM, SimCtrl, Timer, UART, PIO, I2C, ReLU, VMAC, SG DMA, Softmax)
-├── ram_1p                 — 1 MB single-port SRAM
+├── axi_from_mem ×N        — OBI-to-AXI bridges (instr + data + PIO DMA + enabled accel DMAs)
+├── axi_xbar               — AXI4 crossbar (N masters × M slaves, sized by enable params)
+├── axi_to_mem ×M          — AXI-to-memory bridges (core peripherals + enabled accels)
+├── ram_1p                 — 1 MB single-port SRAM (sim) / 64 KB block RAM (FPGA)
 ├── simulator_ctrl         — ASCII output and simulation halt (0x20000)
 ├── timer                  — Timer with interrupt (0x30000)
 ├── uart                   — UART TX/RX with 8-deep FIFOs (0x40000)
 ├── pio                    — Programmable I/O: 4 state machines, 32-instr shared memory, GPIO compat (0x50000)
 ├── i2c_controller         — I2C master controller (0x60000)
-├── relu_accel             — ReLU accelerator with DMA (0x70000)
-├── vec_mac                — INT8 vector MAC accelerator with DMA (0x80000)
-├── sg_dma                 — Scatter-gather DMA engine (0x90000)
-└── softmax                — Softmax pipeline with DMA (0xA0000)
+├── relu_accel             — ReLU accelerator with DMA (0x70000) [optional]
+├── vec_mac                — INT8 vector MAC accelerator with DMA (0x80000) [optional]
+├── sg_dma                 — Scatter-gather DMA engine (0x90000) [optional]
+└── softmax                — Softmax pipeline with DMA (0xA0000) [optional]
 ```
+
+Accelerators are controlled by `Enable*` parameters (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`) — all enabled by default for simulation, all disabled on FPGA (Basys 3) to fit the XC7A35T. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables.
 
 Memory map: RAM at 0x100000 (1 MB), SimCtrl at 0x20000, Timer at 0x30000, UART at 0x40000, PIO at 0x50000, I2C at 0x60000, ReLU at 0x70000, VMAC at 0x80000, SG DMA at 0x90000, Softmax at 0xA0000. Boot address is 0x100000+0x80.
 
@@ -99,9 +117,25 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): RV32M, RV32B, R
 
 - AXI data width: 32 bits, address width: 32 bits
 - Slave-port ID width: 1 bit (from `axi_from_mem`)
-- Master-port ID width: 4 bits (xbar prepends $clog2(7) = 3 bits)
+- Master-port ID width: computed as `$clog2(NumMasters) + 1` (4 bits with all accels enabled)
 - User width: 1 bit
-- 7 masters (instr, data, ReLU DMA, VMAC DMA, SG DMA, Softmax DMA, PIO DMA)
-- 10 slaves (RAM, SimCtrl, Timer, UART, PIO, I2C, ReLU, VMAC, SG DMA, Softmax)
+- Masters/slaves: parameterized — 3+N masters, 6+N slaves (N = number of enabled accelerators)
+  - Default (sim): 7 masters, 10 slaves (all 4 accelerators enabled)
+  - FPGA (Basys 3): 3 masters, 6 slaves (all accelerators disabled)
+- Master order: instr, data, [accel DMAs in order], PIO DMA (always last)
+- Slave order: RAM, SimCtrl, Timer, UART, PIO, I2C, [accel ctrls in order]
 - `MaxRequests = 2` on all bridges; `MaxMstTrans = 4`, `MaxSlvTrans = 4` on xbar
-- ATOPs disabled; NO_LATENCY mode (no pipeline stages)
+- ATOPs disabled; `XbarLatencyMode` parameter: `NO_LATENCY` for sim, `CUT_ALL_PORTS` for FPGA timing
+
+## FPGA Configuration (Basys 3)
+
+- Part: XC7A35T-1CPG236C (Artix-7)
+- System clock: 100 MHz board oscillator → Vivado `clk_wiz` PLL → 50 MHz
+- RAM: 64 KB block RAM (`RamDepth = 16384`)
+- Accelerators: all disabled (`EnableReLU/VMAC/SgDma/Softmax = 0`)
+- AXI latency: `CUT_ALL_PORTS` (pipeline stages in crossbar for timing closure)
+- Reset: active-high `btnC` → 2-FF synchronizer → active-low `rst_n`
+- Verilog defines: `SYNTHESIS=1`, `FPGA_XILINX=1`, `RegFile=ibex_pkg::RegFileFPGA`
+- FPGA wrapper: `hw/fpga/basys3/opensoc_fpga_top.sv`
+- Constraints: `hw/fpga/basys3/basys3.xdc`
+- Synth script: `hw/fpga/basys3/synth.tcl` (in-process commands, not `launch_runs`)
