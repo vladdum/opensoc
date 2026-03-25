@@ -48,7 +48,7 @@
  * I2C, ReLU, VMAC, SG DMA, Softmax) bridged via axi_to_mem.
  */
 
-module opensoc_top (
+module opensoc_top import axi_pkg::*; (
   input  IO_CLK,
   input  IO_RST_N,
 
@@ -92,7 +92,7 @@ module opensoc_top (
   parameter                     SRAMInitFile             = "";
   parameter int unsigned        RamDepth                 = 1024*1024/4;
 
-  logic clk_sys = 1'b0, rst_sys_n;
+  logic clk_sys, rst_sys_n;
 
   // interrupts
   logic timer_irq;
@@ -103,6 +103,22 @@ module opensoc_top (
   logic vmac_irq;
   logic sg_dma_irq;
   logic softmax_irq;
+
+  // -------------------------------------------------------------------------
+  // Crossbar dimensions (needed by AXI ID width calculation)
+  // -------------------------------------------------------------------------
+`ifdef SYNTHESIS
+  // FPGA-trimmed: no accelerators — 3 masters (instr, data, PIO DMA), 6 slaves
+  localparam int unsigned NumMasters    = 3;
+  localparam int unsigned NumSlaves     = 6;  // RAM, SimCtrl, Timer, UART, PIO, I2C
+  localparam int unsigned NumRules      = 6;
+  localparam int unsigned PioDmaMstIdx  = 2;
+`else
+  localparam int unsigned NumMasters    = 7;  // instr + data + ReLU DMA + VMAC DMA + SG DMA + Softmax DMA + PIO DMA
+  localparam int unsigned NumSlaves     = 10; // RAM, SimCtrl, Timer, UART, PIO, I2C, ReLU, VMAC, SG DMA, Softmax
+  localparam int unsigned NumRules      = 10;
+  localparam int unsigned PioDmaMstIdx  = 6;
+`endif
 
   // -------------------------------------------------------------------------
   // AXI type parameters
@@ -128,14 +144,7 @@ module opensoc_top (
   // Master-port types (slave-facing, wide ID)
   `AXI_TYPEDEF_ALL(axi_out, axi_addr_t, axi_id_out_t, axi_data_t, axi_strb_t, axi_user_t)
 
-  // -------------------------------------------------------------------------
-  // Crossbar configuration
-  // -------------------------------------------------------------------------
-  localparam int unsigned NumMasters = 7; // instr + data + ReLU DMA + VMAC DMA + SG DMA + Softmax DMA + PIO DMA
-  localparam int unsigned NumSlaves  = 10; // RAM, SimCtrl, Timer, UART, PIO, I2C, ReLU, VMAC, SG DMA, Softmax
-  localparam int unsigned NumRules   = 10;
-
-  localparam axi_pkg::xbar_cfg_t XbarCfg = '{
+  localparam xbar_cfg_t XbarCfg = '{
     NoSlvPorts:         NumMasters,
     NoMstPorts:         NumSlaves,
     MaxMstTrans:        4,
@@ -152,17 +161,20 @@ module opensoc_top (
   };
 
   // Address map
-  localparam axi_pkg::xbar_rule_32_t [NumRules-1:0] AddrMap = '{
+  localparam xbar_rule_32_t [NumRules-1:0] AddrMap = '{
     '{ idx: 32'd0, start_addr: 32'h0010_0000, end_addr: 32'h0020_0000 }, // RAM     1 MB
     '{ idx: 32'd1, start_addr: 32'h0002_0000, end_addr: 32'h0002_0400 }, // SimCtrl 1 kB
     '{ idx: 32'd2, start_addr: 32'h0003_0000, end_addr: 32'h0003_0400 }, // Timer   1 kB
     '{ idx: 32'd3, start_addr: 32'h0004_0000, end_addr: 32'h0004_0400 }, // UART    1 kB
     '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }, // PIO     1 kB
-    '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }, // I2C     1 kB
+    '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }  // I2C     1 kB
+`ifndef SYNTHESIS
+    ,
     '{ idx: 32'd6, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }, // ReLU    1 kB
     '{ idx: 32'd7, start_addr: 32'h0008_0000, end_addr: 32'h0008_0400 }, // VMAC    1 kB
     '{ idx: 32'd8, start_addr: 32'h0009_0000, end_addr: 32'h0009_0400 }, // SG DMA  1 kB
     '{ idx: 32'd9, start_addr: 32'h000A_0000, end_addr: 32'h000A_0400 }  // Softmax 1 kB
+`endif
   };
 
   // -------------------------------------------------------------------------
@@ -260,7 +272,13 @@ module opensoc_top (
   // -------------------------------------------------------------------------
   // Ibex CPU
   // -------------------------------------------------------------------------
+  // ibex_top_tracing wraps ibex_top + ibex_tracer (simulation-only, uses
+  // string type unsupported by Vivado).  For synthesis use ibex_top directly.
+`ifdef SYNTHESIS
+  ibex_top #(
+`else
   ibex_top_tracing #(
+`endif
       .SecureIbex      ( SecureIbex       ),
       .LockstepOffset  ( LockstepOffset   ),
       .ICacheScramble  ( ICacheScramble   ),
@@ -411,6 +429,7 @@ module opensoc_top (
     .axi_rsp_i       (xbar_slv_resp[1])
   );
 
+`ifndef SYNTHESIS
   // -------------------------------------------------------------------------
   // ReLU DMA signals (between relu_accel and axi_from_mem)
   // -------------------------------------------------------------------------
@@ -570,6 +589,7 @@ module opensoc_top (
     .axi_req_o       (xbar_slv_req[5]),
     .axi_rsp_i       (xbar_slv_resp[5])
   );
+`endif // !SYNTHESIS
 
   // -------------------------------------------------------------------------
   // PIO DMA signals (between pio and axi_from_mem)
@@ -607,8 +627,8 @@ module opensoc_top (
     .mem_rsp_error_o (pio_dma_err),
     .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
     .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[6]),
-    .axi_rsp_i       (xbar_slv_resp[6])
+    .axi_req_o       (xbar_slv_req[PioDmaMstIdx]),
+    .axi_rsp_i       (xbar_slv_resp[PioDmaMstIdx])
   );
 
   // -------------------------------------------------------------------------
@@ -631,7 +651,7 @@ module opensoc_top (
     .slv_resp_t    ( axi_in_resp_t         ),
     .mst_req_t     ( axi_out_req_t         ),
     .mst_resp_t    ( axi_out_resp_t        ),
-    .rule_t        ( axi_pkg::xbar_rule_32_t )
+    .rule_t        ( xbar_rule_32_t )
   ) u_axi_xbar (
     .clk_i                  (clk_sys),
     .rst_ni                 (rst_sys_n),
@@ -686,10 +706,12 @@ module opensoc_top (
   assign mem_gnt[3] = mem_req[3]; // UART
   assign mem_gnt[4] = mem_req[4]; // PIO
   assign mem_gnt[5] = mem_req[5]; // I2C
+`ifndef SYNTHESIS
   assign mem_gnt[6] = mem_req[6]; // ReLU
   assign mem_gnt[7] = mem_req[7]; // VMAC
   assign mem_gnt[8] = mem_req[8]; // SG DMA
   assign mem_gnt[9] = mem_req[9]; // Softmax
+`endif
 
   // -------------------------------------------------------------------------
   // SRAM (single-port, crossbar arbitrates instr vs data)
@@ -711,8 +733,19 @@ module opensoc_top (
     );
 
   // -------------------------------------------------------------------------
-  // Simulator control
+  // Simulator control (sim-only: uses $fopen/$fwrite/$finish)
+  // For synthesis, provide a minimal stub that ACKs requests and returns 0.
   // -------------------------------------------------------------------------
+`ifdef SYNTHESIS
+  always_ff @(posedge clk_sys or negedge rst_sys_n) begin
+    if (!rst_sys_n) begin
+      mem_rvalid[1] <= 1'b0;
+    end else begin
+      mem_rvalid[1] <= mem_req[1];
+    end
+  end
+  assign mem_rdata[1] = 32'b0;
+`else
   simulator_ctrl #(
     .LogName("opensoc_top.log")
     ) u_simulator_ctrl (
@@ -727,6 +760,7 @@ module opensoc_top (
       .rvalid_o  (mem_rvalid[1]),
       .rdata_o   (mem_rdata[1])
     );
+`endif
 
   // -------------------------------------------------------------------------
   // Timer
@@ -829,6 +863,13 @@ module opensoc_top (
     .i2c_sda_i  (i2c_sda_i)
   );
 
+`ifdef SYNTHESIS
+  // Accelerators disabled for FPGA — tie IRQs low
+  assign relu_irq    = 1'b0;
+  assign vmac_irq    = 1'b0;
+  assign sg_dma_irq  = 1'b0;
+  assign softmax_irq = 1'b0;
+`else
   // -------------------------------------------------------------------------
   // ReLU Accelerator
   // -------------------------------------------------------------------------
@@ -940,7 +981,9 @@ module opensoc_top (
 
     .irq_o          (softmax_irq)
   );
+`endif // !SYNTHESIS
 
+`ifndef SYNTHESIS
   export "DPI-C" function mhpmcounter_num;
 
   function automatic int unsigned mhpmcounter_num();
@@ -952,5 +995,6 @@ module opensoc_top (
   function automatic longint unsigned mhpmcounter_get(int index);
     return u_top.u_ibex_top.u_ibex_core.cs_registers_i.mhpmcounter[index];
   endfunction
+`endif
 
 endmodule
