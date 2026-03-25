@@ -7,14 +7,14 @@ A RISC-V System-on-Chip built on the lowRISC [Ibex](https://github.com/lowRISC/i
 ```
 opensoc_top (hw/rtl/opensoc_top.sv)
 ├── ibex_top_tracing    — Ibex RISC-V core with trace output
-├── axi_from_mem ×6     — OBI-to-AXI bridges (CPU instr/data + 4 DMA masters)
-├── axi_xbar            — AXI4 crossbar (6 masters × 10 slaves)
+├── axi_from_mem ×7     — OBI-to-AXI bridges (CPU instr/data + 5 DMA masters)
+├── axi_xbar            — AXI4 crossbar (7 masters × 10 slaves)
 ├── axi_to_mem ×10      — AXI-to-memory bridges
 ├── ram_1p              — 1 MB single-port SRAM
 ├── simulator_ctrl      — ASCII output and simulation halt
 ├── timer               — Timer with interrupt
 ├── uart                — UART with TX/RX FIFOs
-├── gpio                — 32-bit GPIO with IRQ support
+├── pio                 — Programmable I/O: 4 state machines, GPIO compat, DMA (hw/ip/pio/)
 ├── i2c_controller      — I2C master controller
 ├── relu_accel          — ReLU accelerator with DMA (hw/ip/relu_accel/)
 ├── vec_mac             — INT8 vector MAC accelerator with DMA (hw/ip/vec_mac/)
@@ -29,7 +29,7 @@ opensoc_top (hw/rtl/opensoc_top.sv)
 | Simulator Ctrl | `0x20000`    | 1 kB  | —          |
 | Timer          | `0x30000`    | 1 kB  | mtimer     |
 | UART           | `0x40000`    | 1 kB  | fast[0]    |
-| GPIO           | `0x50000`    | 1 kB  | fast[1]    |
+| PIO            | `0x50000`    | 1 kB  | fast[1]    |
 | I2C            | `0x60000`    | 1 kB  | fast[2]    |
 | ReLU Accel     | `0x70000`    | 1 kB  | fast[3]    |
 | Vector MAC     | `0x80000`    | 1 kB  | fast[4]    |
@@ -125,7 +125,7 @@ make run-<test>       Build and simulate (e.g. make run-softmax)
 make clean            Remove build directory
 ```
 
-Available tests: `hello`, `uart`, `gpio`, `i2c`, `relu`, `vmac`, `sg-dma`, `softmax`, `dual-uart`.
+Available tests: `hello`, `uart`, `pio`, `pio-sdk`, `pio-i2c`, `i2c`, `relu`, `vmac`, `sg-dma`, `softmax`, `dual-uart`, `i2c-loopback`.
 
 Options: `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GTKWave.
 
@@ -158,11 +158,13 @@ hw/ip/ibex/          — Ibex submodule (CPU core + shared sim RTL)
 hw/ip/pulp_axi/      — PULP AXI submodule (crossbar, bridges)
 hw/ip/common_cells/  — PULP common_cells submodule (required by pulp_axi)
 hw/ip/pulp_obi/      — PULP OBI submodule (for future use)
+hw/ip/pio/           — Programmable I/O block (4 SMs, GPIO compat, DMA)
 hw/ip/relu_accel/    — ReLU accelerator IP (reusable DMA framework)
 hw/ip/vec_mac/       — Vector MAC accelerator IP (INT8 dot product)
 hw/ip/sg_dma/        — Scatter-gather DMA engine IP
 hw/ip/softmax/       — Softmax pipeline IP (3-pass, exp LUT)
 dv/verilator/        — Verilator simulation testbench
+sw/lib/              — Pico SDK-compatible PIO library (header-only)
 sw/include/          — Shared headers (opensoc_regs.h)
 sw/tests/            — Test software
 ```

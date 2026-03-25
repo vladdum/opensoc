@@ -55,7 +55,7 @@ Memory map: RAM at 0x100000 (1 MB), SimCtrl at 0x20000, Timer at 0x30000, UART a
 
 ## Repository Structure
 
-- `hw/rtl/` — OpenSoC RTL (top-level, UART, I2C)
+- `hw/rtl/` — OpenSoC RTL (top-level, UART, I2C, dual-UART wrapper, I2C loopback wrapper)
 - `hw/opensoc_top.core` — FuseSoC core file defining dependencies and build targets
 - `hw/lint/` — Verilator waiver files
 - `hw/ip/ibex/` — Ibex submodule (CPU core + shared sim RTL like bus, ram, timer)
@@ -74,7 +74,7 @@ Memory map: RAM at 0x100000 (1 MB), SimCtrl at 0x20000, Timer at 0x30000, UART a
   - `hardware/structs/pio.h` — `pio_hw_t` / `pio_sm_hw_t` register struct definitions
   - `hardware_pio_compat.h` — OpenSoC-specific glue (`hw_set_bits`, `clock_get_hz`, GPIO stubs)
   - `pio_programs/i2c.pio.h` — PIO I2C TX program (pioasm-format header with init/write helpers)
-- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, pio_i2c, relu, vmac, sg_dma, softmax)
+- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, pio_i2c, i2c_loopback, relu, vmac, sg_dma, softmax)
 
 ## FuseSoC Core Dependencies
 
