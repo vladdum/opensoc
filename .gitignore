@@ -15,3 +15,7 @@ docs/brainstorms/
 *.vcd
 __pycache__/
 *.pyc
+
+# Vivado temp files
+.Xil/
+tight_setup_hold_pins.txt

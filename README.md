@@ -132,29 +132,41 @@ Options: `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GT
 
 ### FPGA Synthesis (Basys 3)
 
-Targets the Digilent Basys 3 (Xilinx Artix-7 XC7A35T). Requires [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (free WebPACK edition works).
+Targets the Digilent Basys 3 (Xilinx Artix-7 XC7A35T). Requires [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (free WebPACK edition works) installed in WSL/Linux.
 
-**Option A — Fully automated** (WSL + Vivado on Windows):
+**Vivado setup** (add to `~/.bashrc`):
 
 ```bash
-make synth            # FuseSoC setup + Vivado batch synthesis in one step
+source /opt/Xilinx/Vivado/2025.2/settings64.sh
 ```
 
-**Option B — Two-step** (useful when iterating in the Vivado GUI):
+**One-step build** (FuseSoC setup + Vivado batch synthesis):
 
-1. Run FuseSoC setup to collect all source files:
+```bash
+make synth
+```
+
+**Two-step build** (useful when iterating in the Vivado GUI):
+
+1. Collect source files:
    ```bash
    make synth-setup
    ```
-2. Open Vivado and source the Tcl script (from the Vivado Tcl console or batch mode):
-   ```tcl
-   # Tcl console inside Vivado:
-   source C:/GitHub/opensoc/hw/fpga/basys3/synth.tcl
-
-   # Or from command line:
+2. Run Vivado:
+   ```bash
    vivado -mode batch -source hw/fpga/basys3/synth.tcl
    ```
-   The script creates the project, runs synthesis, implementation, and bitstream generation automatically. When complete it reports the `.bit` file location and writes utilization/timing reports to `build/vivado/`.
+
+Reports are written to `build/vivado/`:
+- `post_synth_timing.txt` / `post_synth_utilization.txt` — after synthesis
+- `post_route_timing.txt` / `post_route_utilization.txt` — after place & route
+- `opensoc_basys3.bit` — final bitstream
+
+**Clean rebuild:**
+
+```bash
+make clean && make synth
+```
 
 **Pin mapping:**
 

@@ -24,6 +24,9 @@ lint_off -rule WIDTHCONCAT -file "*/rtl/opensoc_top.sv"
 lint_off -rule REDEFMACRO    -file "*prim_assert*"
 lint_off -rule UNUSEDSIGNAL  -file "*ibex_top.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*ibex_core.sv"
+lint_off -rule UNOPTFLAT     -file "*ibex_*"
+lint_off -rule SYNCASYNCNET  -file "*/pulp-platform.org*axi*"
+lint_off -rule SYNCASYNCNET  -file "*/pulp-platform.org*common_cells*"
 
 // Unused signals from AXI bridges in opensoc_top
 lint_off -rule UNUSED -file "*/rtl/opensoc_top.sv"

@@ -43,7 +43,9 @@ help:
 	@echo "  make sim-i2c-loopback - Build I2C loopback Verilator simulator"
 	@echo "  make sw-i2c-loopback  - Build I2C loopback test SW binary"
 	@echo "  make run-i2c-loopback - Build and run I2C loopback test"
-	@echo "  make synth           - Synthesize for Basys 3 FPGA (Vivado)"
+	@echo "  make synth-setup     - FuseSoC setup only (collect sources)"
+	@echo "  make synth           - Full FPGA synthesis (setup + Vivado batch)"
+	@echo "  make yosys-synth     - ASIC synthesis (sv2v + Yosys, generic gates)"
 	@echo "  make clean           - Remove build directory"
 	@echo ""
 	@echo "Options:"
@@ -245,9 +247,17 @@ run-i2c-loopback: sw-i2c-loopback
 	$(if $(WAVES),gtkwave $(I2C_LB_SIM_DIR)/sim.fst &,)
 
 # FPGA synthesis (Basys 3)
+# Vivado must be on PATH: source /opt/Xilinx/Vivado/2025.2/settings64.sh
+VIVADO ?= vivado
+
 .PHONY: synth synth-setup
-synth:
-	$(FUSESOC) $(CORES_ROOT) run --target=synth opensoc:fpga:basys3
+synth: synth-setup
+	$(VIVADO) -mode batch -source hw/fpga/basys3/synth.tcl
 
 synth-setup:
 	$(FUSESOC) $(CORES_ROOT) run --target=synth --setup opensoc:fpga:basys3
+
+# Yosys ASIC synthesis (sv2v + Yosys, generic gates)
+.PHONY: yosys-synth
+yosys-synth: synth-setup
+	bash hw/asic/synth.sh
