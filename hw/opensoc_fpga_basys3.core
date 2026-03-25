@@ -30,10 +30,28 @@ targets:
         part: xc7a35tcpg236-1
     parameters:
       - SYNTHESIS=true
+      - FPGA_XILINX=true
+      - RegFile=ibex_pkg::RegFileFPGA
+      - PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric
 
 parameters:
   SYNTHESIS:
     datatype: bool
     default: true
     paramtype: vlogdefine
-    description: "Defined during FPGA synthesis to select direct clock assignment"
+    description: "Defined during FPGA synthesis to select ibex_top (no tracer) and direct clock assignment"
+  FPGA_XILINX:
+    datatype: bool
+    default: true
+    paramtype: vlogdefine
+    description: "Enables Xilinx DSP pragmas for performance counters in ibex"
+  RegFile:
+    datatype: str
+    default: ibex_pkg::RegFileFPGA
+    paramtype: vlogdefine
+    description: "FPGA-optimized register file (infers RAM32M, saves ~600 LUTs)"
+  PRIM_DEFAULT_IMPL:
+    datatype: str
+    paramtype: vlogdefine
+    default: prim_pkg::ImplGeneric
+    description: "Selects primitive implementation (Generic infers BRAM in Vivado)"
