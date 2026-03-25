@@ -92,6 +92,15 @@ module opensoc_top import axi_pkg::*; (
   parameter                     SRAMInitFile             = "";
   parameter int unsigned        RamDepth                 = 1024*1024/4;
 
+  // Submodule enable parameters (set to 0 for FPGA to save resources)
+  parameter bit                 EnableReLU               = 1'b1;
+  parameter bit                 EnableVMAC               = 1'b1;
+  parameter bit                 EnableSgDma              = 1'b1;
+  parameter bit                 EnableSoftmax            = 1'b1;
+
+  // AXI crossbar latency mode (NO_LATENCY for sim, CUT_ALL_PORTS for FPGA timing)
+  parameter xbar_latency_e      XbarLatencyMode          = NO_LATENCY;
+
   logic clk_sys, rst_sys_n;
 
   // interrupts
@@ -105,20 +114,25 @@ module opensoc_top import axi_pkg::*; (
   logic softmax_irq;
 
   // -------------------------------------------------------------------------
-  // Crossbar dimensions (needed by AXI ID width calculation)
+  // Crossbar dimensions (computed from enable parameters)
   // -------------------------------------------------------------------------
-`ifdef SYNTHESIS
-  // FPGA-trimmed: no accelerators — 3 masters (instr, data, PIO DMA), 6 slaves
-  localparam int unsigned NumMasters    = 3;
-  localparam int unsigned NumSlaves     = 6;  // RAM, SimCtrl, Timer, UART, PIO, I2C
-  localparam int unsigned NumRules      = 6;
-  localparam int unsigned PioDmaMstIdx  = 2;
-`else
-  localparam int unsigned NumMasters    = 7;  // instr + data + ReLU DMA + VMAC DMA + SG DMA + Softmax DMA + PIO DMA
-  localparam int unsigned NumSlaves     = 10; // RAM, SimCtrl, Timer, UART, PIO, I2C, ReLU, VMAC, SG DMA, Softmax
-  localparam int unsigned NumRules      = 10;
-  localparam int unsigned PioDmaMstIdx  = 6;
-`endif
+  localparam int unsigned NumAccel     = 32'(EnableReLU) + 32'(EnableVMAC) + 32'(EnableSgDma) + 32'(EnableSoftmax);
+  localparam int unsigned NumMasters   = 3 + NumAccel;  // instr + data + PIO DMA + accel DMAs
+  localparam int unsigned NumSlaves    = 6 + NumAccel;  // RAM + SimCtrl + Timer + UART + PIO + I2C + accel ctrls
+  localparam int unsigned NumRules     = NumSlaves;
+
+  // Master port indices: 0=instr, 1=data, [accel DMAs], PIO DMA (always last)
+  localparam int unsigned PioDmaMstIdx   = NumMasters - 1;
+  localparam int unsigned ReluDmaMstIdx  = 2;
+  localparam int unsigned VmacDmaMstIdx  = 2 + 32'(EnableReLU);
+  localparam int unsigned SgDmaDmaMstIdx = 2 + 32'(EnableReLU) + 32'(EnableVMAC);
+  localparam int unsigned SmaxDmaMstIdx  = 2 + 32'(EnableReLU) + 32'(EnableVMAC) + 32'(EnableSgDma);
+
+  // Slave port indices: 0=RAM, 1=SimCtrl, 2=Timer, 3=UART, 4=PIO, 5=I2C, [accel ctrls]
+  localparam int unsigned ReluSlvIdx  = 6;
+  localparam int unsigned VmacSlvIdx  = 6 + 32'(EnableReLU);
+  localparam int unsigned SgDmaSlvIdx = 6 + 32'(EnableReLU) + 32'(EnableVMAC);
+  localparam int unsigned SmaxSlvIdx  = 6 + 32'(EnableReLU) + 32'(EnableVMAC) + 32'(EnableSgDma);
 
   // -------------------------------------------------------------------------
   // AXI type parameters
@@ -150,8 +164,8 @@ module opensoc_top import axi_pkg::*; (
     MaxMstTrans:        4,
     MaxSlvTrans:        4,
     FallThrough:        1'b0,
-    LatencyMode:        axi_pkg::NO_LATENCY,
-    PipelineStages:     0,
+    LatencyMode:        XbarLatencyMode,
+    PipelineStages:     32'd0,
     AxiIdWidthSlvPorts: AxiIdWidthIn,
     AxiIdUsedSlvPorts:  AxiIdWidthIn,
     UniqueIds:          1'b0,
@@ -160,22 +174,29 @@ module opensoc_top import axi_pkg::*; (
     NoAddrRules:        NumRules
   };
 
-  // Address map
-  localparam xbar_rule_32_t [NumRules-1:0] AddrMap = '{
-    '{ idx: 32'd0, start_addr: 32'h0010_0000, end_addr: 32'h0020_0000 }, // RAM     1 MB
-    '{ idx: 32'd1, start_addr: 32'h0002_0000, end_addr: 32'h0002_0400 }, // SimCtrl 1 kB
-    '{ idx: 32'd2, start_addr: 32'h0003_0000, end_addr: 32'h0003_0400 }, // Timer   1 kB
-    '{ idx: 32'd3, start_addr: 32'h0004_0000, end_addr: 32'h0004_0400 }, // UART    1 kB
-    '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }, // PIO     1 kB
-    '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }  // I2C     1 kB
-`ifndef SYNTHESIS
-    ,
-    '{ idx: 32'd6, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }, // ReLU    1 kB
-    '{ idx: 32'd7, start_addr: 32'h0008_0000, end_addr: 32'h0008_0400 }, // VMAC    1 kB
-    '{ idx: 32'd8, start_addr: 32'h0009_0000, end_addr: 32'h0009_0400 }, // SG DMA  1 kB
-    '{ idx: 32'd9, start_addr: 32'h000A_0000, end_addr: 32'h000A_0400 }  // Softmax 1 kB
-`endif
-  };
+  // Address map — built by function to match enable parameters
+  typedef xbar_rule_32_t [NumRules-1:0] addr_map_t;
+
+  function automatic addr_map_t compute_addr_map();
+    addr_map_t   map;
+    int unsigned r;
+    // Core slaves (always present)
+    map[0] = '{ idx: 32'd0, start_addr: 32'h0010_0000, end_addr: 32'h0020_0000 }; // RAM     1 MB
+    map[1] = '{ idx: 32'd1, start_addr: 32'h0002_0000, end_addr: 32'h0002_0400 }; // SimCtrl 1 kB
+    map[2] = '{ idx: 32'd2, start_addr: 32'h0003_0000, end_addr: 32'h0003_0400 }; // Timer   1 kB
+    map[3] = '{ idx: 32'd3, start_addr: 32'h0004_0000, end_addr: 32'h0004_0400 }; // UART    1 kB
+    map[4] = '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }; // PIO     1 kB
+    map[5] = '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }; // I2C     1 kB
+    // Accelerator slaves (conditional)
+    r = 6;
+    if (EnableReLU)    begin map[r] = '{ idx: r, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }; r = r + 1; end
+    if (EnableVMAC)    begin map[r] = '{ idx: r, start_addr: 32'h0008_0000, end_addr: 32'h0008_0400 }; r = r + 1; end
+    if (EnableSgDma)   begin map[r] = '{ idx: r, start_addr: 32'h0009_0000, end_addr: 32'h0009_0400 }; r = r + 1; end
+    if (EnableSoftmax) begin map[r] = '{ idx: r, start_addr: 32'h000A_0000, end_addr: 32'h000A_0400 }; r = r + 1; end
+    return map;
+  endfunction
+
+  localparam addr_map_t AddrMap = compute_addr_map();
 
   // -------------------------------------------------------------------------
   // Ibex instruction-fetch signals
@@ -429,168 +450,6 @@ module opensoc_top import axi_pkg::*; (
     .axi_rsp_i       (xbar_slv_resp[1])
   );
 
-`ifndef SYNTHESIS
-  // -------------------------------------------------------------------------
-  // ReLU DMA signals (between relu_accel and axi_from_mem)
-  // -------------------------------------------------------------------------
-  logic        relu_dma_req;
-  logic [31:0] relu_dma_addr;
-  logic        relu_dma_we;
-  logic [31:0] relu_dma_wdata;
-  logic [3:0]  relu_dma_be;
-  logic        relu_dma_gnt;
-  logic        relu_dma_rvalid;
-  logic [31:0] relu_dma_rdata;
-  logic        relu_dma_err;
-
-  // ReLU DMA port
-  axi_from_mem #(
-    .MemAddrWidth ( 32              ),
-    .AxiAddrWidth ( AxiAddrWidth    ),
-    .DataWidth    ( AxiDataWidth    ),
-    .MaxRequests  ( 2               ),
-    .AxiProt      ( 3'b000          ),
-    .axi_req_t    ( axi_in_req_t    ),
-    .axi_rsp_t    ( axi_in_resp_t   )
-  ) u_axi_from_mem_relu_dma (
-    .clk_i           (clk_sys),
-    .rst_ni          (rst_sys_n),
-    .mem_req_i       (relu_dma_req),
-    .mem_addr_i      (relu_dma_addr),
-    .mem_we_i        (relu_dma_we),
-    .mem_wdata_i     (relu_dma_wdata),
-    .mem_be_i        (relu_dma_be),
-    .mem_gnt_o       (relu_dma_gnt),
-    .mem_rsp_valid_o (relu_dma_rvalid),
-    .mem_rsp_rdata_o (relu_dma_rdata),
-    .mem_rsp_error_o (relu_dma_err),
-    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[2]),
-    .axi_rsp_i       (xbar_slv_resp[2])
-  );
-
-  // -------------------------------------------------------------------------
-  // VMAC DMA signals (between vec_mac and axi_from_mem)
-  // -------------------------------------------------------------------------
-  logic        vmac_dma_req;
-  logic [31:0] vmac_dma_addr;
-  logic        vmac_dma_we;
-  logic [31:0] vmac_dma_wdata;
-  logic [3:0]  vmac_dma_be;
-  logic        vmac_dma_gnt;
-  logic        vmac_dma_rvalid;
-  logic [31:0] vmac_dma_rdata;
-  logic        vmac_dma_err;
-
-  // VMAC DMA port
-  axi_from_mem #(
-    .MemAddrWidth ( 32              ),
-    .AxiAddrWidth ( AxiAddrWidth    ),
-    .DataWidth    ( AxiDataWidth    ),
-    .MaxRequests  ( 2               ),
-    .AxiProt      ( 3'b000          ),
-    .axi_req_t    ( axi_in_req_t    ),
-    .axi_rsp_t    ( axi_in_resp_t   )
-  ) u_axi_from_mem_vmac_dma (
-    .clk_i           (clk_sys),
-    .rst_ni          (rst_sys_n),
-    .mem_req_i       (vmac_dma_req),
-    .mem_addr_i      (vmac_dma_addr),
-    .mem_we_i        (vmac_dma_we),
-    .mem_wdata_i     (vmac_dma_wdata),
-    .mem_be_i        (vmac_dma_be),
-    .mem_gnt_o       (vmac_dma_gnt),
-    .mem_rsp_valid_o (vmac_dma_rvalid),
-    .mem_rsp_rdata_o (vmac_dma_rdata),
-    .mem_rsp_error_o (vmac_dma_err),
-    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[3]),
-    .axi_rsp_i       (xbar_slv_resp[3])
-  );
-
-  // -------------------------------------------------------------------------
-  // SG DMA signals (between sg_dma and axi_from_mem)
-  // -------------------------------------------------------------------------
-  logic        sgdma_dma_req;
-  logic [31:0] sgdma_dma_addr;
-  logic        sgdma_dma_we;
-  logic [31:0] sgdma_dma_wdata;
-  logic [3:0]  sgdma_dma_be;
-  logic        sgdma_dma_gnt;
-  logic        sgdma_dma_rvalid;
-  logic [31:0] sgdma_dma_rdata;
-  logic        sgdma_dma_err;
-
-  // SG DMA port
-  axi_from_mem #(
-    .MemAddrWidth ( 32              ),
-    .AxiAddrWidth ( AxiAddrWidth    ),
-    .DataWidth    ( AxiDataWidth    ),
-    .MaxRequests  ( 2               ),
-    .AxiProt      ( 3'b000          ),
-    .axi_req_t    ( axi_in_req_t    ),
-    .axi_rsp_t    ( axi_in_resp_t   )
-  ) u_axi_from_mem_sgdma (
-    .clk_i           (clk_sys),
-    .rst_ni          (rst_sys_n),
-    .mem_req_i       (sgdma_dma_req),
-    .mem_addr_i      (sgdma_dma_addr),
-    .mem_we_i        (sgdma_dma_we),
-    .mem_wdata_i     (sgdma_dma_wdata),
-    .mem_be_i        (sgdma_dma_be),
-    .mem_gnt_o       (sgdma_dma_gnt),
-    .mem_rsp_valid_o (sgdma_dma_rvalid),
-    .mem_rsp_rdata_o (sgdma_dma_rdata),
-    .mem_rsp_error_o (sgdma_dma_err),
-    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[4]),
-    .axi_rsp_i       (xbar_slv_resp[4])
-  );
-
-  // -------------------------------------------------------------------------
-  // Softmax DMA signals (between softmax and axi_from_mem)
-  // -------------------------------------------------------------------------
-  logic        smax_dma_req;
-  logic [31:0] smax_dma_addr;
-  logic        smax_dma_we;
-  logic [31:0] smax_dma_wdata;
-  logic [3:0]  smax_dma_be;
-  logic        smax_dma_gnt;
-  logic        smax_dma_rvalid;
-  logic [31:0] smax_dma_rdata;
-  logic        smax_dma_err;
-
-  // Softmax DMA port
-  axi_from_mem #(
-    .MemAddrWidth ( 32              ),
-    .AxiAddrWidth ( AxiAddrWidth    ),
-    .DataWidth    ( AxiDataWidth    ),
-    .MaxRequests  ( 2               ),
-    .AxiProt      ( 3'b000          ),
-    .axi_req_t    ( axi_in_req_t    ),
-    .axi_rsp_t    ( axi_in_resp_t   )
-  ) u_axi_from_mem_smax_dma (
-    .clk_i           (clk_sys),
-    .rst_ni          (rst_sys_n),
-    .mem_req_i       (smax_dma_req),
-    .mem_addr_i      (smax_dma_addr),
-    .mem_we_i        (smax_dma_we),
-    .mem_wdata_i     (smax_dma_wdata),
-    .mem_be_i        (smax_dma_be),
-    .mem_gnt_o       (smax_dma_gnt),
-    .mem_rsp_valid_o (smax_dma_rvalid),
-    .mem_rsp_rdata_o (smax_dma_rdata),
-    .mem_rsp_error_o (smax_dma_err),
-    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[5]),
-    .axi_rsp_i       (xbar_slv_resp[5])
-  );
-`endif // !SYNTHESIS
-
   // -------------------------------------------------------------------------
   // PIO DMA signals (between pio and axi_from_mem)
   // -------------------------------------------------------------------------
@@ -700,18 +559,9 @@ module opensoc_top import axi_pkg::*; (
   end
 
   // All peripherals grant immediately (single-cycle grant)
-  assign mem_gnt[0] = mem_req[0]; // RAM
-  assign mem_gnt[1] = mem_req[1]; // SimCtrl
-  assign mem_gnt[2] = mem_req[2]; // Timer
-  assign mem_gnt[3] = mem_req[3]; // UART
-  assign mem_gnt[4] = mem_req[4]; // PIO
-  assign mem_gnt[5] = mem_req[5]; // I2C
-`ifndef SYNTHESIS
-  assign mem_gnt[6] = mem_req[6]; // ReLU
-  assign mem_gnt[7] = mem_req[7]; // VMAC
-  assign mem_gnt[8] = mem_req[8]; // SG DMA
-  assign mem_gnt[9] = mem_req[9]; // Softmax
-`endif
+  for (genvar g = 0; g < NumSlaves; g++) begin : gen_mem_gnt
+    assign mem_gnt[g] = mem_req[g];
+  end
 
   // -------------------------------------------------------------------------
   // SRAM (single-port, crossbar arbitrates instr vs data)
@@ -863,125 +713,157 @@ module opensoc_top import axi_pkg::*; (
     .i2c_sda_i  (i2c_sda_i)
   );
 
-`ifdef SYNTHESIS
-  // Accelerators disabled for FPGA — tie IRQs low
-  assign relu_irq    = 1'b0;
-  assign vmac_irq    = 1'b0;
-  assign sg_dma_irq  = 1'b0;
-  assign softmax_irq = 1'b0;
-`else
   // -------------------------------------------------------------------------
-  // ReLU Accelerator
+  // ReLU Accelerator (DMA bridge + instance)
   // -------------------------------------------------------------------------
-  relu_accel u_relu_accel (
-    .clk_i          (clk_sys),
-    .rst_ni         (rst_sys_n),
+  if (EnableReLU) begin : gen_relu
+    logic        relu_dma_req,   relu_dma_we,   relu_dma_gnt,  relu_dma_rvalid, relu_dma_err;
+    logic [31:0] relu_dma_addr,  relu_dma_wdata, relu_dma_rdata;
+    logic [3:0]  relu_dma_be;
 
-    .ctrl_req_i     (mem_req[6]),
-    .ctrl_addr_i    (mem_addr[6]),
-    .ctrl_we_i      (mem_we[6]),
-    .ctrl_be_i      (mem_strb[6]),
-    .ctrl_wdata_i   (mem_wdata[6]),
-    .ctrl_rvalid_o  (mem_rvalid[6]),
-    .ctrl_rdata_o   (mem_rdata[6]),
+    axi_from_mem #(
+      .MemAddrWidth ( 32 ), .AxiAddrWidth ( AxiAddrWidth ), .DataWidth ( AxiDataWidth ),
+      .MaxRequests  ( 2  ), .AxiProt      ( 3'b000       ),
+      .axi_req_t ( axi_in_req_t ), .axi_rsp_t ( axi_in_resp_t )
+    ) u_axi_from_mem_relu_dma (
+      .clk_i(clk_sys), .rst_ni(rst_sys_n),
+      .mem_req_i(relu_dma_req), .mem_addr_i(relu_dma_addr), .mem_we_i(relu_dma_we),
+      .mem_wdata_i(relu_dma_wdata), .mem_be_i(relu_dma_be),
+      .mem_gnt_o(relu_dma_gnt), .mem_rsp_valid_o(relu_dma_rvalid),
+      .mem_rsp_rdata_o(relu_dma_rdata), .mem_rsp_error_o(relu_dma_err),
+      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE), .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
+      .axi_req_o(xbar_slv_req[ReluDmaMstIdx]), .axi_rsp_i(xbar_slv_resp[ReluDmaMstIdx])
+    );
 
-    .dma_req_o      (relu_dma_req),
-    .dma_addr_o     (relu_dma_addr),
-    .dma_we_o       (relu_dma_we),
-    .dma_wdata_o    (relu_dma_wdata),
-    .dma_be_o       (relu_dma_be),
-    .dma_gnt_i      (relu_dma_gnt),
-    .dma_rvalid_i   (relu_dma_rvalid),
-    .dma_rdata_i    (relu_dma_rdata),
-    .dma_err_i      (relu_dma_err),
-
-    .irq_o          (relu_irq)
-  );
-
-  // -------------------------------------------------------------------------
-  // Vector MAC Accelerator
-  // -------------------------------------------------------------------------
-  vec_mac u_vec_mac (
-    .clk_i          (clk_sys),
-    .rst_ni         (rst_sys_n),
-
-    .ctrl_req_i     (mem_req[7]),
-    .ctrl_addr_i    (mem_addr[7]),
-    .ctrl_we_i      (mem_we[7]),
-    .ctrl_be_i      (mem_strb[7]),
-    .ctrl_wdata_i   (mem_wdata[7]),
-    .ctrl_rvalid_o  (mem_rvalid[7]),
-    .ctrl_rdata_o   (mem_rdata[7]),
-
-    .dma_req_o      (vmac_dma_req),
-    .dma_addr_o     (vmac_dma_addr),
-    .dma_we_o       (vmac_dma_we),
-    .dma_wdata_o    (vmac_dma_wdata),
-    .dma_be_o       (vmac_dma_be),
-    .dma_gnt_i      (vmac_dma_gnt),
-    .dma_rvalid_i   (vmac_dma_rvalid),
-    .dma_rdata_i    (vmac_dma_rdata),
-    .dma_err_i      (vmac_dma_err),
-
-    .irq_o          (vmac_irq)
-  );
+    relu_accel u_relu_accel (
+      .clk_i(clk_sys), .rst_ni(rst_sys_n),
+      .ctrl_req_i(mem_req[ReluSlvIdx]), .ctrl_addr_i(mem_addr[ReluSlvIdx]),
+      .ctrl_we_i(mem_we[ReluSlvIdx]), .ctrl_be_i(mem_strb[ReluSlvIdx]),
+      .ctrl_wdata_i(mem_wdata[ReluSlvIdx]),
+      .ctrl_rvalid_o(mem_rvalid[ReluSlvIdx]), .ctrl_rdata_o(mem_rdata[ReluSlvIdx]),
+      .dma_req_o(relu_dma_req), .dma_addr_o(relu_dma_addr),
+      .dma_we_o(relu_dma_we), .dma_wdata_o(relu_dma_wdata), .dma_be_o(relu_dma_be),
+      .dma_gnt_i(relu_dma_gnt), .dma_rvalid_i(relu_dma_rvalid),
+      .dma_rdata_i(relu_dma_rdata), .dma_err_i(relu_dma_err),
+      .irq_o(relu_irq)
+    );
+  end else begin : gen_no_relu
+    assign relu_irq = 1'b0;
+  end
 
   // -------------------------------------------------------------------------
-  // Scatter-Gather DMA Engine
+  // Vector MAC Accelerator (DMA bridge + instance)
   // -------------------------------------------------------------------------
-  sg_dma u_sg_dma (
-    .clk_i          (clk_sys),
-    .rst_ni         (rst_sys_n),
+  if (EnableVMAC) begin : gen_vmac
+    logic        vmac_dma_req,   vmac_dma_we,   vmac_dma_gnt,  vmac_dma_rvalid, vmac_dma_err;
+    logic [31:0] vmac_dma_addr,  vmac_dma_wdata, vmac_dma_rdata;
+    logic [3:0]  vmac_dma_be;
 
-    .ctrl_req_i     (mem_req[8]),
-    .ctrl_addr_i    (mem_addr[8]),
-    .ctrl_we_i      (mem_we[8]),
-    .ctrl_be_i      (mem_strb[8]),
-    .ctrl_wdata_i   (mem_wdata[8]),
-    .ctrl_rvalid_o  (mem_rvalid[8]),
-    .ctrl_rdata_o   (mem_rdata[8]),
+    axi_from_mem #(
+      .MemAddrWidth ( 32 ), .AxiAddrWidth ( AxiAddrWidth ), .DataWidth ( AxiDataWidth ),
+      .MaxRequests  ( 2  ), .AxiProt      ( 3'b000       ),
+      .axi_req_t ( axi_in_req_t ), .axi_rsp_t ( axi_in_resp_t )
+    ) u_axi_from_mem_vmac_dma (
+      .clk_i(clk_sys), .rst_ni(rst_sys_n),
+      .mem_req_i(vmac_dma_req), .mem_addr_i(vmac_dma_addr), .mem_we_i(vmac_dma_we),
+      .mem_wdata_i(vmac_dma_wdata), .mem_be_i(vmac_dma_be),
+      .mem_gnt_o(vmac_dma_gnt), .mem_rsp_valid_o(vmac_dma_rvalid),
+      .mem_rsp_rdata_o(vmac_dma_rdata), .mem_rsp_error_o(vmac_dma_err),
+      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE), .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
+      .axi_req_o(xbar_slv_req[VmacDmaMstIdx]), .axi_rsp_i(xbar_slv_resp[VmacDmaMstIdx])
+    );
 
-    .dma_req_o      (sgdma_dma_req),
-    .dma_addr_o     (sgdma_dma_addr),
-    .dma_we_o       (sgdma_dma_we),
-    .dma_wdata_o    (sgdma_dma_wdata),
-    .dma_be_o       (sgdma_dma_be),
-    .dma_gnt_i      (sgdma_dma_gnt),
-    .dma_rvalid_i   (sgdma_dma_rvalid),
-    .dma_rdata_i    (sgdma_dma_rdata),
-    .dma_err_i      (sgdma_dma_err),
-
-    .irq_o          (sg_dma_irq)
-  );
+    vec_mac u_vec_mac (
+      .clk_i(clk_sys), .rst_ni(rst_sys_n),
+      .ctrl_req_i(mem_req[VmacSlvIdx]), .ctrl_addr_i(mem_addr[VmacSlvIdx]),
+      .ctrl_we_i(mem_we[VmacSlvIdx]), .ctrl_be_i(mem_strb[VmacSlvIdx]),
+      .ctrl_wdata_i(mem_wdata[VmacSlvIdx]),
+      .ctrl_rvalid_o(mem_rvalid[VmacSlvIdx]), .ctrl_rdata_o(mem_rdata[VmacSlvIdx]),
+      .dma_req_o(vmac_dma_req), .dma_addr_o(vmac_dma_addr),
+      .dma_we_o(vmac_dma_we), .dma_wdata_o(vmac_dma_wdata), .dma_be_o(vmac_dma_be),
+      .dma_gnt_i(vmac_dma_gnt), .dma_rvalid_i(vmac_dma_rvalid),
+      .dma_rdata_i(vmac_dma_rdata), .dma_err_i(vmac_dma_err),
+      .irq_o(vmac_irq)
+    );
+  end else begin : gen_no_vmac
+    assign vmac_irq = 1'b0;
+  end
 
   // -------------------------------------------------------------------------
-  // Softmax Pipeline
+  // Scatter-Gather DMA Engine (DMA bridge + instance)
   // -------------------------------------------------------------------------
-  softmax u_softmax (
-    .clk_i          (clk_sys),
-    .rst_ni         (rst_sys_n),
+  if (EnableSgDma) begin : gen_sg_dma
+    logic        sgdma_dma_req,   sgdma_dma_we,   sgdma_dma_gnt,  sgdma_dma_rvalid, sgdma_dma_err;
+    logic [31:0] sgdma_dma_addr,  sgdma_dma_wdata, sgdma_dma_rdata;
+    logic [3:0]  sgdma_dma_be;
 
-    .ctrl_req_i     (mem_req[9]),
-    .ctrl_addr_i    (mem_addr[9]),
-    .ctrl_we_i      (mem_we[9]),
-    .ctrl_be_i      (mem_strb[9]),
-    .ctrl_wdata_i   (mem_wdata[9]),
-    .ctrl_rvalid_o  (mem_rvalid[9]),
-    .ctrl_rdata_o   (mem_rdata[9]),
+    axi_from_mem #(
+      .MemAddrWidth ( 32 ), .AxiAddrWidth ( AxiAddrWidth ), .DataWidth ( AxiDataWidth ),
+      .MaxRequests  ( 2  ), .AxiProt      ( 3'b000       ),
+      .axi_req_t ( axi_in_req_t ), .axi_rsp_t ( axi_in_resp_t )
+    ) u_axi_from_mem_sgdma (
+      .clk_i(clk_sys), .rst_ni(rst_sys_n),
+      .mem_req_i(sgdma_dma_req), .mem_addr_i(sgdma_dma_addr), .mem_we_i(sgdma_dma_we),
+      .mem_wdata_i(sgdma_dma_wdata), .mem_be_i(sgdma_dma_be),
+      .mem_gnt_o(sgdma_dma_gnt), .mem_rsp_valid_o(sgdma_dma_rvalid),
+      .mem_rsp_rdata_o(sgdma_dma_rdata), .mem_rsp_error_o(sgdma_dma_err),
+      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE), .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
+      .axi_req_o(xbar_slv_req[SgDmaDmaMstIdx]), .axi_rsp_i(xbar_slv_resp[SgDmaDmaMstIdx])
+    );
 
-    .dma_req_o      (smax_dma_req),
-    .dma_addr_o     (smax_dma_addr),
-    .dma_we_o       (smax_dma_we),
-    .dma_wdata_o    (smax_dma_wdata),
-    .dma_be_o       (smax_dma_be),
-    .dma_gnt_i      (smax_dma_gnt),
-    .dma_rvalid_i   (smax_dma_rvalid),
-    .dma_rdata_i    (smax_dma_rdata),
-    .dma_err_i      (smax_dma_err),
+    sg_dma u_sg_dma (
+      .clk_i(clk_sys), .rst_ni(rst_sys_n),
+      .ctrl_req_i(mem_req[SgDmaSlvIdx]), .ctrl_addr_i(mem_addr[SgDmaSlvIdx]),
+      .ctrl_we_i(mem_we[SgDmaSlvIdx]), .ctrl_be_i(mem_strb[SgDmaSlvIdx]),
+      .ctrl_wdata_i(mem_wdata[SgDmaSlvIdx]),
+      .ctrl_rvalid_o(mem_rvalid[SgDmaSlvIdx]), .ctrl_rdata_o(mem_rdata[SgDmaSlvIdx]),
+      .dma_req_o(sgdma_dma_req), .dma_addr_o(sgdma_dma_addr),
+      .dma_we_o(sgdma_dma_we), .dma_wdata_o(sgdma_dma_wdata), .dma_be_o(sgdma_dma_be),
+      .dma_gnt_i(sgdma_dma_gnt), .dma_rvalid_i(sgdma_dma_rvalid),
+      .dma_rdata_i(sgdma_dma_rdata), .dma_err_i(sgdma_dma_err),
+      .irq_o(sg_dma_irq)
+    );
+  end else begin : gen_no_sg_dma
+    assign sg_dma_irq = 1'b0;
+  end
 
-    .irq_o          (softmax_irq)
-  );
-`endif // !SYNTHESIS
+  // -------------------------------------------------------------------------
+  // Softmax Pipeline (DMA bridge + instance)
+  // -------------------------------------------------------------------------
+  if (EnableSoftmax) begin : gen_softmax
+    logic        smax_dma_req,   smax_dma_we,   smax_dma_gnt,  smax_dma_rvalid, smax_dma_err;
+    logic [31:0] smax_dma_addr,  smax_dma_wdata, smax_dma_rdata;
+    logic [3:0]  smax_dma_be;
+
+    axi_from_mem #(
+      .MemAddrWidth ( 32 ), .AxiAddrWidth ( AxiAddrWidth ), .DataWidth ( AxiDataWidth ),
+      .MaxRequests  ( 2  ), .AxiProt      ( 3'b000       ),
+      .axi_req_t ( axi_in_req_t ), .axi_rsp_t ( axi_in_resp_t )
+    ) u_axi_from_mem_smax_dma (
+      .clk_i(clk_sys), .rst_ni(rst_sys_n),
+      .mem_req_i(smax_dma_req), .mem_addr_i(smax_dma_addr), .mem_we_i(smax_dma_we),
+      .mem_wdata_i(smax_dma_wdata), .mem_be_i(smax_dma_be),
+      .mem_gnt_o(smax_dma_gnt), .mem_rsp_valid_o(smax_dma_rvalid),
+      .mem_rsp_rdata_o(smax_dma_rdata), .mem_rsp_error_o(smax_dma_err),
+      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE), .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
+      .axi_req_o(xbar_slv_req[SmaxDmaMstIdx]), .axi_rsp_i(xbar_slv_resp[SmaxDmaMstIdx])
+    );
+
+    softmax u_softmax (
+      .clk_i(clk_sys), .rst_ni(rst_sys_n),
+      .ctrl_req_i(mem_req[SmaxSlvIdx]), .ctrl_addr_i(mem_addr[SmaxSlvIdx]),
+      .ctrl_we_i(mem_we[SmaxSlvIdx]), .ctrl_be_i(mem_strb[SmaxSlvIdx]),
+      .ctrl_wdata_i(mem_wdata[SmaxSlvIdx]),
+      .ctrl_rvalid_o(mem_rvalid[SmaxSlvIdx]), .ctrl_rdata_o(mem_rdata[SmaxSlvIdx]),
+      .dma_req_o(smax_dma_req), .dma_addr_o(smax_dma_addr),
+      .dma_we_o(smax_dma_we), .dma_wdata_o(smax_dma_wdata), .dma_be_o(smax_dma_be),
+      .dma_gnt_i(smax_dma_gnt), .dma_rvalid_i(smax_dma_rvalid),
+      .dma_rdata_i(smax_dma_rdata), .dma_err_i(smax_dma_err),
+      .irq_o(softmax_irq)
+    );
+  end else begin : gen_no_softmax
+    assign softmax_irq = 1'b0;
+  end
 
 `ifndef SYNTHESIS
   export "DPI-C" function mhpmcounter_num;
