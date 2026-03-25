@@ -86,6 +86,7 @@ module i2c_controller (
   logic        busy;
   logic        xfer_done;
   logic        ctrl_pending_q;  // set when CPU writes CTRL, cleared when FSM consumes
+  logic        ctrl_pending_clr; // FSM requests clear (combinational)
   logic [3:0]  xfer_ctrl_q;    // latched ctrl bits for current byte transfer
 
   // WAIT_NEXT reports not-busy so CPU can queue next byte
@@ -114,10 +115,10 @@ module i2c_controller (
       arb_lost_q     <= 1'b0;
       rx_data_q      <= '0;
       xfer_done      <= 1'b0;
-      ctrl_pending_q <= 1'b0;
       xfer_ctrl_q    <= '0;
     end else begin
       xfer_done <= 1'b0;
+      ctrl_pending_clr <= 1'b0;
 
       case (state_q)
         I2C_IDLE: begin
@@ -243,7 +244,7 @@ module i2c_controller (
               state_q  <= I2C_STOP_A;
             end else begin
               // No stop — hold SCL low, wait for next byte from CPU
-              ctrl_pending_q <= 1'b0;
+              ctrl_pending_clr <= 1'b1;
               state_q <= I2C_WAIT_NEXT;
             end
           end else begin
@@ -282,7 +283,7 @@ module i2c_controller (
           // SCL held low from ACK_SCL_HI. Wait for CPU to write new CTRL.
           scl_oe_q <= 1'b1;  // keep SCL low
           if (ctrl_pending_q) begin
-            ctrl_pending_q <= 1'b0;
+            ctrl_pending_clr <= 1'b1;
             xfer_ctrl_q    <= ctrl_q;  // latch new ctrl bits for this byte
             if (ctrl_q[0]) begin
               // Repeated START requested
@@ -324,14 +325,20 @@ module i2c_controller (
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      rvalid_q   <= 1'b0;
-      rdata_d    <= '0;
-      ctrl_q     <= '0;
-      tx_data_q  <= '0;
-      prescale_q <= '0;
-      ier_q      <= 1'b0;
+      rvalid_q       <= 1'b0;
+      rdata_d        <= '0;
+      ctrl_q         <= '0;
+      ctrl_pending_q <= 1'b0;
+      tx_data_q      <= '0;
+      prescale_q     <= '0;
+      ier_q          <= 1'b0;
     end else begin
       rvalid_q <= 1'b0;
+
+      // FSM requests clear of ctrl_pending
+      if (ctrl_pending_clr) begin
+        ctrl_pending_q <= 1'b0;
+      end
 
       // Auto-clear ctrl start/stop bits when FSM leaves IDLE
       if (busy) begin

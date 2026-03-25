@@ -187,6 +187,16 @@ module pio (
   // Pin output mux (combinational)
   logic [31:0] mux_out, mux_oe;
 
+  // CPU-side FIFO write/read request signals (computed in register block, consumed in FIFO block)
+  logic        cpu_tx_push;
+  logic [1:0]  cpu_tx_sm;
+  logic [31:0] cpu_tx_wdata;
+  logic        cpu_rx_pop;
+  logic [1:0]  cpu_rx_sm;
+
+  // DMA FSM → register block: latch dma_ctrl_q fields on GO
+  logic        dma_latch_ctrl;
+
   // Genvar for generate blocks
   genvar gi;
 
@@ -284,6 +294,28 @@ module pio (
           rx_wr_ptr_q[i] <= rx_wr_ptr_q[i] + 3'd1;
         end
       end
+
+      // CPU-side TX FIFO write
+      if (cpu_tx_push && !tx_full[cpu_tx_sm]) begin
+        tx_fifo_mem[cpu_tx_sm][tx_wr_ptr_q[cpu_tx_sm][1:0]] <= cpu_tx_wdata;
+        tx_wr_ptr_q[cpu_tx_sm] <= tx_wr_ptr_q[cpu_tx_sm] + 3'd1;
+      end
+
+      // CPU-side RX FIFO read
+      if (cpu_rx_pop && !rx_empty[cpu_rx_sm]) begin
+        rx_rd_ptr_q[cpu_rx_sm] <= rx_rd_ptr_q[cpu_rx_sm] + 3'd1;
+      end
+
+      // DMA TX push: write DMA read data into TX FIFO
+      if (dma_tx_push && !tx_full[dma_sm_sel]) begin
+        tx_fifo_mem[dma_sm_sel][tx_wr_ptr_q[dma_sm_sel][1:0]] <= dma_rdata_i;
+        tx_wr_ptr_q[dma_sm_sel] <= tx_wr_ptr_q[dma_sm_sel] + 3'd1;
+      end
+
+      // DMA RX pop: read from RX FIFO for DMA write
+      if (dma_rx_pop && !rx_empty[dma_sm_sel]) begin
+        rx_rd_ptr_q[dma_sm_sel] <= rx_rd_ptr_q[dma_sm_sel] + 3'd1;
+      end
     end
   end
 
@@ -367,7 +399,8 @@ module pio (
       dma_cur_addr_q  <= 32'd0;
       dma_data_q      <= 32'd0;
     end else begin
-      dma_state_q <= dma_state_d;
+      dma_state_q    <= dma_state_d;
+      dma_latch_ctrl <= 1'b0;
 
       // Clear DONE on GO write (W1C for DONE bit too)
       if (ctrl_req_i && ctrl_we_i && ctrl_addr_i[9:0] == REG_DMA_CTRL) begin
@@ -381,10 +414,7 @@ module pio (
             dma_done_q      <= 1'b0;
             dma_cur_addr_q  <= dma_addr_q;
             dma_remaining_q <= ctrl_wdata_i[21:6]; // LEN from write data
-            dma_ctrl_q[3]   <= ctrl_wdata_i[3];    // DIR
-            dma_ctrl_q[5:4] <= ctrl_wdata_i[5:4];  // SM_SEL
-            dma_ctrl_q[21:6] <= ctrl_wdata_i[21:6]; // LEN
-            dma_ctrl_q[31]  <= ctrl_wdata_i[31];   // DONE_IE
+            dma_latch_ctrl  <= 1'b1;
 
             if (ctrl_wdata_i[21:6] == 16'd0) begin
               // Zero-length: immediate done
@@ -455,9 +485,19 @@ module pio (
       end
     end else begin
       // Clear single-cycle pulses
-      sm_restart    <= 4'd0;
+      sm_restart     <= 4'd0;
       clkdiv_restart <= 4'd0;
-      sm_force_exec <= 4'd0;
+      sm_force_exec  <= 4'd0;
+      cpu_tx_push    <= 1'b0;
+      cpu_rx_pop     <= 1'b0;
+
+      // Latch DMA ctrl fields on GO (request from DMA FSM block)
+      if (dma_latch_ctrl) begin
+        dma_ctrl_q[3]    <= ctrl_wdata_i[3];    // DIR
+        dma_ctrl_q[5:4]  <= ctrl_wdata_i[5:4];  // SM_SEL
+        dma_ctrl_q[21:6] <= ctrl_wdata_i[21:6]; // LEN
+        dma_ctrl_q[31]   <= ctrl_wdata_i[31];   // DONE_IE
+      end
 
       // IRQ flag update: set from SMs, clear from SMs, W1C from CPU
       for (int i = 0; i < NumSm; i++) begin
@@ -557,38 +597,23 @@ module pio (
                 default: ;
               endcase
             end
-            // TX FIFO write
+            // TX FIFO write (pointer update in FIFO block)
             else if (ctrl_addr_i[9:0] >= REG_TXF0 &&
                      ctrl_addr_i[9:0] < (REG_TXF0 + 10'h10)) begin
-              automatic logic [1:0] sm = ctrl_addr_i[3:2];
-              if (!tx_full[sm]) begin
-                tx_fifo_mem[sm][tx_wr_ptr_q[sm][1:0]] <= ctrl_wdata_i;
-                tx_wr_ptr_q[sm] <= tx_wr_ptr_q[sm] + 3'd1;
-              end
+              cpu_tx_push  <= 1'b1;
+              cpu_tx_sm    <= ctrl_addr_i[3:2];
+              cpu_tx_wdata <= ctrl_wdata_i;
             end
           end
         endcase
       end
 
-      // CPU-side RX FIFO read: advance read pointer
+      // CPU-side RX FIFO read: signal FIFO block to advance pointer
       if (ctrl_req_i && !ctrl_we_i &&
           ctrl_addr_i[9:0] >= REG_RXF0 &&
           ctrl_addr_i[9:0] < (REG_RXF0 + 10'h10)) begin
-        automatic logic [1:0] sm = ctrl_addr_i[3:2];
-        if (!rx_empty[sm]) begin
-          rx_rd_ptr_q[sm] <= rx_rd_ptr_q[sm] + 3'd1;
-        end
-      end
-
-      // DMA TX push: write DMA read data into TX FIFO
-      if (dma_tx_push && !tx_full[dma_sm_sel]) begin
-        tx_fifo_mem[dma_sm_sel][tx_wr_ptr_q[dma_sm_sel][1:0]] <= dma_rdata_i;
-        tx_wr_ptr_q[dma_sm_sel] <= tx_wr_ptr_q[dma_sm_sel] + 3'd1;
-      end
-
-      // DMA RX pop: read from RX FIFO for DMA write
-      if (dma_rx_pop && !rx_empty[dma_sm_sel]) begin
-        rx_rd_ptr_q[dma_sm_sel] <= rx_rd_ptr_q[dma_sm_sel] + 3'd1;
+        cpu_rx_pop <= 1'b1;
+        cpu_rx_sm  <= ctrl_addr_i[3:2];
       end
     end
   end
