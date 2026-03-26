@@ -24,6 +24,7 @@ set PROJ_NAME   opensoc_basys3
 set PROJ_DIR    $REPO_ROOT/build/vivado
 set SRC_DIR     $REPO_ROOT/build/opensoc_fpga_basys3_0/synth-vivado/src
 set XDC_FILE    $REPO_ROOT/hw/fpga/basys3/basys3.xdc
+set FILELIST    $REPO_ROOT/hw/synth/sources.f
 
 # ============================================================================
 # Verify FuseSoC setup has been run
@@ -32,6 +33,28 @@ if {![file exists $SRC_DIR]} {
     puts "ERROR: Source directory '$SRC_DIR' not found."
     puts "Run FuseSoC setup first:  make synth-setup"
     return -code error "FuseSoC setup required"
+}
+
+# ============================================================================
+# Read shared filelist (sections: includes, packages, rtl)
+# ============================================================================
+proc read_filelist {filepath section prefix} {
+    set in_section 0
+    set result [list]
+    set fd [open $filepath r]
+    while {[gets $fd line] >= 0} {
+        # Strip comments and trim
+        regsub {#.*$} $line {} line
+        set line [string trim $line]
+        if {$line eq ""} continue
+        if {[regexp {^\[(.+)\]$} $line -> sec]} {
+            set in_section [expr {$sec eq $section}]
+            continue
+        }
+        if {$in_section} { lappend result $prefix/$line }
+    }
+    close $fd
+    return $result
 }
 
 # ============================================================================
@@ -52,98 +75,25 @@ set_property verilog_define $VLOG_DEFINES [current_fileset]
 # ============================================================================
 # Include directories (for .svh headers)
 # ============================================================================
-set INC_DIRS [list \
-    $SRC_DIR/lowrisc_prim_assert_0.1/rtl \
-    $SRC_DIR/lowrisc_prim_secded_0.1/rtl \
-    $SRC_DIR/lowrisc_prim_util_get_scramble_params_0/rtl \
-    $SRC_DIR/lowrisc_prim_util_memload_0/rtl \
-    $SRC_DIR/lowrisc_dv_dv_fcov_macros_0 \
-    $SRC_DIR/pulp-platform.org__axi_0.39.9/include \
-    $SRC_DIR/pulp-platform.org__common_cells_1.39.0/include \
-]
+set INC_DIRS [read_filelist $FILELIST includes $SRC_DIR]
+set_property include_dirs $INC_DIRS [current_fileset]
 
 # ============================================================================
 # Source files — packages first (order matters for elaboration)
 # ============================================================================
-set PKG_FILES [list \
-    $SRC_DIR/lowrisc_prim_generic_prim_pkg_0/rtl/prim_pkg.sv \
-    $SRC_DIR/lowrisc_prim_util_0.1/rtl/prim_util_pkg.sv \
-    $SRC_DIR/lowrisc_prim_generic_ram_1p_pkg_0/rtl/prim_ram_1p_pkg.sv \
-    $SRC_DIR/lowrisc_prim_generic_ram_2p_pkg_0/rtl/prim_ram_2p_pkg.sv \
-    $SRC_DIR/lowrisc_prim_generic_rom_pkg_0/rtl/prim_rom_pkg.sv \
-    $SRC_DIR/lowrisc_prim_pad_wrapper_pkg_0/rtl/prim_pad_wrapper_pkg.sv \
-    $SRC_DIR/lowrisc_prim_secded_0.1/rtl/prim_secded_pkg.sv \
-    $SRC_DIR/lowrisc_prim_mubi_pkg_0.1/rtl/prim_mubi_pkg.sv \
-    $SRC_DIR/lowrisc_prim_cipher_pkg_0.1/rtl/prim_cipher_pkg.sv \
-    $SRC_DIR/lowrisc_prim_count_0/rtl/prim_count_pkg.sv \
-    $SRC_DIR/lowrisc_ibex_ibex_pkg_0.1/rtl/ibex_pkg.sv \
-    $SRC_DIR/lowrisc_ibex_ibex_tracer_0.1/rtl/ibex_tracer_pkg.sv \
-    $SRC_DIR/pulp-platform.org__common_cells_1.39.0/src/cf_math_pkg.sv \
-    $SRC_DIR/pulp-platform.org__common_cells_1.39.0/src/ecc_pkg.sv \
-    $SRC_DIR/pulp-platform.org__common_cells_1.39.0/src/cb_filter_pkg.sv \
-    $SRC_DIR/pulp-platform.org__common_cells_1.39.0/src/cdc_reset_ctrlr_pkg.sv \
-    $SRC_DIR/pulp-platform.org__axi_0.39.9/src/axi_pkg.sv \
-]
+set PKG_FILES [read_filelist $FILELIST packages $SRC_DIR]
 
 # ============================================================================
-# Source files — all remaining RTL (glob from FuseSoC build directory)
+# Source files — RTL (expand globs, add FPGA wrapper)
 # ============================================================================
-# Collect all .sv files, then remove packages (already listed above) and
-# header-only files (.svh are handled via includes, prim_assert.sv is
-# include-only).  The prim_flop_macros.sv is also include-only.
-set ALL_SV [glob -nocomplain \
-    $SRC_DIR/lowrisc_prim_assert_0.1/rtl/prim_assert.sv \
-    $SRC_DIR/lowrisc_prim_assert_0.1/rtl/prim_flop_macros.sv \
-    $SRC_DIR/lowrisc_ibex_ibex_core_0.1/rtl/*.sv \
-    $SRC_DIR/lowrisc_ibex_ibex_icache_0.1/rtl/*.sv \
-    $SRC_DIR/lowrisc_ibex_ibex_top_0.1/rtl/*.sv \
-    $SRC_DIR/lowrisc_ibex_ibex_top_tracing_0.1/rtl/*.sv \
-    $SRC_DIR/lowrisc_ibex_ibex_tracer_0.1/rtl/ibex_tracer.sv \
-    $SRC_DIR/lowrisc_ibex_sim_shared_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_ibex_sim_shared_0/rtl/sim/*.sv \
-    $SRC_DIR/lowrisc_prim_cdc_rand_delay_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_cipher_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_count_0/rtl/prim_count.sv \
-    $SRC_DIR/lowrisc_prim_generic_and2_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_buf_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_clock_buf_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_clock_div_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_clock_gating_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_clock_inv_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_clock_mux2_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_flop_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_flop_2sync_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_flop_en_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_flop_no_rst_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_pad_attr_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_pad_wrapper_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_ram_1p_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_ram_1r1w_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_ram_2p_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_rom_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_rst_sync_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_usb_diff_rx_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_xnor2_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_generic_xor2_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_lfsr_0.1/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_mubi_0.1/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_onehot_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_onehot_check_0/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_ram_1p_adv_0.1/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_ram_1p_scr_0.1/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_sec_anchor_0.1/rtl/*.sv \
-    $SRC_DIR/lowrisc_prim_secded_0.1/rtl/*.sv \
-    $SRC_DIR/pulp-platform.org__axi_0.39.9/src/*.sv \
-    $SRC_DIR/pulp-platform.org__common_cells_1.39.0/src/*.sv \
-    $SRC_DIR/pulp-platform.org__common_cells_1.39.0/src/deprecated/*.sv \
-    $SRC_DIR/opensoc_ip_pio_0/rtl/*.sv \
-    $SRC_DIR/opensoc_ip_relu_accel_0/rtl/*.sv \
-    $SRC_DIR/opensoc_ip_sg_dma_0/rtl/*.sv \
-    $SRC_DIR/opensoc_ip_softmax_0/rtl/*.sv \
-    $SRC_DIR/opensoc_ip_vec_mac_0/rtl/*.sv \
-    $SRC_DIR/opensoc_soc_opensoc_top_0/rtl/*.sv \
-    $SRC_DIR/opensoc_fpga_basys3_0/fpga/basys3/*.sv \
-]
+set rtl_patterns [read_filelist $FILELIST rtl $SRC_DIR]
+# FPGA-only: add the board wrapper
+lappend rtl_patterns $SRC_DIR/opensoc_fpga_basys3_0/fpga/basys3/*.sv
+
+set ALL_SV [list]
+foreach pat $rtl_patterns {
+    set ALL_SV [concat $ALL_SV [glob -nocomplain $pat]]
+}
 
 # Remove package files from ALL_SV (they are already in PKG_FILES)
 set PKG_SET [list]
@@ -170,9 +120,6 @@ set_property file_type SystemVerilog [get_files $PKG_FILES]
 add_files -norecurse $RTL_FILES
 set_property file_type SystemVerilog [get_files $RTL_FILES]
 
-# Include paths
-set_property include_dirs $INC_DIRS [current_fileset]
-
 # Constraints
 add_files -fileset constrs_1 -norecurse $XDC_FILE
 
@@ -180,29 +127,72 @@ add_files -fileset constrs_1 -norecurse $XDC_FILE
 set_property top $TOP [current_fileset]
 
 # ============================================================================
+# Helper: extract WNS from timing summary, return numeric value
+# ============================================================================
+proc get_wns {} {
+    set rpt [report_timing_summary -return_string -quiet]
+    if {[regexp {WNS\(ns\)\s+TNS\(ns\).*?\n\s*(-?[0-9.]+)} $rpt -> wns]} {
+        return $wns
+    }
+    return "N/A"
+}
+
+# ============================================================================
 # Synthesis (in-process — reliable in batch mode, unlike launch_runs)
 # ============================================================================
 puts "=========================================="
 puts " Running Synthesis..."
 puts "=========================================="
-synth_design -top $TOP -part $PART
+set t0 [clock seconds]
+if {[catch {synth_design -top $TOP -part $PART} err]} {
+    puts "ERROR: synth_design failed: $err"
+    return -code error "Synthesis failed"
+}
+set dt [expr {[clock seconds] - $t0}]
+puts [format "  Synthesis completed in %d:%02d" [expr {$dt/60}] [expr {$dt%60}]]
+
 write_checkpoint -force $PROJ_DIR/post_synth.dcp
 report_utilization -file $PROJ_DIR/post_synth_utilization.txt
 report_timing_summary -file $PROJ_DIR/post_synth_timing.txt
+
+set synth_wns [get_wns]
 puts ""
 puts "Post-synthesis reports:"
 puts "  $PROJ_DIR/post_synth_utilization.txt"
 puts "  $PROJ_DIR/post_synth_timing.txt"
+puts "  WNS (estimated): ${synth_wns} ns"
 
 # ============================================================================
-# Implementation (place & route)
+# Implementation (optimize → place → physical optimize → route)
 # ============================================================================
 puts "=========================================="
 puts " Running Place & Route..."
 puts "=========================================="
-opt_design
-place_design
-route_design
+set t0 [clock seconds]
+
+if {[catch {opt_design} err]} {
+    puts "ERROR: opt_design failed: $err"
+    return -code error "Logic optimization failed"
+}
+
+if {[catch {place_design} err]} {
+    puts "ERROR: place_design failed: $err"
+    return -code error "Placement failed"
+}
+
+# Physical optimization after placement — recovers timing on critical paths
+if {[catch {phys_opt_design} err]} {
+    puts "WARNING: phys_opt_design failed: $err (continuing)"
+}
+
+if {[catch {route_design} err]} {
+    puts "ERROR: route_design failed: $err"
+    return -code error "Routing failed"
+}
+
+set dt [expr {[clock seconds] - $t0}]
+puts [format "  Place & route completed in %d:%02d" [expr {$dt/60}] [expr {$dt%60}]]
+
 write_checkpoint -force $PROJ_DIR/post_route.dcp
 report_utilization -file $PROJ_DIR/post_route_utilization.txt
 report_timing_summary -file $PROJ_DIR/post_route_timing.txt
@@ -212,12 +202,35 @@ puts "  $PROJ_DIR/post_route_utilization.txt"
 puts "  $PROJ_DIR/post_route_timing.txt"
 
 # ============================================================================
+# Timing closure check
+# ============================================================================
+set CLK_PERIOD 20.0
+set route_wns [get_wns]
+puts ""
+if {$route_wns ne "N/A"} {
+    set fmax_mhz [format "%.1f" [expr {1000.0 / ($CLK_PERIOD - $route_wns)}]]
+    if {$route_wns < 0} {
+        puts "WARNING: Timing NOT met — WNS = ${route_wns} ns"
+        puts "  Max achievable frequency: ${fmax_mhz} MHz (target: 50.0 MHz)"
+        puts "  Review: $PROJ_DIR/post_route_timing.txt"
+    } else {
+        puts "Timing met — WNS = ${route_wns} ns"
+        puts "  Max achievable frequency: ${fmax_mhz} MHz (target: 50.0 MHz)"
+    }
+} else {
+    puts "WARNING: Could not extract WNS from timing report"
+}
+
+# ============================================================================
 # Bitstream generation
 # ============================================================================
 puts "=========================================="
 puts " Generating Bitstream..."
 puts "=========================================="
-write_bitstream -force $PROJ_DIR/$PROJ_NAME.bit
+if {[catch {write_bitstream -force $PROJ_DIR/$PROJ_NAME.bit} err]} {
+    puts "ERROR: write_bitstream failed: $err"
+    return -code error "Bitstream generation failed"
+}
 
 puts "=========================================="
 puts " SUCCESS: Bitstream generated"
