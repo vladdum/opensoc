@@ -10,14 +10,12 @@ OpenSoC is a RISC-V SoC built on the lowRISC **Ibex** CPU core. The top-level mo
 
 All builds use **FuseSoC** and must run under WSL/Linux (not native Windows).
 
-**Always invoke make via WSL from the Windows shell:**
+**The user works directly inside a WSL/Ubuntu terminal.** Run all commands directly (e.g. `make lint`) — do NOT wrap with `wsl bash -lc`. The shell already has PATH set up for FuseSoC, Verilator, the RISC-V toolchain, Vivado, etc.
 
 ```bash
-wsl bash -lc "cd /mnt/c/GitHub/opensoc && make lint"
-wsl bash -lc "cd /mnt/c/GitHub/opensoc && make run-hello"
+make lint
+make run-hello
 ```
-
-The login shell (`-lc`) is required so that PATH includes FuseSoC, Verilator, and the RISC-V toolchain.
 
 ```bash
 # Verilator lint (the primary build target today)
@@ -31,19 +29,22 @@ fusesoc --cores-root=. --cores-root=hw/ip/ibex --cores-root=hw/ip/ibex/vendor/lo
 
 After cloning, initialize submodules: `git submodule update --init --recursive`
 
-### FPGA Synthesis (Basys 3)
-
-Vivado runs natively in WSL/Linux. Add to `~/.bashrc`: `source /opt/Xilinx/Vivado/2025.2/settings64.sh`
+### Synthesis
 
 ```bash
-make synth            # full flow: FuseSoC setup + Vivado batch
-make synth-setup      # FuseSoC setup only (collect sources)
-vivado -mode batch -source hw/fpga/basys3/synth.tcl   # Vivado only (after setup)
+make synth              # default: OpenLane 2 / Sky130 ASIC synthesis + STA
+make synth FLOW=fpga    # FPGA: Vivado / Basys 3 XC7A35T
+make synth FLOW=yosys   # ASIC: sv2v + Yosys generic gates
+make synth-setup        # FuseSoC setup only (collect sources)
 ```
 
-The `synth.tcl` script uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode.
+All flows share `make synth-setup` (FuseSoC collects sources) and `hw/synth/sources.f` (shared file list).
 
-Reports are written to `build/vivado/`: `post_synth_timing.txt`, `post_synth_utilization.txt`, `post_route_timing.txt`, `post_route_utilization.txt`.
+**FPGA flow** (`FLOW=fpga`): Vivado must be on PATH. Add to `~/.bashrc`: `source /opt/Xilinx/2025.2/Vivado/settings64.sh`. The `synth.tcl` script uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode. Reports are written to `build/vivado/`.
+
+**OpenLane 2 flow** (default): Runs sv2v → Yosys (Sky130 mapped) → OpenROAD STA. Prerequisites: `sv2v`, Nix with flakes enabled (`experimental-features = nix-command flakes` in `/etc/nix/nix.conf`). The Nix flake provides matched Yosys + OpenROAD + OpenLane. Results in `build/openlane2/runs/`.
+
+**Yosys flow** (`FLOW=yosys`): Quick sanity check with generic gates. Prerequisites: `sv2v`, `yosys` (system install). Results in `build/yosys/`.
 
 Clean rebuild: `make clean && make synth`.
 
@@ -75,6 +76,8 @@ Memory map: RAM at 0x100000 (1 MB), SimCtrl at 0x20000, Timer at 0x30000, UART a
 
 - `hw/rtl/` — OpenSoC RTL (top-level, UART, I2C, dual-UART wrapper, I2C loopback wrapper)
 - `hw/fpga/` — FPGA targets (Basys 3 constraints, wrapper, synth script)
+- `hw/asic/` — ASIC synthesis (sv2v + Yosys script, OpenLane 2 flow)
+- `hw/synth/` — Shared source file list (`sources.f`) for all synth flows
 - `hw/opensoc_top.core` — FuseSoC core file defining dependencies and build targets
 - `hw/lint/` — Verilator waiver files
 - `hw/ip/ibex/` — Ibex submodule (CPU core + shared sim RTL like bus, ram, timer)

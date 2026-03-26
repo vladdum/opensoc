@@ -105,6 +105,28 @@ All build commands below should be run inside the WSL/Ubuntu terminal.
   Requires WSLg (WSL2 on Windows 10 21H2+) or an X server (e.g. VcXsrv) for GUI display.
 - **srecord** (optional, for vmem files) — on Debian/Ubuntu: `sudo apt-get install srecord`.
 
+#### Synthesis-specific prerequisites
+
+| Flow | Command | Prerequisites |
+|------|---------|---------------|
+| **OpenLane 2** (default) | `make synth` | [Nix](https://nixos.org/download/) with flakes enabled, [sv2v](https://github.com/zachjs/sv2v) |
+| **FPGA / Vivado** | `make synth FLOW=fpga` | [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (free WebPACK edition) |
+| **Yosys generic** | `make synth FLOW=yosys` | [sv2v](https://github.com/zachjs/sv2v), [Yosys](https://github.com/YosysHQ/yosys) |
+
+**Nix setup** (for OpenLane 2 flow):
+```bash
+sh <(curl -L https://nixos.org/nix/install) --daemon
+# After install, restart your terminal, then enable flakes:
+sudo sh -c 'echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf'
+sudo systemctl restart nix-daemon
+```
+The first `make synth` run downloads the OpenLane 2 toolchain via Nix (~2 GB, cached afterwards).
+
+**Vivado setup** (for FPGA flow — add to `~/.bashrc`):
+```bash
+source /opt/Xilinx/2025.2/Vivado/settings64.sh
+```
+
 ### Clone and initialize
 
 ```bash
@@ -118,56 +140,58 @@ git submodule update --init --recursive
 Run `make help` to list all targets:
 
 ```
-make lint             Run Verilator lint
-make sim              Build Verilator simulator
-make sw-<test>        Build SW binary    (e.g. make sw-relu)
-make run-<test>       Build and simulate (e.g. make run-softmax)
-make synth            Full FPGA synthesis (FuseSoC setup + Vivado batch)
-make synth-setup      FuseSoC setup only (collect sources)
-make clean            Remove build directory
+make lint                  Run Verilator lint
+make sim                   Build Verilator simulator
+make sw-<test>             Build SW binary    (e.g. make sw-relu)
+make run-<test>            Build and simulate (e.g. make run-softmax)
+make synth                 Synthesize (default: OpenLane 2 / Sky130)
+make synth FLOW=fpga       FPGA synthesis (Vivado / Basys 3)
+make synth FLOW=yosys      ASIC synthesis (sv2v + Yosys, generic gates)
+make synth-setup           FuseSoC setup only (collect sources)
+make clean                 Remove build directory
 ```
 
 Available tests: `hello`, `uart`, `pio`, `pio-sdk`, `pio-i2c`, `i2c`, `relu`, `vmac`, `sg-dma`, `softmax`, `dual-uart`, `i2c-loopback`.
 
-Options: `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GTKWave.
+Options: `FLOW=ol2|fpga|yosys` selects synthesis flow (default: `ol2`). `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GTKWave.
 
-### FPGA Synthesis (Basys 3)
+### Synthesis
 
-Targets the Digilent Basys 3 (Xilinx Artix-7 XC7A35T). Requires [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (free WebPACK edition works) installed in WSL/Linux.
-
-**Vivado setup** (add to `~/.bashrc`):
+Three synthesis flows are available, selected via the `FLOW` variable:
 
 ```bash
-source /opt/Xilinx/Vivado/2025.2/settings64.sh
+make synth              # OpenLane 2 / Sky130 ASIC synthesis + STA (default)
+make synth FLOW=fpga    # FPGA: Vivado / Basys 3 XC7A35T
+make synth FLOW=yosys   # ASIC: sv2v + Yosys generic gates (quick sanity check)
 ```
 
-**One-step build** (FuseSoC setup + Vivado batch synthesis):
+All flows share `make synth-setup` (FuseSoC collects sources into `build/`) and `hw/synth/sources.f` (shared file list). Setup is skipped automatically if already done; use `make clean` to force a fresh setup. Both ASIC flows can run in parallel with the FPGA flow after setup.
 
-```bash
-make synth
-```
+#### OpenLane 2 / Sky130 (default)
+
+Runs sv2v → Yosys synthesis mapped to Sky130 standard cells → pre-PNR static timing analysis (OpenROAD). All tools are provided by the OpenLane 2 Nix flake — no manual tool installation needed beyond Nix itself.
+
+Results: `build/openlane2/runs/<tag>/` — synthesis stats + STA reports.
+
+#### FPGA / Vivado (Basys 3)
+
+Targets the Digilent Basys 3 (Xilinx Artix-7 XC7A35T). Full flow: synth → opt → place → phys_opt → route → bitstream.
 
 **Two-step build** (useful when iterating in the Vivado GUI):
-
-1. Collect source files:
-   ```bash
-   make synth-setup
-   ```
-2. Run Vivado:
-   ```bash
-   vivado -mode batch -source hw/fpga/basys3/synth.tcl
-   ```
-
-Reports are written to `build/vivado/`:
-- `post_synth_timing.txt` / `post_synth_utilization.txt` — after synthesis
-- `post_route_timing.txt` / `post_route_utilization.txt` — after place & route
-- `opensoc_basys3.bit` — final bitstream
-
-**Clean rebuild:**
-
 ```bash
-make clean && make synth
+make synth-setup
+vivado -mode batch -source hw/fpga/basys3/synth.tcl
 ```
+
+Reports: `build/vivado/` — `post_synth_timing.txt`, `post_route_timing.txt`, `post_synth_utilization.txt`, `post_route_utilization.txt`, `opensoc_basys3.bit`.
+
+#### Yosys generic gates
+
+Quick sanity check — converts SystemVerilog via sv2v, then synthesizes to technology-independent gates with Yosys. No timing analysis.
+
+Results: `build/yosys/opensoc_top_netlist.v`, `build/yosys/yosys.log`.
+
+**Clean rebuild:** `make clean && make synth`.
 
 **Pin mapping:**
 
@@ -217,7 +241,9 @@ hw/ip/relu_accel/    — ReLU accelerator IP (reusable DMA framework)
 hw/ip/vec_mac/       — Vector MAC accelerator IP (INT8 dot product)
 hw/ip/sg_dma/        — Scatter-gather DMA engine IP
 hw/ip/softmax/       — Softmax pipeline IP (3-pass, exp LUT)
-hw/fpga/             — FPGA targets (Basys 3 constraints + wrapper)
+hw/fpga/             — FPGA targets (Basys 3 constraints, wrapper, synth script)
+hw/asic/             — ASIC synthesis (sv2v + Yosys, OpenLane 2 flow)
+hw/synth/            — Shared source file list (sources.f) for all synth flows
 dv/verilator/        — Verilator simulation testbench
 sw/lib/              — Pico SDK-compatible PIO library (header-only)
 sw/include/          — Shared headers (opensoc_regs.h)
