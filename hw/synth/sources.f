@@ -34,6 +34,9 @@ pulp-platform.org__common_cells_1.39.0/src/ecc_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/cb_filter_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/cdc_reset_ctrlr_pkg.sv
 pulp-platform.org__axi_0.39.9/src/axi_pkg.sv
+opensoc_soc_opensoc_top_0/rtl/opensoc_config_pkg.sv
+opensoc_soc_opensoc_top_0/rtl/opensoc_top_fpga_config_pkg.sv
+opensoc_soc_opensoc_top_0/rtl/opensoc_derived_config_pkg.sv
 
 [rtl]
 lowrisc_prim_assert_0.1/rtl/prim_assert.sv
@@ -85,4 +88,6 @@ opensoc_ip_relu_accel_0/rtl/*.sv
 opensoc_ip_sg_dma_0/rtl/*.sv
 opensoc_ip_softmax_0/rtl/*.sv
 opensoc_ip_vec_mac_0/rtl/*.sv
-opensoc_soc_opensoc_top_0/rtl/*.sv
+opensoc_soc_opensoc_top_0/rtl/opensoc_top.sv
+opensoc_soc_opensoc_top_0/rtl/uart.sv
+opensoc_soc_opensoc_top_0/rtl/i2c_controller.sv

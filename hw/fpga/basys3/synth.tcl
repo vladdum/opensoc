@@ -66,7 +66,7 @@ set_property target_language Verilog [current_project]
 # ============================================================================
 # Verilog defines
 # ============================================================================
-set VLOG_DEFINES "SYNTHESIS=1 FPGA_XILINX=1"
+set VLOG_DEFINES "SYNTHESIS=1 FPGA_XILINX=1 FPGA_BASYS3=1"
 append VLOG_DEFINES " RegFile=ibex_pkg::RegFileFPGA"
 append VLOG_DEFINES " PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric"
 

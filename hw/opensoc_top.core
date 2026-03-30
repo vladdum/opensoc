@@ -16,6 +16,9 @@ filesets:
       - "opensoc:ip:softmax"
       - "opensoc:ip:pio"
     files:
+      - rtl/opensoc_config_pkg.sv
+      - rtl/opensoc_top_fpga_config_pkg.sv
+      - rtl/opensoc_derived_config_pkg.sv
       - rtl/opensoc_top.sv
       - rtl/uart.sv
       - rtl/i2c_controller.sv

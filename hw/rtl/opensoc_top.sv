@@ -5,31 +5,9 @@
 // Based on ibex_simple_system from the Ibex project.
 // Copyright lowRISC contributors.
 
-// VCS does not support overriding enum and string parameters via command line. Instead, a `define
-// is used that can be set from the command line. If no value has been specified, this gives a
-// default. Other simulators don't take the detour via `define and can override the corresponding
-// parameters directly.
-`ifndef RV32M
-  `define RV32M ibex_pkg::RV32MFast
-`endif
-
-`ifndef RV32B
-  `define RV32B ibex_pkg::RV32BNone
-`endif
-
-`ifndef RV32ZC
-  `define RV32ZC ibex_pkg::RV32ZcaZcbZcmp
-`endif
-
-`ifndef RegFile
-  `define RegFile ibex_pkg::RegFileFF
-`endif
-
 `ifndef INSTR_CYCLE_DELAY
   `define INSTR_CYCLE_DELAY 0
 `endif
-
-`include "axi/typedef.svh"
 
 /**
  * OpenSoC Top-Level
@@ -48,7 +26,10 @@
  * I2C, ReLU, VMAC, SG DMA, Softmax) bridged via axi_to_mem.
  */
 
-module opensoc_top import axi_pkg::*; (
+module opensoc_top
+  import axi_pkg::*;
+  import opensoc_derived_config_pkg::*;
+(
   input  IO_CLK,
   input  IO_RST_N,
 
@@ -70,37 +51,6 @@ module opensoc_top import axi_pkg::*; (
   input  i2c_sda_i
 );
 
-  parameter bit                 SecureIbex               = 1'b0;
-  parameter int unsigned        LockstepOffset           = 1;
-  parameter bit                 ICacheScramble           = 1'b0;
-  parameter bit                 PMPEnable                = 1'b0;
-  parameter int unsigned        PMPGranularity           = 0;
-  parameter int unsigned        PMPNumRegions            = 4;
-  parameter int unsigned        MHPMCounterNum           = 0;
-  parameter int unsigned        MHPMCounterWidth         = 40;
-  parameter bit                 RV32E                    = 1'b0;
-  parameter ibex_pkg::rv32m_e   RV32M                    = `RV32M;
-  parameter ibex_pkg::rv32b_e   RV32B                    = `RV32B;
-  parameter ibex_pkg::rv32zc_e  RV32ZC                   = `RV32ZC;
-  parameter ibex_pkg::regfile_e RegFile                  = `RegFile;
-  parameter bit                 BranchTargetALU          = 1'b0;
-  parameter bit                 WritebackStage           = 1'b0;
-  parameter bit                 ICache                   = 1'b0;
-  parameter bit                 DbgTriggerEn             = 1'b0;
-  parameter bit                 ICacheECC                = 1'b0;
-  parameter bit                 BranchPredictor          = 1'b0;
-  parameter                     SRAMInitFile             = "";
-  parameter int unsigned        RamDepth                 = 1024*1024/4;
-
-  // Submodule enable parameters (set to 0 for FPGA to save resources)
-  parameter bit                 EnableReLU               = 1'b1;
-  parameter bit                 EnableVMAC               = 1'b1;
-  parameter bit                 EnableSgDma              = 1'b1;
-  parameter bit                 EnableSoftmax            = 1'b1;
-
-  // AXI crossbar latency mode (NO_LATENCY for sim, CUT_ALL_PORTS for FPGA timing)
-  parameter xbar_latency_e      XbarLatencyMode          = NO_LATENCY;
-
   logic clk_sys, rst_sys_n;
 
   // interrupts
@@ -112,91 +62,6 @@ module opensoc_top import axi_pkg::*; (
   logic vmac_irq;
   logic sg_dma_irq;
   logic softmax_irq;
-
-  // -------------------------------------------------------------------------
-  // Crossbar dimensions (computed from enable parameters)
-  // -------------------------------------------------------------------------
-  localparam int unsigned NumAccel     = 32'(EnableReLU) + 32'(EnableVMAC) + 32'(EnableSgDma) + 32'(EnableSoftmax);
-  localparam int unsigned NumMasters   = 3 + NumAccel;  // instr + data + PIO DMA + accel DMAs
-  localparam int unsigned NumSlaves    = 6 + NumAccel;  // RAM + SimCtrl + Timer + UART + PIO + I2C + accel ctrls
-  localparam int unsigned NumRules     = NumSlaves;
-
-  // Master port indices: 0=instr, 1=data, [accel DMAs], PIO DMA (always last)
-  localparam int unsigned PioDmaMstIdx   = NumMasters - 1;
-  localparam int unsigned ReluDmaMstIdx  = 2;
-  localparam int unsigned VmacDmaMstIdx  = 2 + 32'(EnableReLU);
-  localparam int unsigned SgDmaDmaMstIdx = 2 + 32'(EnableReLU) + 32'(EnableVMAC);
-  localparam int unsigned SmaxDmaMstIdx  = 2 + 32'(EnableReLU) + 32'(EnableVMAC) + 32'(EnableSgDma);
-
-  // Slave port indices: 0=RAM, 1=SimCtrl, 2=Timer, 3=UART, 4=PIO, 5=I2C, [accel ctrls]
-  localparam int unsigned ReluSlvIdx  = 6;
-  localparam int unsigned VmacSlvIdx  = 6 + 32'(EnableReLU);
-  localparam int unsigned SgDmaSlvIdx = 6 + 32'(EnableReLU) + 32'(EnableVMAC);
-  localparam int unsigned SmaxSlvIdx  = 6 + 32'(EnableReLU) + 32'(EnableVMAC) + 32'(EnableSgDma);
-
-  // -------------------------------------------------------------------------
-  // AXI type parameters
-  // -------------------------------------------------------------------------
-  localparam int unsigned AxiAddrWidth  = 32;
-  localparam int unsigned AxiDataWidth  = 32;
-  localparam int unsigned AxiStrbWidth  = AxiDataWidth / 8;
-  localparam int unsigned AxiIdWidthIn  = 1;   // ID width at xbar slave ports (master side)
-  localparam int unsigned AxiIdWidthOut = AxiIdWidthIn + $clog2(NumMasters); // xbar prepends bits for NumMasters slave ports
-  localparam int unsigned AxiUserWidth  = 1;
-
-  // AXI type definitions — slave-port side (master-facing, narrow ID)
-  typedef logic [AxiAddrWidth-1:0]  axi_addr_t;
-  typedef logic [AxiDataWidth-1:0]  axi_data_t;
-  typedef logic [AxiStrbWidth-1:0]  axi_strb_t;
-  typedef logic [AxiIdWidthIn-1:0]  axi_id_in_t;
-  typedef logic [AxiIdWidthOut-1:0] axi_id_out_t;
-  typedef logic [AxiUserWidth-1:0]  axi_user_t;
-
-  // Slave-port types (master-facing, narrow ID)
-  `AXI_TYPEDEF_ALL(axi_in, axi_addr_t, axi_id_in_t, axi_data_t, axi_strb_t, axi_user_t)
-
-  // Master-port types (slave-facing, wide ID)
-  `AXI_TYPEDEF_ALL(axi_out, axi_addr_t, axi_id_out_t, axi_data_t, axi_strb_t, axi_user_t)
-
-  localparam xbar_cfg_t XbarCfg = '{
-    NoSlvPorts:         NumMasters,
-    NoMstPorts:         NumSlaves,
-    MaxMstTrans:        4,
-    MaxSlvTrans:        4,
-    FallThrough:        1'b0,
-    LatencyMode:        XbarLatencyMode,
-    PipelineStages:     32'd0,
-    AxiIdWidthSlvPorts: AxiIdWidthIn,
-    AxiIdUsedSlvPorts:  AxiIdWidthIn,
-    UniqueIds:          1'b0,
-    AxiAddrWidth:       AxiAddrWidth,
-    AxiDataWidth:       AxiDataWidth,
-    NoAddrRules:        NumRules
-  };
-
-  // Address map — built by function to match enable parameters
-  typedef xbar_rule_32_t [NumRules-1:0] addr_map_t;
-
-  function automatic addr_map_t compute_addr_map();
-    addr_map_t   map;
-    int unsigned r;
-    // Core slaves (always present)
-    map[0] = '{ idx: 32'd0, start_addr: 32'h0010_0000, end_addr: 32'h0020_0000 }; // RAM     1 MB
-    map[1] = '{ idx: 32'd1, start_addr: 32'h0002_0000, end_addr: 32'h0002_0400 }; // SimCtrl 1 kB
-    map[2] = '{ idx: 32'd2, start_addr: 32'h0003_0000, end_addr: 32'h0003_0400 }; // Timer   1 kB
-    map[3] = '{ idx: 32'd3, start_addr: 32'h0004_0000, end_addr: 32'h0004_0400 }; // UART    1 kB
-    map[4] = '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }; // PIO     1 kB
-    map[5] = '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }; // I2C     1 kB
-    // Accelerator slaves (conditional)
-    r = 6;
-    if (EnableReLU)    begin map[r] = '{ idx: r, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }; r = r + 1; end
-    if (EnableVMAC)    begin map[r] = '{ idx: r, start_addr: 32'h0008_0000, end_addr: 32'h0008_0400 }; r = r + 1; end
-    if (EnableSgDma)   begin map[r] = '{ idx: r, start_addr: 32'h0009_0000, end_addr: 32'h0009_0400 }; r = r + 1; end
-    if (EnableSoftmax) begin map[r] = '{ idx: r, start_addr: 32'h000A_0000, end_addr: 32'h000A_0400 }; r = r + 1; end
-    return map;
-  endfunction
-
-  localparam addr_map_t AddrMap = compute_addr_map();
 
   // -------------------------------------------------------------------------
   // Ibex instruction-fetch signals
