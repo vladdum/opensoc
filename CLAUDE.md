@@ -14,6 +14,7 @@ All builds use **FuseSoC** and must run under WSL/Linux (not native Windows).
 
 ```bash
 make lint
+make build
 make run-hello
 ```
 

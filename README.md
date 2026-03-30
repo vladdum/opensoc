@@ -142,16 +142,15 @@ Run `make help` to list all targets:
 
 ```
 make lint                        Run Verilator lint
-make sim                         Build Verilator simulator
-make sw-<test>                   Build SW binary    (e.g. make sw-relu)
-make run-<test>                  Build and simulate (e.g. make run-softmax)
+make build                       Build Verilator simulator (default TOP=opensoc_top)
+make build TOP=dual_uart         Build dual-UART simulator
+make build TOP=i2c_loopback      Build I2C loopback simulator
+make run-<test>                  Build SW and run simulation (e.g. make run-relu)
 make synth                       Synthesize (default: Arty A7-100T FPGA)
 make synth FLOW=fpga-arty        FPGA synthesis (Vivado / Arty A7-100T, all accels)
 make synth FLOW=fpga-basys3      FPGA synthesis (Vivado / Basys 3, no accels)
 make synth FLOW=yosys            ASIC synthesis (sv2v + Yosys, generic gates)
 make synth FLOW=ol2              ASIC synthesis (OpenLane 2 / Sky130 + STA)
-make synth-setup                 FuseSoC setup for Basys 3 (collect sources)
-make synth-setup-arty            FuseSoC setup for Arty A7-100T (collect sources)
 make clean                       Remove build directory
 ```
 
@@ -250,7 +249,7 @@ Use `WAVES=1` to automatically open GTKWave with a saved signal view after simul
 make run-dual-uart WAVES=1
 ```
 
-Or use `TRACE=1` to generate the trace file and open it manually:
+Or use `TRACE=1` to generate the FST trace and open it manually:
 
 ```bash
 make run-hello TRACE=1
