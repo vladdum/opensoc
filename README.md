@@ -142,20 +142,34 @@ Run `make help` to list all targets:
 
 ```
 make lint                        Run Verilator lint
-make sim                         Build Verilator simulator
-make sw-<test>                   Build SW binary    (e.g. make sw-relu)
-make run-<test>                  Build and simulate (e.g. make run-softmax)
+make build                       Build Verilator simulator (default TOP=opensoc_top)
+make build TOP=dual_uart         Build dual-UART simulator
+make build TOP=i2c_loopback      Build I2C loopback simulator
+make run-<test>                  Build SW and run simulation (e.g. make run-relu)
 make synth                       Synthesize (default: Arty A7-100T FPGA)
 make synth FLOW=fpga-arty        FPGA synthesis (Vivado / Arty A7-100T, all accels)
 make synth FLOW=fpga-basys3      FPGA synthesis (Vivado / Basys 3, no accels)
 make synth FLOW=yosys            ASIC synthesis (sv2v + Yosys, generic gates)
 make synth FLOW=ol2              ASIC synthesis (OpenLane 2 / Sky130 + STA)
-make synth-setup                 FuseSoC setup for Basys 3 (collect sources)
-make synth-setup-arty            FuseSoC setup for Arty A7-100T (collect sources)
 make clean                       Remove build directory
 ```
 
-Available tests: `hello`, `uart`, `pio`, `pio-sdk`, `pio-i2c`, `i2c`, `relu`, `vmac`, `sg-dma`, `softmax`, `dual-uart`, `i2c-loopback`.
+Available tests:
+
+| Target | Description |
+|---|---|
+| `run-hello` | Print hex values and test timer interrupts |
+| `run-uart` | Send "Hello UART" over the UART peripheral |
+| `run-pio` | GPIO, FIFO, clock divider, MOV and JMP via PIO |
+| `run-pio-sdk` | PIO SDK compat: sidesets, program management, EXEC |
+| `run-pio-i2c` | PIO-based I2C: program load, byte send, ACK readback |
+| `run-i2c` | Hardware I2C controller: START/addr/data/STOP sequence |
+| `run-relu` | ReLU accelerator: large array DMA and output verify |
+| `run-vmac` | Vector MAC: 12 tests incl. saturation and multi-kick |
+| `run-sg-dma` | SG-DMA: chaining, zero-length descriptors, throughput |
+| `run-softmax` | Softmax: uniform, one-hot, accuracy vs. C reference |
+| `run-dual-uart` | Two-SoC UART handshake and 8-round data exchange |
+| `run-i2c-loopback` | I2C master + PIO slave: write, read, clock stretching |
 
 Options: `FLOW=fpga-arty|fpga-basys3|yosys|ol2` selects synthesis flow (default: `fpga-arty`). `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GTKWave.
 
@@ -250,7 +264,7 @@ Use `WAVES=1` to automatically open GTKWave with a saved signal view after simul
 make run-dual-uart WAVES=1
 ```
 
-Or use `TRACE=1` to generate the trace file and open it manually:
+Or use `TRACE=1` to generate the FST trace and open it manually:
 
 ```bash
 make run-hello TRACE=1

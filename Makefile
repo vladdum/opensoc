@@ -2,59 +2,114 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-FUSESOC = fusesoc
-CORES_ROOT = --cores-root=. --cores-root=hw/ip/ibex --cores-root=hw/ip/ibex/vendor/lowrisc_ip \
-             --cores-root=hw/ip/common_cells --cores-root=hw/ip/pulp_axi \
-             --cores-root=hw/ip/relu_accel \
-             --cores-root=hw/ip/vec_mac \
-             --cores-root=hw/ip/sg_dma \
-             --cores-root=hw/ip/softmax \
-             --cores-root=hw/ip/pio
+FUSESOC    := fusesoc
+CORES_ROOT := --cores-root=. \
+              --cores-root=hw/ip/ibex \
+              --cores-root=hw/ip/ibex/vendor/lowrisc_ip \
+              --cores-root=hw/ip/common_cells \
+              --cores-root=hw/ip/pulp_axi \
+              --cores-root=hw/ip/relu_accel \
+              --cores-root=hw/ip/vec_mac \
+              --cores-root=hw/ip/sg_dma \
+              --cores-root=hw/ip/softmax \
+              --cores-root=hw/ip/pio
+
+TRACE  ?=
+WAVES  ?=
+FLOW   ?= fpga-arty
+VIVADO ?= vivado
+TOP    ?= opensoc_top
+
+SW_ARCH  := rv32imc_zicsr_zifencei
+GTKW_DIR := dv/verilator
+
+SIM_TRACE_FLAGS := $(if $(or $(TRACE),$(WAVES)),--trace,)
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+
+SW_DIR         := hw/ip/ibex/examples/sw/simple_system
+SW_TEST_DIR    := sw/tests
+
+SIM_DIR        := build/opensoc_soc_opensoc_top_0/sim-verilator
+DUAL_SIM_DIR   := build/opensoc_soc_opensoc_dual_uart_0/sim-verilator
+I2C_LB_SIM_DIR := build/opensoc_soc_opensoc_i2c_loopback_0/sim-verilator
+
+SYNTH_SRC_DIR      := build/opensoc_fpga_basys3_0/synth-vivado/src
+SYNTH_SRC_DIR_ARTY := build/opensoc_fpga_arty_a7_0/synth-vivado/src
+
+# ── Per-test registry ─────────────────────────────────────────────────────────
+
+SW_DIR_hello   := $(SW_DIR)/hello_test
+SW_DIR_uart    := $(SW_TEST_DIR)/uart_test
+SW_DIR_pio     := $(SW_TEST_DIR)/pio_test
+SW_DIR_pio-sdk := $(SW_TEST_DIR)/pio_sdk_test
+SW_DIR_pio-i2c := $(SW_TEST_DIR)/pio_i2c_test
+SW_DIR_i2c     := $(SW_TEST_DIR)/i2c_test
+SW_DIR_relu    := $(SW_TEST_DIR)/relu_test
+SW_DIR_vmac    := $(SW_TEST_DIR)/vmac_test
+SW_DIR_sg-dma  := $(SW_TEST_DIR)/sg_dma_test
+SW_DIR_softmax := $(SW_TEST_DIR)/softmax_test
+
+ELF_hello   := $(SW_DIR)/hello_test/hello_test.elf
+ELF_uart    := $(SW_TEST_DIR)/uart_test/uart_test.elf
+ELF_pio     := $(SW_TEST_DIR)/pio_test/pio_test.elf
+ELF_pio-sdk := $(SW_TEST_DIR)/pio_sdk_test/pio_sdk_test.elf
+ELF_pio-i2c := $(SW_TEST_DIR)/pio_i2c_test/pio_i2c_test.elf
+ELF_i2c     := $(SW_TEST_DIR)/i2c_test/i2c_test.elf
+ELF_relu    := $(SW_TEST_DIR)/relu_test/relu_test.elf
+ELF_vmac    := $(SW_TEST_DIR)/vmac_test/vmac_test.elf
+ELF_sg-dma  := $(SW_TEST_DIR)/sg_dma_test/sg_dma_test.elf
+ELF_softmax := $(SW_TEST_DIR)/softmax_test/softmax_test.elf
+
+# ── Simulator top registry ────────────────────────────────────────────────────
+
+BUILD_CORE_opensoc_top  := opensoc:soc:opensoc_top
+BUILD_CORE_dual_uart    := opensoc:soc:opensoc_dual_uart
+BUILD_CORE_i2c_loopback := opensoc:soc:opensoc_i2c_loopback
+
+# ── Help ──────────────────────────────────────────────────────────────────────
 
 .PHONY: help
 help:
-	@echo "OpenSoC build targets:"
-	@echo "  make lint            - Run Verilator lint"
-	@echo "  make sim             - Build Verilator simulator"
-	@echo "  make sw-hello        - Build hello_test SW binary"
-	@echo "  make run-hello       - Build and run hello_test on simulator"
-	@echo "  make sw-uart         - Build uart_test SW binary"
-	@echo "  make run-uart        - Build and run uart_test on simulator"
-	@echo "  make sw-pio          - Build pio_test SW binary"
-	@echo "  make run-pio         - Build and run pio_test on simulator"
-	@echo "  make sw-pio-sdk      - Build pio_sdk_test SW binary"
-	@echo "  make run-pio-sdk     - Build and run pio_sdk_test on simulator"
-	@echo "  make sw-pio-i2c      - Build pio_i2c_test SW binary"
-	@echo "  make run-pio-i2c     - Build and run pio_i2c_test on simulator"
-	@echo "  make sw-i2c          - Build i2c_test SW binary"
-	@echo "  make run-i2c         - Build and run i2c_test on simulator"
-	@echo "  make sw-relu         - Build relu_test SW binary"
-	@echo "  make run-relu        - Build and run relu_test on simulator"
-	@echo "  make sw-vmac         - Build vmac_test SW binary"
-	@echo "  make run-vmac        - Build and run vmac_test on simulator"
-	@echo "  make sw-sg-dma       - Build sg_dma_test SW binary"
-	@echo "  make run-sg-dma      - Build and run sg_dma_test on simulator"
-	@echo "  make sw-softmax      - Build softmax_test SW binary"
-	@echo "  make run-softmax     - Build and run softmax_test on simulator"
-	@echo "  make sim-dual-uart   - Build dual-UART Verilator simulator"
-	@echo "  make sw-uart-send    - Build uart_send SW binary"
-	@echo "  make sw-uart-recv    - Build uart_recv SW binary"
-	@echo "  make run-dual-uart   - Build and run dual-UART test"
-	@echo "  make sim-i2c-loopback - Build I2C loopback Verilator simulator"
-	@echo "  make sw-i2c-loopback  - Build I2C loopback test SW binary"
-	@echo "  make run-i2c-loopback - Build and run I2C loopback test"
-	@echo "  make synth-setup              - FuseSoC setup for Basys 3"
-	@echo "  make synth-setup-arty         - FuseSoC setup for Arty A7-100T"
-	@echo "  make synth                    - Synthesize (default: Arty A7-100T)"
-	@echo "  make synth FLOW=fpga-arty     - FPGA synthesis (Vivado / Arty A7-100T XC7A100T)"
-	@echo "  make synth FLOW=fpga-basys3   - FPGA synthesis (Vivado / Basys 3 XC7A35T)"
-	@echo "  make synth FLOW=yosys         - ASIC synthesis (sv2v + Yosys, generic gates)"
-	@echo "  make clean           - Remove build directory"
+	@echo "Usage: make <target> [OPTIONS]"
 	@echo ""
-	@echo "Options:"
-	@echo "  FLOW=fpga-arty|fpga-basys3|ol2|yosys - Select synthesis flow (default: fpga-arty)"
-	@echo "  TRACE=1              - Enable FST waveform dump (e.g. make run-hello TRACE=1)"
-	@echo "  WAVES=1              - Enable trace + open GTKWave after sim (e.g. make run-dual-uart WAVES=1)"
+	@echo "Lint"
+	@echo "  lint                        Run Verilator lint"
+	@echo ""
+	@echo "Simulator build"
+	@echo "  build                       Build simulator (default TOP=opensoc_top)"
+	@echo "  build TOP=dual_uart         Build dual-UART simulator"
+	@echo "  build TOP=i2c_loopback      Build I2C loopback simulator"
+	@echo ""
+	@echo "Run (builds SW then runs simulation)"
+	@echo "  run-hello        Print hex values and test timer interrupts"
+	@echo "  run-uart         Send 'Hello UART' over the UART peripheral"
+	@echo "  run-pio          GPIO, FIFO, clock divider, MOV and JMP via PIO"
+	@echo "  run-pio-sdk      PIO SDK compat: sidesets, program management, EXEC"
+	@echo "  run-pio-i2c      PIO-based I2C: program load, byte send, ACK readback"
+	@echo "  run-i2c          Hardware I2C controller: START/addr/data/STOP sequence"
+	@echo "  run-relu         ReLU accelerator: large array DMA and output verify"
+	@echo "  run-vmac         Vector MAC: 12 tests incl. saturation and multi-kick"
+	@echo "  run-sg-dma       SG-DMA: chaining, zero-length descriptors, throughput"
+	@echo "  run-softmax      Softmax: uniform, one-hot, accuracy vs. C reference"
+	@echo "  run-dual-uart    Two-SoC UART handshake and 8-round data exchange"
+	@echo "  run-i2c-loopback I2C master + PIO slave: write, read, clock stretching"
+	@echo ""
+	@echo "Synthesis"
+	@echo "  synth                       Synthesize (default FLOW=fpga-arty)"
+	@echo "  synth FLOW=fpga-arty        Vivado / Arty A7-100T XC7A100T"
+	@echo "  synth FLOW=fpga-basys3      Vivado / Basys 3 XC7A35T"
+	@echo "  synth FLOW=yosys            sv2v + Yosys generic gates"
+	@echo "  synth FLOW=ol2              OpenLane 2 / Sky130"
+	@echo ""
+	@echo "Other"
+	@echo "  clean                       Remove build directory"
+	@echo ""
+	@echo "Options"
+	@echo "  TRACE=1                     Enable FST waveform dump"
+	@echo "  WAVES=1                     Enable waveform dump and open GTKWave"
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
 
 .PHONY: clean
 clean:
@@ -64,160 +119,33 @@ clean:
 lint:
 	$(FUSESOC) $(CORES_ROOT) run --target=lint opensoc:soc:opensoc_top
 
-.PHONY: sim
-sim:
-	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build opensoc:soc:opensoc_top
+# ── Simulator build ───────────────────────────────────────────────────────────
 
-SW_DIR = hw/ip/ibex/examples/sw/simple_system
-SW_ARCH = rv32imc_zicsr_zifencei
-SIM_BIN = build/opensoc_soc_opensoc_top_0/sim-verilator/Vopensoc_top
-SIM_DIR = build/opensoc_soc_opensoc_top_0/sim-verilator
+.PHONY: build
+build:
+	@test -n "$(BUILD_CORE_$(TOP))" || \
+	  { echo "Unknown TOP='$(TOP)'. Valid: opensoc_top, dual_uart, i2c_loopback"; exit 1; }
+	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build $(BUILD_CORE_$(TOP))
 
-# Pass TRACE=1 to enable FST waveform dump (e.g. make run-hello TRACE=1)
-# Pass WAVES=1 to also open GTKWave after simulation (implies TRACE=1)
-SIM_TRACE_FLAGS = $(if $(or $(TRACE),$(WAVES)),--trace,)
-GTKW_DIR = dv/verilator
+# ── Run targets ───────────────────────────────────────────────────────────────
 
-.PHONY: sw-hello
-sw-hello:
-	$(MAKE) -C $(SW_DIR)/hello_test ARCH=$(SW_ARCH)
-
-.PHONY: run-hello
-run-hello: sw-hello
+# Generic pattern rule for standard opensoc_top tests
+.PHONY: run-%
+run-%:
+	@test -n "$(ELF_$*)" || \
+	  { echo "Unknown test '$*'. Run 'make help' for available tests."; exit 1; }
+	$(MAKE) -C $(SW_DIR_$*) ARCH=$(SW_ARCH)
 	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_DIR)/hello_test/hello_test.elf $(SIM_TRACE_FLAGS)
+	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(ELF_$*) $(SIM_TRACE_FLAGS)
 	@echo "--- Program output ---"
 	@cat $(SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
 
-SW_TEST_DIR = sw/tests
-
-.PHONY: sw-uart
-sw-uart:
-	$(MAKE) -C $(SW_TEST_DIR)/uart_test ARCH=$(SW_ARCH)
-
-.PHONY: run-uart
-run-uart: sw-uart
-	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/uart_test/uart_test.elf $(SIM_TRACE_FLAGS)
-	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: sw-pio
-sw-pio:
-	$(MAKE) -C $(SW_TEST_DIR)/pio_test ARCH=$(SW_ARCH)
-
-.PHONY: run-pio
-run-pio: sw-pio
-	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/pio_test/pio_test.elf $(SIM_TRACE_FLAGS)
-	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: sw-pio-sdk
-sw-pio-sdk:
-	$(MAKE) -C $(SW_TEST_DIR)/pio_sdk_test ARCH=$(SW_ARCH)
-
-.PHONY: run-pio-sdk
-run-pio-sdk: sw-pio-sdk
-	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/pio_sdk_test/pio_sdk_test.elf $(SIM_TRACE_FLAGS)
-	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: sw-pio-i2c
-sw-pio-i2c:
-	$(MAKE) -C $(SW_TEST_DIR)/pio_i2c_test ARCH=$(SW_ARCH)
-
-.PHONY: run-pio-i2c
-run-pio-i2c: sw-pio-i2c
-	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/pio_i2c_test/pio_i2c_test.elf $(SIM_TRACE_FLAGS)
-	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: sw-i2c
-sw-i2c:
-	$(MAKE) -C $(SW_TEST_DIR)/i2c_test ARCH=$(SW_ARCH)
-
-.PHONY: run-i2c
-run-i2c: sw-i2c
-	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/i2c_test/i2c_test.elf $(SIM_TRACE_FLAGS)
-	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: sw-relu
-sw-relu:
-	$(MAKE) -C $(SW_TEST_DIR)/relu_test ARCH=$(SW_ARCH)
-
-.PHONY: run-relu
-run-relu: sw-relu
-	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/relu_test/relu_test.elf $(SIM_TRACE_FLAGS)
-	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: sw-vmac
-sw-vmac:
-	$(MAKE) -C $(SW_TEST_DIR)/vmac_test ARCH=$(SW_ARCH)
-
-.PHONY: run-vmac
-run-vmac: sw-vmac
-	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/vmac_test/vmac_test.elf $(SIM_TRACE_FLAGS)
-	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: sw-sg-dma
-sw-sg-dma:
-	$(MAKE) -C $(SW_TEST_DIR)/sg_dma_test ARCH=$(SW_ARCH)
-
-.PHONY: run-sg-dma
-run-sg-dma: sw-sg-dma
-	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/sg_dma_test/sg_dma_test.elf $(SIM_TRACE_FLAGS)
-	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: sw-softmax
-sw-softmax:
-	$(MAKE) -C $(SW_TEST_DIR)/softmax_test ARCH=$(SW_ARCH)
-
-.PHONY: run-softmax
-run-softmax: sw-softmax
-	cd $(SIM_DIR) && \
-	  ./Vopensoc_top --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/softmax_test/softmax_test.elf $(SIM_TRACE_FLAGS)
-	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-# Dual-UART targets
-DUAL_SIM_BIN = build/opensoc_soc_opensoc_dual_uart_0/sim-verilator/Vopensoc_dual_uart
-DUAL_SIM_DIR = build/opensoc_soc_opensoc_dual_uart_0/sim-verilator
-
-.PHONY: sim-dual-uart
-sim-dual-uart:
-	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build opensoc:soc:opensoc_dual_uart
-
-.PHONY: sw-uart-send
-sw-uart-send:
-	$(MAKE) -C $(SW_TEST_DIR)/uart_send ARCH=$(SW_ARCH)
-
-.PHONY: sw-uart-recv
-sw-uart-recv:
-	$(MAKE) -C $(SW_TEST_DIR)/uart_recv ARCH=$(SW_ARCH)
-
+# Explicit overrides for multi-ELF / alternate-top tests
 .PHONY: run-dual-uart
-run-dual-uart: sw-uart-send sw-uart-recv
+run-dual-uart:
+	$(MAKE) -C $(SW_TEST_DIR)/uart_send ARCH=$(SW_ARCH)
+	$(MAKE) -C $(SW_TEST_DIR)/uart_recv ARCH=$(SW_ARCH)
 	cd $(DUAL_SIM_DIR) && \
 	  ./Vopensoc_dual_uart \
 	    --meminit=ram0,$(CURDIR)/$(SW_TEST_DIR)/uart_send/uart_send.elf \
@@ -227,20 +155,9 @@ run-dual-uart: sw-uart-send sw-uart-recv
 	@cat $(DUAL_SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(DUAL_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_dual_uart.gtkw) &,)
 
-# I2C loopback targets
-I2C_LB_SIM_BIN = build/opensoc_soc_opensoc_i2c_loopback_0/sim-verilator/Vopensoc_i2c_loopback
-I2C_LB_SIM_DIR = build/opensoc_soc_opensoc_i2c_loopback_0/sim-verilator
-
-.PHONY: sim-i2c-loopback
-sim-i2c-loopback:
-	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build opensoc:soc:opensoc_i2c_loopback
-
-.PHONY: sw-i2c-loopback
-sw-i2c-loopback:
-	$(MAKE) -C $(SW_TEST_DIR)/i2c_loopback_test ARCH=$(SW_ARCH)
-
 .PHONY: run-i2c-loopback
-run-i2c-loopback: sw-i2c-loopback
+run-i2c-loopback:
+	$(MAKE) -C $(SW_TEST_DIR)/i2c_loopback_test ARCH=$(SW_ARCH)
 	cd $(I2C_LB_SIM_DIR) && \
 	  ./Vopensoc_i2c_loopback \
 	    --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/i2c_loopback_test/i2c_loopback_test.elf \
@@ -250,16 +167,7 @@ run-i2c-loopback: sw-i2c-loopback
 	@cat $(I2C_LB_SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(I2C_LB_SIM_DIR)/sim.fst &,)
 
-# Synthesis: make synth [FLOW=fpga-arty|fpga-basys3|ol2|yosys]
-#   fpga-arty   — Vivado / Arty A7-100T XC7A100T (default) — requires: Vivado on PATH
-#   fpga-basys3 — Vivado / Basys 3 XC7A35T                 — requires: Vivado on PATH
-#   ol2         — OpenLane 2 / Sky130                       — requires: pip install openlane; volare enable
-#   yosys       — Yosys generic gates                       — requires: sv2v, yosys
-FLOW ?= fpga-arty
-VIVADO ?= vivado
-
-SYNTH_SRC_DIR        = build/opensoc_fpga_basys3_0/synth-vivado/src
-SYNTH_SRC_DIR_ARTY   = build/opensoc_fpga_arty_a7_0/synth-vivado/src
+# ── Synthesis ─────────────────────────────────────────────────────────────────
 
 .PHONY: synth synth-setup synth-setup-arty
 synth:
