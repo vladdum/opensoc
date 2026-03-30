@@ -56,14 +56,23 @@ echo ""
 # Run inside OpenLane's Nix flake shell — bundles matched Yosys + OpenROAD + Python.
 # First run downloads ~2 GB; subsequent runs use the Nix store cache.
 # Requires: 'experimental-features = nix-command flakes' in /etc/nix/nix.conf
+OL2_OUT="$REPO_ROOT/build/openlane2"
+mkdir -p "$OL2_OUT"
+
 nix develop github:efabless/openlane2 --command \
     python3 "$SCRIPT_DIR/synth_flow.py" "$SCRIPT_DIR/config.json"
+FLOW_EXIT=$?
+
+if [ "$FLOW_EXIT" -ne 0 ]; then
+    echo ""
+    echo "ERROR: OpenLane 2 flow failed (exit $FLOW_EXIT). See $LOG_FILE"
+    exit "$FLOW_EXIT"
+fi
 
 # ============================================================================
 # Summary
 # ============================================================================
 # OpenLane 2 writes results to build/openlane2/runs/<tag>/
-OL2_OUT="$REPO_ROOT/build/openlane2"
 RUN_DIR=$(ls -td "$OL2_OUT/runs"/*/ 2>/dev/null | head -1)
 if [ -n "$RUN_DIR" ]; then
     echo ""

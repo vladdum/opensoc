@@ -43,14 +43,16 @@ help:
 	@echo "  make sim-i2c-loopback - Build I2C loopback Verilator simulator"
 	@echo "  make sw-i2c-loopback  - Build I2C loopback test SW binary"
 	@echo "  make run-i2c-loopback - Build and run I2C loopback test"
-	@echo "  make synth-setup     - FuseSoC setup only (collect sources)"
-	@echo "  make synth           - Synthesize (default: OpenLane 2 / Sky130)"
-	@echo "  make synth FLOW=fpga - FPGA synthesis (Vivado / Basys 3)"
-	@echo "  make synth FLOW=yosys- ASIC synthesis (sv2v + Yosys, generic gates)"
+	@echo "  make synth-setup              - FuseSoC setup for Basys 3"
+	@echo "  make synth-setup-arty         - FuseSoC setup for Arty A7-100T"
+	@echo "  make synth                    - Synthesize (default: Arty A7-100T)"
+	@echo "  make synth FLOW=fpga-arty     - FPGA synthesis (Vivado / Arty A7-100T XC7A100T)"
+	@echo "  make synth FLOW=fpga-basys3   - FPGA synthesis (Vivado / Basys 3 XC7A35T)"
+	@echo "  make synth FLOW=yosys         - ASIC synthesis (sv2v + Yosys, generic gates)"
 	@echo "  make clean           - Remove build directory"
 	@echo ""
 	@echo "Options:"
-	@echo "  FLOW=ol2|fpga|yosys  - Select synthesis flow (default: ol2)"
+	@echo "  FLOW=fpga-arty|fpga-basys3|ol2|yosys - Select synthesis flow (default: fpga-arty)"
 	@echo "  TRACE=1              - Enable FST waveform dump (e.g. make run-hello TRACE=1)"
 	@echo "  WAVES=1              - Enable trace + open GTKWave after sim (e.g. make run-dual-uart WAVES=1)"
 
@@ -248,25 +250,31 @@ run-i2c-loopback: sw-i2c-loopback
 	@cat $(I2C_LB_SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(I2C_LB_SIM_DIR)/sim.fst &,)
 
-# Synthesis: make synth [FLOW=ol2|fpga|yosys]
-#   ol2   — OpenLane 2 / Sky130 (default) — requires: pip install openlane; volare enable
-#   fpga  — Vivado / Basys 3 XC7A35T     — requires: Vivado on PATH
-#   yosys — Yosys generic gates           — requires: sv2v, yosys
-FLOW ?= ol2
+# Synthesis: make synth [FLOW=fpga-arty|fpga-basys3|ol2|yosys]
+#   fpga-arty   — Vivado / Arty A7-100T XC7A100T (default) — requires: Vivado on PATH
+#   fpga-basys3 — Vivado / Basys 3 XC7A35T                 — requires: Vivado on PATH
+#   ol2         — OpenLane 2 / Sky130                       — requires: pip install openlane; volare enable
+#   yosys       — Yosys generic gates                       — requires: sv2v, yosys
+FLOW ?= fpga-arty
 VIVADO ?= vivado
 
-SYNTH_SRC_DIR = build/opensoc_fpga_basys3_0/synth-vivado/src
+SYNTH_SRC_DIR        = build/opensoc_fpga_basys3_0/synth-vivado/src
+SYNTH_SRC_DIR_ARTY   = build/opensoc_fpga_arty_a7_0/synth-vivado/src
 
-.PHONY: synth synth-setup
-synth: synth-setup
-ifeq ($(FLOW),fpga)
+.PHONY: synth synth-setup synth-setup-arty
+synth:
+ifeq ($(FLOW),fpga-arty)
+	$(MAKE) synth-setup-arty
+	$(VIVADO) -mode batch -source hw/fpga/arty_a7/synth.tcl
+else ifeq ($(FLOW),fpga-basys3)
+	$(MAKE) synth-setup
 	$(VIVADO) -mode batch -source hw/fpga/basys3/synth.tcl
 else ifeq ($(FLOW),yosys)
 	bash hw/asic/synth.sh
 else ifeq ($(FLOW),ol2)
 	bash hw/asic/openlane2/run.sh
 else
-	$(error Unknown FLOW=$(FLOW). Use: ol2, fpga, or yosys)
+	$(error Unknown FLOW=$(FLOW). Use: fpga-arty, fpga-basys3, ol2, or yosys)
 endif
 
 synth-setup:
@@ -281,6 +289,22 @@ synth-setup:
 	    echo "synth-setup: completed by another process, skipping"; \
 	  else \
 	    $(FUSESOC) $(CORES_ROOT) run --target=synth --setup opensoc:fpga:basys3; \
+	  fi; \
+	  exec 9>&-; \
+	fi
+
+synth-setup-arty:
+	@if [ -d "$(SYNTH_SRC_DIR_ARTY)" ]; then \
+	  echo "synth-setup-arty: $(SYNTH_SRC_DIR_ARTY) exists, skipping (use 'make clean' to force)"; \
+	else \
+	  LOCK=build/.synth-setup-arty.lock; \
+	  mkdir -p build; \
+	  exec 9>"$$LOCK"; \
+	  flock 9; \
+	  if [ -d "$(SYNTH_SRC_DIR_ARTY)" ]; then \
+	    echo "synth-setup-arty: completed by another process, skipping"; \
+	  else \
+	    $(FUSESOC) $(CORES_ROOT) run --target=synth --setup opensoc:fpga:arty_a7; \
 	  fi; \
 	  exec 9>&-; \
 	fi
