@@ -111,8 +111,11 @@ echo "=========================================="
 echo " sv2v: SystemVerilog → Verilog"
 echo "=========================================="
 sv2v --top=opensoc_top "${DEFINES[@]}" "${INC_FLAGS[@]}" "${FILTERED_FILES[@]}" \
-    > "$OUT_DIR/opensoc_top.v"
+    > "$OUT_DIR/opensoc_top.v" 2>"$OUT_DIR/sv2v.log"
 echo "  Output: $OUT_DIR/opensoc_top.v"
+if [ -s "$OUT_DIR/sv2v.log" ]; then
+    echo "  Warnings: $OUT_DIR/sv2v.log ($(wc -l < "$OUT_DIR/sv2v.log") lines)"
+fi
 
 # If --sv2v-only flag, stop here (used by OpenLane 2 flow)
 if [[ "${1:-}" == "--sv2v-only" ]]; then
@@ -126,7 +129,7 @@ fi
 echo "=========================================="
 echo " Yosys: ASIC synthesis"
 echo "=========================================="
-yosys -p "
+yosys -q -p "
     read_verilog -sv -defer $OUT_DIR/opensoc_top.v
     synth -top opensoc_top -flatten
     stat
