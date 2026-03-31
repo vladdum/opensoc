@@ -117,23 +117,8 @@ module opensoc_top
   // -------------------------------------------------------------------------
   // Clock and reset
   // -------------------------------------------------------------------------
-  `ifdef VERILATOR
-    assign clk_sys = IO_CLK;
-    assign rst_sys_n = IO_RST_N;
-  `elsif SYNTHESIS
-    assign clk_sys = IO_CLK;
-    assign rst_sys_n = IO_RST_N;
-  `else
-    initial begin
-      rst_sys_n = 1'b0;
-      #8
-      rst_sys_n = 1'b1;
-    end
-    always begin
-      #1 clk_sys = 1'b0;
-      #1 clk_sys = 1'b1;
-    end
-  `endif
+  assign clk_sys   = IO_CLK;
+  assign rst_sys_n = IO_RST_N;
 
   // -------------------------------------------------------------------------
   // ECC integrity (SecureIbex only)
@@ -159,13 +144,37 @@ module opensoc_top
   // -------------------------------------------------------------------------
   // Ibex CPU
   // -------------------------------------------------------------------------
-  // ibex_top_tracing wraps ibex_top + ibex_tracer (simulation-only, uses
-  // string type unsupported by Vivado).  For synthesis use ibex_top directly.
-`ifdef SYNTHESIS
-  ibex_top #(
-`else
-  ibex_top_tracing #(
+  // RVFI signals: declared here so opensoc_top_sim can connect ibex_tracer via
+  // hierarchical reference without polluting the module's port list.
+`ifdef RVFI
+  logic        rvfi_valid;
+  logic [63:0] rvfi_order;
+  logic [31:0] rvfi_insn;
+  logic        rvfi_trap;
+  logic        rvfi_halt;
+  logic        rvfi_intr;
+  logic [ 1:0] rvfi_mode;
+  logic [ 1:0] rvfi_ixl;
+  logic [ 4:0] rvfi_rs1_addr;
+  logic [ 4:0] rvfi_rs2_addr;
+  logic [ 4:0] rvfi_rs3_addr;
+  logic [31:0] rvfi_rs1_rdata;
+  logic [31:0] rvfi_rs2_rdata;
+  logic [31:0] rvfi_rs3_rdata;
+  logic [ 4:0] rvfi_rd_addr;
+  logic [31:0] rvfi_rd_wdata;
+  logic [31:0] rvfi_pc_rdata;
+  logic [31:0] rvfi_pc_wdata;
+  logic [31:0] rvfi_mem_addr;
+  logic [ 3:0] rvfi_mem_rmask;
+  logic [ 3:0] rvfi_mem_wmask;
+  logic [31:0] rvfi_mem_rdata;
+  logic [31:0] rvfi_mem_wdata;
+  logic        rvfi_ext_expanded_insn_valid;
+  logic [15:0] rvfi_ext_expanded_insn;
 `endif
+
+  ibex_top #(
       .SecureIbex      ( SecureIbex       ),
       .LockstepOffset  ( LockstepOffset   ),
       .ICacheScramble  ( ICacheScramble   ),
@@ -256,6 +265,47 @@ module opensoc_top
 
       .instr_req_shadow_o        (),
       .instr_addr_shadow_o       ()
+
+`ifdef RVFI
+     ,.rvfi_valid                (rvfi_valid                ),
+      .rvfi_order                (rvfi_order                ),
+      .rvfi_insn                 (rvfi_insn                 ),
+      .rvfi_trap                 (rvfi_trap                 ),
+      .rvfi_halt                 (rvfi_halt                 ),
+      .rvfi_intr                 (rvfi_intr                 ),
+      .rvfi_mode                 (rvfi_mode                 ),
+      .rvfi_ixl                  (rvfi_ixl                  ),
+      .rvfi_rs1_addr             (rvfi_rs1_addr             ),
+      .rvfi_rs2_addr             (rvfi_rs2_addr             ),
+      .rvfi_rs3_addr             (rvfi_rs3_addr             ),
+      .rvfi_rs1_rdata            (rvfi_rs1_rdata            ),
+      .rvfi_rs2_rdata            (rvfi_rs2_rdata            ),
+      .rvfi_rs3_rdata            (rvfi_rs3_rdata            ),
+      .rvfi_rd_addr              (rvfi_rd_addr              ),
+      .rvfi_rd_wdata             (rvfi_rd_wdata             ),
+      .rvfi_pc_rdata             (rvfi_pc_rdata             ),
+      .rvfi_pc_wdata             (rvfi_pc_wdata             ),
+      .rvfi_mem_addr             (rvfi_mem_addr             ),
+      .rvfi_mem_rmask            (rvfi_mem_rmask            ),
+      .rvfi_mem_wmask            (rvfi_mem_wmask            ),
+      .rvfi_mem_rdata            (rvfi_mem_rdata            ),
+      .rvfi_mem_wdata            (rvfi_mem_wdata            ),
+      .rvfi_ext_pre_mip          (),
+      .rvfi_ext_post_mip         (),
+      .rvfi_ext_nmi              (),
+      .rvfi_ext_nmi_int          (),
+      .rvfi_ext_debug_req        (),
+      .rvfi_ext_debug_mode       (),
+      .rvfi_ext_rf_wr_suppress   (),
+      .rvfi_ext_mcycle           (),
+      .rvfi_ext_mhpmcounters     (),
+      .rvfi_ext_mhpmcountersh    (),
+      .rvfi_ext_ic_scr_key_valid (),
+      .rvfi_ext_irq_valid        (),
+      .rvfi_ext_expanded_insn_valid(rvfi_ext_expanded_insn_valid),
+      .rvfi_ext_expanded_insn    (rvfi_ext_expanded_insn    ),
+      .rvfi_ext_expanded_insn_last()
+`endif
     );
 
     assign ibex_irq_fast = {8'b0, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
@@ -395,9 +445,11 @@ module opensoc_top
   // -------------------------------------------------------------------------
   // AXI bridges: AXI → memory-mapped peripherals (axi_to_mem)
   // -------------------------------------------------------------------------
-  // Unused signals from axi_to_mem
+  // Output-only ports from axi_to_mem that are not consumed by this design
+  /* verilator lint_off UNUSEDSIGNAL */
   logic [NumSlaves-1:0] axi_to_mem_busy;
   axi_pkg::atop_t       mem_atop [NumSlaves];
+  /* verilator lint_on UNUSEDSIGNAL */
 
   for (genvar i = 0; i < NumSlaves; i++) begin : gen_axi_to_mem
     axi_to_mem #(
@@ -816,19 +868,5 @@ module opensoc_top
   end else begin : gen_no_softmax
     assign softmax_irq = 1'b0;
   end
-
-`ifndef SYNTHESIS
-  export "DPI-C" function mhpmcounter_num;
-
-  function automatic int unsigned mhpmcounter_num();
-    return u_top.u_ibex_top.u_ibex_core.cs_registers_i.MHPMCounterNum;
-  endfunction
-
-  export "DPI-C" function mhpmcounter_get;
-
-  function automatic longint unsigned mhpmcounter_get(int index);
-    return u_top.u_ibex_top.u_ibex_core.cs_registers_i.mhpmcounter[index];
-  endfunction
-`endif
 
 endmodule

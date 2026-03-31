@@ -1,0 +1,16 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:uart"
+description: "UART TX/RX peripheral with 8-deep FIFOs"
+filesets:
+  files_rtl:
+    files:
+      - rtl/uart.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - files_rtl

@@ -1,0 +1,16 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:i2c_controller"
+description: "Minimal I2C master controller (single-byte read/write)"
+filesets:
+  files_rtl:
+    files:
+      - rtl/i2c_controller.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - files_rtl
