@@ -12,14 +12,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SRC_DIR="$REPO_ROOT/build/opensoc_fpga_basys3_0/synth-vivado/src"
+SRC_DIR="$REPO_ROOT/build/opensoc_fpga_arty_a7_0/synth-vivado/src"
 OUT_DIR="$REPO_ROOT/build/yosys"
 FILELIST="$REPO_ROOT/hw/synth/sources.f"
 
 mkdir -p "$OUT_DIR"
 
 if [ ! -d "$SRC_DIR" ]; then
-    echo "ERROR: Source directory not found. Run 'make synth-setup' first."
+    echo "ERROR: Source directory not found. Run 'make synth-setup-arty' first."
     exit 1
 fi
 
@@ -86,9 +86,6 @@ for f in "${ALL_FILES[@]}"; do
         *axi_dumper.sv)       ;;  # sim-only (file I/O)
         *axi_slave_compare.sv) ;; # sim-only (instantiates axi_chan_compare)
         *stream_delay.sv)     ;;  # sim-only (dynamic queues)
-        *ibex_tracer.sv)      ;;  # sim-only (static, final, $fclose)
-        *ibex_tracer_pkg.sv)  ;;  # only needed by ibex_tracer
-        *ibex_top_tracing.sv) ;;  # opensoc_top uses ibex_top directly under SYNTHESIS
         *) FILTERED_FILES+=("$f") ;;
     esac
 done

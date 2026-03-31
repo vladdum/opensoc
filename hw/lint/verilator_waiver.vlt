@@ -50,6 +50,10 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/softmax.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/softmax_core.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/exp_lut.sv"
 
+// Sim wrapper: only gpio_oe[1:0] are used for I2C loopback; upper bits are outputs
+lint_off -rule UNUSEDSIGNAL  -file "*/dv/rtl/opensoc_top_wrapper.sv"
+         -match "*gpio_oe*"
+
 // Dual-SoC wrapper: unused GPIO/I2C output signals
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_dual_uart.sv"
 

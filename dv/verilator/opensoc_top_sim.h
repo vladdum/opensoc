@@ -15,7 +15,7 @@ class OpenSocSim {
   virtual int Main(int argc, char **argv);
 
  protected:
-  opensoc_top _top;
+  opensoc_top_wrapper _top;
   VerilatorMemUtil _memutil;
   MemArea _ram;
 

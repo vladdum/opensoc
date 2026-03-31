@@ -1,0 +1,130 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:soc:opensoc_top"
+description: "OpenSoC top-level based on ibex_simple_system"
+filesets:
+  files_rtl:
+    depend:
+      - lowrisc:ibex:ibex_top
+      - lowrisc:prim_generic:all
+      - lowrisc:ibex:sim_shared
+      - "pulp-platform.org::axi"
+      - "opensoc:ip:relu_accel"
+      - "opensoc:ip:vec_mac"
+      - "opensoc:ip:sg_dma"
+      - "opensoc:ip:softmax"
+      - "opensoc:ip:pio"
+      - "opensoc:ip:i2c_controller"
+      - "opensoc:ip:uart"
+    files:
+      - hw/top/opensoc_config_pkg.sv
+      - hw/top/opensoc_derived_config_pkg.sv
+      - hw/top/opensoc_top.sv
+    file_type: systemVerilogSource
+
+  files_lint_verilator:
+    files:
+      - hw/lint/verilator_waiver.vlt: {file_type: vlt}
+
+  files_sim_sv:
+    depend:
+      - lowrisc:ibex:ibex_tracer
+    files:
+      - dv/rtl/opensoc_top_wrapper.sv
+    file_type: systemVerilogSource
+
+  files_verilator_sim:
+    depend:
+      - lowrisc:dv_verilator:memutil_verilator
+      - lowrisc:dv_verilator:simutil_verilator
+      - lowrisc:dv_verilator:ibex_pcounts
+    files:
+      - dv/verilator/opensoc_top_sim.cc: {file_type: cppSource}
+      - dv/verilator/opensoc_top_sim.h: {file_type: cppSource, is_include_file: true}
+      - dv/verilator/opensoc_top_main.cc: {file_type: cppSource}
+
+parameters:
+  RVFI:
+    datatype: bool
+    paramtype: vlogdefine
+
+  RV32M:
+    datatype: str
+    default: ibex_pkg::RV32MFast
+    paramtype: vlogdefine
+    description: "RV32M implementation parameter enum"
+
+  RV32B:
+    datatype: str
+    default: ibex_pkg::RV32BNone
+    paramtype: vlogdefine
+    description: "Bitmanip implementation parameter enum"
+
+  RV32ZC:
+    datatype: str
+    default: ibex_pkg::RV32ZcaZcbZcmp
+    paramtype: vlogdefine
+    description: "Compressed instructions parameter enum"
+
+  RegFile:
+    datatype: str
+    default: ibex_pkg::RegFileFF
+    paramtype: vlogdefine
+    description: "Register file implementation parameter enum"
+
+targets:
+  default: &default_target
+    filesets:
+      - files_rtl
+      - tool_verilator ? (files_lint_verilator)
+    toplevel: opensoc_top
+    parameters:
+      - RV32M
+      - RV32B
+      - RV32ZC
+      - RegFile
+
+  lint:
+    <<: *default_target
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-REDEFMACRO"
+          - "-Wno-SYNCASYNCNET"
+          - "-Wno-UNOPTFLAT"
+          - "--unroll-count 72"
+
+  sim:
+    filesets:
+      - files_rtl
+      - files_lint_verilator
+      - files_sim_sv
+      - files_verilator_sim
+    toplevel: opensoc_top_wrapper
+    parameters:
+      - RVFI=true
+      - RV32M
+      - RV32B
+      - RV32ZC
+      - RegFile
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: cc
+        verilator_options:
+          - "-Wall"
+          - "-Wno-REDEFMACRO"
+          - "-Wno-SYNCASYNCNET"
+          - "-Wno-UNOPTFLAT"
+          - "--unroll-count 72"
+          - "--trace-fst"
+          - "--trace-structs"
+          - "--output-split 20000"
+          - "--build-jobs 0"
+          - '-CFLAGS "-std=c++17 -O1 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=opensoc_top_wrapper"'
+          - '-LDFLAGS "-pthread -lutil -lelf"'

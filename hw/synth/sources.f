@@ -28,15 +28,13 @@ lowrisc_prim_mubi_pkg_0.1/rtl/prim_mubi_pkg.sv
 lowrisc_prim_cipher_pkg_0.1/rtl/prim_cipher_pkg.sv
 lowrisc_prim_count_0/rtl/prim_count_pkg.sv
 lowrisc_ibex_ibex_pkg_0.1/rtl/ibex_pkg.sv
-lowrisc_ibex_ibex_tracer_0.1/rtl/ibex_tracer_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/cf_math_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/ecc_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/cb_filter_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/cdc_reset_ctrlr_pkg.sv
 pulp-platform.org__axi_0.39.9/src/axi_pkg.sv
-opensoc_soc_opensoc_top_0/rtl/opensoc_config_pkg.sv
-opensoc_soc_opensoc_top_0/rtl/opensoc_top_fpga_config_pkg.sv
-opensoc_soc_opensoc_top_0/rtl/opensoc_derived_config_pkg.sv
+opensoc_soc_opensoc_top_0/top/opensoc_config_pkg.sv
+opensoc_soc_opensoc_top_0/top/opensoc_derived_config_pkg.sv
 
 [rtl]
 lowrisc_prim_assert_0.1/rtl/prim_assert.sv
@@ -44,8 +42,6 @@ lowrisc_prim_assert_0.1/rtl/prim_flop_macros.sv
 lowrisc_ibex_ibex_core_0.1/rtl/*.sv
 lowrisc_ibex_ibex_icache_0.1/rtl/*.sv
 lowrisc_ibex_ibex_top_0.1/rtl/*.sv
-lowrisc_ibex_ibex_top_tracing_0.1/rtl/*.sv
-lowrisc_ibex_ibex_tracer_0.1/rtl/ibex_tracer.sv
 lowrisc_ibex_sim_shared_0/rtl/*.sv
 lowrisc_ibex_sim_shared_0/rtl/sim/*.sv
 lowrisc_prim_cdc_rand_delay_0/rtl/*.sv
@@ -88,6 +84,6 @@ opensoc_ip_relu_accel_0/rtl/*.sv
 opensoc_ip_sg_dma_0/rtl/*.sv
 opensoc_ip_softmax_0/rtl/*.sv
 opensoc_ip_vec_mac_0/rtl/*.sv
-opensoc_soc_opensoc_top_0/rtl/opensoc_top.sv
-opensoc_soc_opensoc_top_0/rtl/uart.sv
-opensoc_soc_opensoc_top_0/rtl/i2c_controller.sv
+opensoc_soc_opensoc_top_0/top/opensoc_top.sv
+opensoc_ip_uart_0/rtl/uart.sv
+opensoc_ip_i2c_controller_0/rtl/i2c_controller.sv
