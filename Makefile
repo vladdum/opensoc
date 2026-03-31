@@ -127,7 +127,7 @@ REGTEST_DIR := $(SIM_DIR)/regression
 .PHONY: regression
 regression: $(SIM_DIR)/Vopensoc_top_wrapper
 	$(MAKE) -j $(addprefix _reg-sw-,$(REGRESSION_TESTS))
-	$(MAKE) -j $(addprefix _reg-run-,$(REGRESSION_TESTS))
+	$(MAKE) -j -k $(addprefix _reg-run-,$(REGRESSION_TESTS)); true
 	@echo ""
 	@echo "=== Regression Summary ==="
 	@pass=0; fail=0; \
