@@ -46,8 +46,9 @@ SW_DIR_pio-i2c := $(SW_TEST_DIR)/pio_i2c_test
 SW_DIR_i2c     := $(SW_TEST_DIR)/i2c_test
 SW_DIR_relu    := $(SW_TEST_DIR)/relu_test
 SW_DIR_vmac    := $(SW_TEST_DIR)/vmac_test
-SW_DIR_sg-dma  := $(SW_TEST_DIR)/sg_dma_test
-SW_DIR_softmax := $(SW_TEST_DIR)/softmax_test
+SW_DIR_sg-dma      := $(SW_TEST_DIR)/sg_dma_test
+SW_DIR_softmax     := $(SW_TEST_DIR)/softmax_test
+SW_DIR_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test
 
 ELF_hello   := $(SW_DIR)/hello_test/hello_test.elf
 ELF_uart    := $(SW_TEST_DIR)/uart_test/uart_test.elf
@@ -57,8 +58,9 @@ ELF_pio-i2c := $(SW_TEST_DIR)/pio_i2c_test/pio_i2c_test.elf
 ELF_i2c     := $(SW_TEST_DIR)/i2c_test/i2c_test.elf
 ELF_relu    := $(SW_TEST_DIR)/relu_test/relu_test.elf
 ELF_vmac    := $(SW_TEST_DIR)/vmac_test/vmac_test.elf
-ELF_sg-dma  := $(SW_TEST_DIR)/sg_dma_test/sg_dma_test.elf
-ELF_softmax := $(SW_TEST_DIR)/softmax_test/softmax_test.elf
+ELF_sg-dma      := $(SW_TEST_DIR)/sg_dma_test/sg_dma_test.elf
+ELF_softmax     := $(SW_TEST_DIR)/softmax_test/softmax_test.elf
+ELF_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test/i2c_loopback_test.elf
 
 # ── Simulator top registry ────────────────────────────────────────────────────
 
@@ -75,6 +77,9 @@ help:
 	@echo ""
 	@echo "Simulator build"
 	@echo "  build                       Build simulator"
+	@echo ""
+	@echo "Regression"
+	@echo "  regression                  Build sim + run all tests in parallel"
 	@echo ""
 	@echo "Run (builds SW then runs simulation)"
 	@echo "  run-hello        Print hex values and test timer interrupts"
@@ -107,6 +112,49 @@ help:
 .PHONY: clean
 clean:
 	rm -rf build
+
+# ── Regression ────────────────────────────────────────────────────────────────
+
+REGRESSION_TESTS := hello uart pio pio-sdk pio-i2c i2c i2c-loopback \
+                    relu vmac sg-dma softmax
+
+# Per-test extra simulator flags (empty unless overridden)
+SIM_FLAGS_i2c-loopback := -c 500000
+
+REGTEST_DIR := $(SIM_DIR)/regression
+
+# Top-level regression: build sim if needed, build all SW in parallel, run all sims in parallel
+.PHONY: regression
+regression: $(SIM_DIR)/Vopensoc_top_wrapper
+	$(MAKE) -j $(addprefix _reg-sw-,$(REGRESSION_TESTS))
+	$(MAKE) -j $(addprefix _reg-run-,$(REGRESSION_TESTS))
+	@echo ""
+	@echo "=== Regression Summary ==="
+	@pass=0; fail=0; \
+	for t in $(REGRESSION_TESTS); do \
+	  if [ -f "$(REGTEST_DIR)/$$t/.passed" ]; then \
+	    echo "  PASS: $$t"; pass=$$((pass+1)); \
+	  else \
+	    echo "  FAIL: $$t"; fail=$$((fail+1)); \
+	  fi; \
+	done; \
+	echo ""; echo "  $$pass passed, $$fail failed"; \
+	[ $$fail -eq 0 ]
+
+.PHONY: FORCE
+
+_reg-sw-%: FORCE
+	$(MAKE) -C $(SW_DIR_$*) ARCH=$(SW_ARCH)
+
+_reg-run-%: FORCE
+	@mkdir -p $(REGTEST_DIR)/$*
+	cd $(REGTEST_DIR)/$* && \
+	  $(CURDIR)/$(SIM_DIR)/Vopensoc_top_wrapper \
+	    --meminit=ram,$(CURDIR)/$(ELF_$*) \
+	    $(SIM_FLAGS_$*) && \
+	  touch .passed
+	@echo "=== $* ==="
+	@cat $(REGTEST_DIR)/$*/opensoc_top.log
 
 .PHONY: lint
 lint:

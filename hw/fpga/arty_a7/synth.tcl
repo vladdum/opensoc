@@ -91,7 +91,7 @@ set PKG_FILES [read_filelist $FILELIST packages $SRC_DIR]
 # ============================================================================
 set rtl_patterns [read_filelist $FILELIST rtl $SRC_DIR]
 # FPGA-only: add the board wrapper
-lappend rtl_patterns $SRC_DIR/opensoc_fpga_arty_a7_0/fpga/arty_a7/*.sv
+lappend rtl_patterns $SRC_DIR/opensoc_fpga_arty_a7_0/hw/fpga/arty_a7/*.sv
 
 set ALL_SV [list]
 foreach pat $rtl_patterns {
