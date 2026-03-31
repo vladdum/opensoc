@@ -126,7 +126,7 @@ REGTEST_DIR := $(SIM_DIR)/regression
 # Top-level regression: build sim if needed, build all SW in parallel, run all sims in parallel
 .PHONY: regression
 regression: $(SIM_DIR)/Vopensoc_top_wrapper
-	$(MAKE) -j $(addprefix _reg-sw-,$(REGRESSION_TESTS))
+	$(MAKE) $(addprefix _reg-sw-,$(REGRESSION_TESTS))
 	$(MAKE) -j -k $(addprefix _reg-run-,$(REGRESSION_TESTS)); true
 	@echo ""
 	@echo "=== Regression Summary ==="
