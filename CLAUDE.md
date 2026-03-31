@@ -35,18 +35,14 @@ After cloning, initialize submodules: `git submodule update --init --recursive`
 ```bash
 make synth                    # default: FPGA synthesis for Arty A7-100T (Vivado)
 make synth FLOW=fpga-arty     # FPGA: Vivado / Arty A7-100T XC7A100T (all accels)
-make synth FLOW=fpga-basys3   # FPGA: Vivado / Basys 3 XC7A35T (no accels)
 make synth FLOW=yosys         # ASIC: sv2v + Yosys generic gates
 make synth FLOW=ol2           # ASIC: OpenLane 2 / Sky130 synthesis + STA
-make synth-setup              # FuseSoC setup for Basys 3 (collect sources)
 make synth-setup-arty         # FuseSoC setup for Arty A7-100T (collect sources)
 ```
 
 Each flow calls its own FuseSoC setup target internally; `hw/synth/sources.f` is the shared file list used by the non-Vivado flows.
 
-**FPGA-arty flow** (`FLOW=fpga-arty`, default): Targets Arty A7-100T (XC7A100T). Vivado must be on PATH. Add to `~/.bashrc`: `source /opt/Xilinx/2025.2/Vivado/settings64.sh`. Uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode. Sets `FPGA_XILINX=1` (no `FPGA_BASYS3`); derived config selects unified config (512 KB RAM, all 4 accelerators, `CUT_ALL_PORTS`). Reports written to `build/vivado/`.
-
-**FPGA-basys3 flow** (`FLOW=fpga-basys3`): Targets Basys 3 (XC7A35T). Sets `FPGA_XILINX=1 FPGA_BASYS3=1`; derived config selects small FPGA config (64 KB RAM, no accelerators). Reports written to `build/vivado/`.
+**FPGA-arty flow** (`FLOW=fpga-arty`, default): Targets Arty A7-100T (XC7A100T). Vivado must be on PATH. Add to `~/.bashrc`: `source /opt/Xilinx/2025.2/Vivado/settings64.sh`. Uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode. Sets `FPGA_XILINX=1`; derived config selects unified config (512 KB RAM, all 4 accelerators, `CUT_ALL_PORTS`). Reports written to `build/vivado/`.
 
 **OpenLane 2 flow** (`FLOW=ol2`): Runs sv2v → Yosys (Sky130 mapped) → OpenROAD STA. Prerequisites: `sv2v`, Nix with flakes enabled (`experimental-features = nix-command flakes` in `/etc/nix/nix.conf`). The Nix flake provides matched Yosys + OpenROAD + OpenLane. Results in `build/openlane2/runs/`.
 
@@ -57,12 +53,12 @@ Clean rebuild: `make clean && make synth`.
 ## Architecture
 
 ```
-opensoc_top (hw/rtl/opensoc_top.sv)
+opensoc_top (hw/top/opensoc_top.sv)
 ├── ibex_top_tracing       — Ibex RISC-V core with trace output
 ├── axi_from_mem ×N        — OBI-to-AXI bridges (instr + data + PIO DMA + enabled accel DMAs)
 ├── axi_xbar               — AXI4 crossbar (N masters × M slaves, sized by enable params)
 ├── axi_to_mem ×M          — AXI-to-memory bridges (core peripherals + enabled accels)
-├── ram_1p                 — 1 MB single-port SRAM (sim) / 64 KB block RAM (FPGA)
+├── ram_1p                 — 1 MB single-port SRAM (sim) / 512 KB block RAM (FPGA)
 ├── simulator_ctrl         — ASCII output and simulation halt (0x20000)
 ├── timer                  — Timer with interrupt (0x30000)
 ├── uart                   — UART TX/RX with 8-deep FIFOs (0x40000)
@@ -74,7 +70,7 @@ opensoc_top (hw/rtl/opensoc_top.sv)
 └── softmax                — Softmax pipeline with DMA (0xA0000) [optional]
 ```
 
-`opensoc_top` has **no module parameters** — all configuration comes from `opensoc_derived_config_pkg` (imported via wildcard). The derived package selects between `opensoc_config_pkg` (unified: 512 KB RAM, all 4 accels, `CUT_ALL_PORTS`) and `opensoc_top_fpga_config_pkg` (Basys 3: 64 KB, no accels) based on preprocessor defines.
+`opensoc_top` has **no module parameters** — all configuration comes from `opensoc_derived_config_pkg` (imported via wildcard). `opensoc_config_pkg` is the single unified config (512 KB RAM, all 4 accels, `CUT_ALL_PORTS`) used for both ASIC and FPGA targets.
 
 Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
 
@@ -82,11 +78,9 @@ Memory map: RAM at 0x100000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x20000,
 
 ## Repository Structure
 
-- `hw/rtl/` — OpenSoC RTL (top-level, UART, I2C, dual-UART wrapper, I2C loopback wrapper)
-  - `opensoc_config_pkg.sv` — Unified config: ASIC + full-feature FPGA (512 KB, all accels, `CUT_ALL_PORTS`)
-  - `opensoc_top_fpga_config_pkg.sv` — Basys 3 config: 64 KB RAM, no accels, `CUT_ALL_PORTS`, `RegFileFPGA`
-  - `opensoc_derived_config_pkg.sv` — Selects active config via `ifdef`; computes all derived values (crossbar dims, AXI widths, typedefs, address map)
-- `hw/fpga/basys3/` — Basys 3 FPGA target (XC7A35T): constraints, wrapper, synth script
+- `hw/top/` — OpenSoC RTL (top-level and config packages)
+  - `opensoc_config_pkg.sv` — Unified config: ASIC + FPGA (512 KB, all accels, `CUT_ALL_PORTS`)
+  - `opensoc_derived_config_pkg.sv` — Computes all derived values (crossbar dims, AXI widths, typedefs, address map)
 - `hw/fpga/arty_a7/` — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth script
 - `hw/asic/` — ASIC synthesis (sv2v + Yosys script, OpenLane 2 flow)
 - `hw/synth/` — Shared source file list (`sources.f`) for all synth flows
@@ -135,12 +129,11 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B
 - Master-port ID width: computed as `$clog2(NumMasters) + 1` (4 bits with all accels enabled)
 - User width: 1 bit
 - Masters/slaves: parameterized — 3+N masters, 6+N slaves (N = number of enabled accelerators)
-  - Default (sim): 7 masters, 10 slaves (all 4 accelerators enabled)
-  - FPGA (Basys 3): 3 masters, 6 slaves (all accelerators disabled)
+  - Default (sim/FPGA): 7 masters, 10 slaves (all 4 accelerators enabled)
 - Master order: instr, data, [accel DMAs in order], PIO DMA (always last)
 - Slave order: RAM, SimCtrl, Timer, UART, PIO, I2C, [accel ctrls in order]
 - `MaxRequests = 2` on all bridges; `MaxMstTrans = 4`, `MaxSlvTrans = 4` on xbar
-- ATOPs disabled; `XbarLatencyMode`: `CUT_ALL_PORTS` in both unified and Basys 3 configs (pipeline registers for timing closure; harmless for ASIC); sim uses `NO_LATENCY` via direct parameter in the sim target
+- ATOPs disabled; `XbarLatencyMode`: `CUT_ALL_PORTS` in unified config (pipeline registers for timing closure; harmless for ASIC); sim uses `NO_LATENCY` via direct parameter in the sim target
 
 ## FPGA Configuration
 
@@ -152,22 +145,9 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B
 - Accelerators: all enabled (`EnableReLU/VMAC/SgDma/Softmax = 1`) → 7 masters, 10 slaves
 - AXI latency: `CUT_ALL_PORTS`
 - Reset: `btn[0]` active-high → 2-FF synchronizer → active-low `rst_n`
-- Verilog defines: `SYNTHESIS=1`, `FPGA_XILINX=1` (no `FPGA_BASYS3`) → derived pkg selects `opensoc_config_pkg`
-- Register file: `RegFileFPGA` (selected in derived pkg by `FPGA_XILINX` without `FPGA_BASYS3`)
+- Verilog defines: `SYNTHESIS=1`, `FPGA_XILINX=1` → derived pkg selects `opensoc_config_pkg`
+- Register file: `RegFileFPGA` (selected in derived pkg when `FPGA_XILINX` is set)
 - FPGA wrapper: `hw/fpga/arty_a7/opensoc_fpga_arty_a7_top.sv`
 - Constraints: `hw/fpga/arty_a7/arty_a7.xdc`
 - Synth script: `hw/fpga/arty_a7/synth.tcl`
 
-### Basys 3 (`FLOW=fpga-basys3`)
-
-- Part: XC7A35T-1CPG236C (Artix-7)
-- System clock: 100 MHz board oscillator → Vivado `clk_wiz` PLL → 50 MHz
-- RAM: 64 KB block RAM (`RamDepth = 16384`)
-- Accelerators: all disabled (`EnableReLU/VMAC/SgDma/Softmax = 0`) → 3 masters, 6 slaves
-- AXI latency: `CUT_ALL_PORTS`
-- Reset: active-high `btnC` → 2-FF synchronizer → active-low `rst_n`
-- Verilog defines: `SYNTHESIS=1`, `FPGA_XILINX=1`, `FPGA_BASYS3=1` → derived pkg selects `opensoc_top_fpga_config_pkg`
-- Register file: `RegFileFPGA` (from `opensoc_top_fpga_config_pkg`)
-- FPGA wrapper: `hw/fpga/basys3/opensoc_fpga_top.sv`
-- Constraints: `hw/fpga/basys3/basys3.xdc`
-- Synth script: `hw/fpga/basys3/synth.tcl` (in-process commands, not `launch_runs`)

@@ -3,6 +3,9 @@ build/
 
 # Claude Code
 .claude/
+
+# Editor
+.vscode/
 docs/plans/
 docs/brainstorms/
 *.o

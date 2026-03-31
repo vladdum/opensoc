@@ -5,12 +5,12 @@ A RISC-V System-on-Chip built on the lowRISC [Ibex](https://github.com/lowRISC/i
 ## Architecture
 
 ```
-opensoc_top (hw/rtl/opensoc_top.sv)
+opensoc_top (hw/top/opensoc_top.sv)
 ├── ibex_top_tracing    — Ibex RISC-V core with trace output
 ├── axi_from_mem ×N     — OBI-to-AXI bridges (CPU instr/data + PIO DMA + accel DMAs)
 ├── axi_xbar            — AXI4 crossbar (parameterized masters × slaves)
 ├── axi_to_mem ×M       — AXI-to-memory bridges
-├── ram_1p              — 512 KB SRAM (unified FPGA/ASIC) / 64 KB block RAM (Basys 3)
+├── ram_1p              — 512 KB SRAM (FPGA/ASIC)
 ├── simulator_ctrl      — ASCII output and simulation halt
 ├── timer               — Timer with interrupt
 ├── uart                — UART with TX/RX FIFOs
@@ -35,7 +35,7 @@ opensoc_top (hw/rtl/opensoc_top.sv)
 | Vector MAC     | `0x80000`    | 1 kB  | fast[4]    |
 | SG DMA         | `0x90000`    | 1 kB  | fast[5]    |
 | Softmax        | `0xA0000`    | 1 kB  | fast[6]    |
-| RAM            | `0x100000`   | 512 KB (unified) / 64 KB (Basys 3) | — |
+| RAM            | `0x100000`   | 512 KB | — |
 
 Register definitions for all peripherals: [`sw/include/opensoc_regs.h`](sw/include/opensoc_regs.h)
 
@@ -121,7 +121,6 @@ All build commands below should be run inside the WSL/Ubuntu terminal.
 | Flow | Command | Prerequisites |
 |------|---------|---------------|
 | **FPGA / Arty A7-100T** (default) | `make synth` | [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) |
-| **FPGA / Basys 3** | `make synth FLOW=fpga-basys3` | [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) (free WebPACK edition) |
 | **OpenLane 2** | `make synth FLOW=ol2` | [Nix](https://nixos.org/download/) with flakes enabled, [sv2v](https://github.com/zachjs/sv2v) |
 | **Yosys generic** | `make synth FLOW=yosys` | [sv2v](https://github.com/zachjs/sv2v), [Yosys](https://github.com/YosysHQ/yosys) |
 
@@ -159,7 +158,6 @@ make build TOP=i2c_loopback      Build I2C loopback simulator
 make run-<test>                  Build SW and run simulation (e.g. make run-relu)
 make synth                       Synthesize (default: Arty A7-100T FPGA)
 make synth FLOW=fpga-arty        FPGA synthesis (Vivado / Arty A7-100T, all accels)
-make synth FLOW=fpga-basys3      FPGA synthesis (Vivado / Basys 3, no accels)
 make synth FLOW=yosys            ASIC synthesis (sv2v + Yosys, generic gates)
 make synth FLOW=ol2              ASIC synthesis (OpenLane 2 / Sky130 + STA)
 make clean                       Remove build directory
@@ -182,16 +180,15 @@ Available tests:
 | `run-dual-uart` | Two-SoC UART handshake and 8-round data exchange |
 | `run-i2c-loopback` | I2C master + PIO slave: write, read, clock stretching |
 
-Options: `FLOW=fpga-arty|fpga-basys3|yosys|ol2` selects synthesis flow (default: `fpga-arty`). `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GTKWave.
+Options: `FLOW=fpga-arty|yosys|ol2` selects synthesis flow (default: `fpga-arty`). `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GTKWave.
 
 ### Synthesis
 
-Four synthesis flows are available, selected via the `FLOW` variable:
+Three synthesis flows are available, selected via the `FLOW` variable:
 
 ```bash
 make synth                    # FPGA: Vivado / Arty A7-100T XC7A100T (default)
 make synth FLOW=fpga-arty     # FPGA: Vivado / Arty A7-100T XC7A100T (all accels)
-make synth FLOW=fpga-basys3   # FPGA: Vivado / Basys 3 XC7A35T (no accels)
 make synth FLOW=yosys         # ASIC: sv2v + Yosys generic gates (quick sanity check)
 make synth FLOW=ol2           # ASIC: OpenLane 2 / Sky130 synthesis + STA
 ```
@@ -209,18 +206,6 @@ vivado -mode batch -source hw/fpga/arty_a7/synth.tcl
 ```
 
 Reports: `build/vivado/` — `post_synth_timing.txt`, `post_route_timing.txt`, `post_synth_utilization.txt`, `post_route_utilization.txt`, `opensoc_arty_a7.bit`.
-
-#### FPGA / Vivado — Basys 3
-
-Targets the Digilent Basys 3 (Xilinx Artix-7 XC7A35T). Accelerators disabled; 64 KB block RAM. Full flow: synth → opt → place → phys_opt → route → bitstream.
-
-**Two-step build** (useful when iterating in the Vivado GUI):
-```bash
-make synth-setup
-vivado -mode batch -source hw/fpga/basys3/synth.tcl
-```
-
-Reports: `build/vivado/` — `post_synth_timing.txt`, `post_route_timing.txt`, `post_synth_utilization.txt`, `post_route_utilization.txt`, `opensoc_basys3.bit`.
 
 #### OpenLane 2 / Sky130
 
@@ -251,20 +236,6 @@ Results: `build/yosys/opensoc_top_netlist.v`, `build/yosys/yosys.log`.
 
 Clock: 100 MHz board oscillator → PLLE2_ADV → 50 MHz system clock. RAM: 512 KB block RAM. All 4 accelerators enabled.
 
-**Basys 3 pin mapping (`FLOW=fpga-basys3`):**
-
-| Board resource | SoC signal        | Notes                           |
-|----------------|-------------------|---------------------------------|
-| LED[15:0]      | gpio_o[15:0]      | Active-high                     |
-| SW[15:0]       | gpio_i[15:0]      | Direct sample                   |
-| Pmod JB[7:0]   | gpio[23:16]       | Bidirectional with OE           |
-| Pmod JA[0]     | I2C SDA           | Open-drain (external pullup)    |
-| Pmod JA[1]     | I2C SCL           | Open-drain (external pullup)    |
-| USB-UART       | UART TX/RX        | Via on-board FTDI bridge        |
-| btnC           | Reset             | Active-high, inverted internally|
-
-Clock: 100 MHz board oscillator → clk_wiz PLL → 50 MHz system clock. RAM: 64 KB block RAM. Accelerators disabled to fit XC7A35T.
-
 ### Waveform Viewing
 
 Install [GTKWave](http://gtkwave.sourceforge.net/) (`sudo apt install gtkwave` on Ubuntu/WSL).
@@ -287,9 +258,8 @@ Saved waveform views (`.gtkw` files) are stored in `dv/verilator/`.
 ## Repository Structure
 
 ```
-hw/rtl/              — OpenSoC RTL (top-level, config pkgs, peripherals)
-  opensoc_config_pkg.sv            — Unified config: ASIC + full-feature FPGA
-  opensoc_top_fpga_config_pkg.sv   — Basys 3 config: 64 KB, no accels
+hw/top/              — OpenSoC RTL (top-level, config pkgs)
+  opensoc_config_pkg.sv            — Unified config: ASIC + FPGA (512 KB, all accels)
   opensoc_derived_config_pkg.sv    — Derived values: crossbar dims, AXI types, addr map
 hw/opensoc_top.core  — FuseSoC core file (dependencies & build targets)
 hw/lint/             — Verilator waiver files
@@ -302,7 +272,6 @@ hw/ip/relu_accel/    — ReLU accelerator IP (reusable DMA framework)
 hw/ip/vec_mac/       — Vector MAC accelerator IP (INT8 dot product)
 hw/ip/sg_dma/        — Scatter-gather DMA engine IP
 hw/ip/softmax/       — Softmax pipeline IP (3-pass, exp LUT)
-hw/fpga/basys3/      — Basys 3 FPGA target (XC7A35T): constraints, wrapper, synth.tcl
 hw/fpga/arty_a7/     — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth.tcl
 hw/asic/             — ASIC synthesis (sv2v + Yosys, OpenLane 2 flow)
 hw/synth/            — Shared source file list (sources.f) for non-Vivado flows
