@@ -62,6 +62,7 @@ module opensoc_top
   logic vmac_irq;
   logic sg_dma_irq;
   logic softmax_irq;
+  logic [14:0] ibex_irq_fast;
 
   // -------------------------------------------------------------------------
   // Ibex instruction-fetch signals
@@ -226,7 +227,7 @@ module opensoc_top
       .irq_software_i            (1'b0),
       .irq_timer_i               (timer_irq),
       .irq_external_i            (1'b0),
-      .irq_fast_i                ({8'b0, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq}),
+      .irq_fast_i                (ibex_irq_fast),
       .irq_nm_i                  (1'b0),
 
       .scramble_key_valid_i      ('0),
@@ -257,6 +258,8 @@ module opensoc_top
       .instr_addr_shadow_o       ()
     );
 
+    assign ibex_irq_fast = {8'b0, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
+
   // -------------------------------------------------------------------------
   // AXI bridges: Ibex memory ports → AXI (axi_from_mem)
   // -------------------------------------------------------------------------
@@ -271,21 +274,21 @@ module opensoc_top
     .axi_req_t    ( axi_in_req_t    ),
     .axi_rsp_t    ( axi_in_resp_t   )
   ) u_axi_from_mem_instr (
-    .clk_i           (clk_sys),
-    .rst_ni          (rst_sys_n),
-    .mem_req_i       (instr_req),
-    .mem_addr_i      (instr_addr),
-    .mem_we_i        (1'b0),
-    .mem_wdata_i     (32'b0),
-    .mem_be_i        (4'b1111),
-    .mem_gnt_o       (instr_gnt),
-    .mem_rsp_valid_o (instr_rvalid),
-    .mem_rsp_rdata_o (instr_rdata),
-    .mem_rsp_error_o (instr_err),
+    .clk_i           (clk_sys                  ),
+    .rst_ni          (rst_sys_n                ),
+    .mem_req_i       (instr_req                ),
+    .mem_addr_i      (instr_addr               ),
+    .mem_we_i        (1'b0                     ),
+    .mem_wdata_i     (32'b0                    ),
+    .mem_be_i        (4'b1111                  ),
+    .mem_gnt_o       (instr_gnt                ),
+    .mem_rsp_valid_o (instr_rvalid             ),
+    .mem_rsp_rdata_o (instr_rdata              ),
+    .mem_rsp_error_o (instr_err                ),
     .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
     .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[0]),
-    .axi_rsp_i       (xbar_slv_resp[0])
+    .axi_req_o       (xbar_slv_req[0]          ),
+    .axi_rsp_i       (xbar_slv_resp[0]         )
   );
 
   // Data port (read/write)
@@ -298,21 +301,21 @@ module opensoc_top
     .axi_req_t    ( axi_in_req_t    ),
     .axi_rsp_t    ( axi_in_resp_t   )
   ) u_axi_from_mem_data (
-    .clk_i           (clk_sys),
-    .rst_ni          (rst_sys_n),
-    .mem_req_i       (data_req),
-    .mem_addr_i      (data_addr),
-    .mem_we_i        (data_we),
-    .mem_wdata_i     (data_wdata),
-    .mem_be_i        (data_be),
-    .mem_gnt_o       (data_gnt),
-    .mem_rsp_valid_o (data_rvalid),
-    .mem_rsp_rdata_o (data_rdata),
-    .mem_rsp_error_o (data_err),
+    .clk_i           (clk_sys                  ),
+    .rst_ni          (rst_sys_n                ),
+    .mem_req_i       (data_req                 ),
+    .mem_addr_i      (data_addr                ),
+    .mem_we_i        (data_we                  ),
+    .mem_wdata_i     (data_wdata               ),
+    .mem_be_i        (data_be                  ),
+    .mem_gnt_o       (data_gnt                 ),
+    .mem_rsp_valid_o (data_rvalid              ),
+    .mem_rsp_rdata_o (data_rdata               ),
+    .mem_rsp_error_o (data_err                 ),
     .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
     .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[1]),
-    .axi_rsp_i       (xbar_slv_resp[1])
+    .axi_req_o       (xbar_slv_req[1]          ),
+    .axi_rsp_i       (xbar_slv_resp[1]         )
   );
 
   // -------------------------------------------------------------------------
@@ -338,20 +341,20 @@ module opensoc_top
     .axi_req_t    ( axi_in_req_t    ),
     .axi_rsp_t    ( axi_in_resp_t   )
   ) u_axi_from_mem_pio_dma (
-    .clk_i           (clk_sys),
-    .rst_ni          (rst_sys_n),
-    .mem_req_i       (pio_dma_req),
-    .mem_addr_i      (pio_dma_addr),
-    .mem_we_i        (pio_dma_we),
-    .mem_wdata_i     (pio_dma_wdata),
-    .mem_be_i        (pio_dma_be),
-    .mem_gnt_o       (pio_dma_gnt),
-    .mem_rsp_valid_o (pio_dma_rvalid),
-    .mem_rsp_rdata_o (pio_dma_rdata),
-    .mem_rsp_error_o (pio_dma_err),
-    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[PioDmaMstIdx]),
+    .clk_i           (clk_sys                    ),
+    .rst_ni          (rst_sys_n                  ),
+    .mem_req_i       (pio_dma_req                ),
+    .mem_addr_i      (pio_dma_addr               ),
+    .mem_we_i        (pio_dma_we                 ),
+    .mem_wdata_i     (pio_dma_wdata              ),
+    .mem_be_i        (pio_dma_be                 ),
+    .mem_gnt_o       (pio_dma_gnt                ),
+    .mem_rsp_valid_o (pio_dma_rvalid             ),
+    .mem_rsp_rdata_o (pio_dma_rdata              ),
+    .mem_rsp_error_o (pio_dma_err                ),
+    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE  ),
+    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE  ),
+    .axi_req_o       (xbar_slv_req[PioDmaMstIdx] ),
     .axi_rsp_i       (xbar_slv_resp[PioDmaMstIdx])
   );
 
@@ -377,16 +380,16 @@ module opensoc_top
     .mst_resp_t    ( axi_out_resp_t        ),
     .rule_t        ( xbar_rule_32_t )
   ) u_axi_xbar (
-    .clk_i                  (clk_sys),
-    .rst_ni                 (rst_sys_n),
-    .test_i                 (1'b0),
-    .slv_ports_req_i        (xbar_slv_req),
+    .clk_i                  (clk_sys      ),
+    .rst_ni                 (rst_sys_n    ),
+    .test_i                 (1'b0         ),
+    .slv_ports_req_i        (xbar_slv_req ),
     .slv_ports_resp_o       (xbar_slv_resp),
-    .mst_ports_req_o        (xbar_mst_req),
+    .mst_ports_req_o        (xbar_mst_req ),
     .mst_ports_resp_i       (xbar_mst_resp),
-    .addr_map_i             (AddrMap),
-    .en_default_mst_port_i  ('0),
-    .default_mst_port_i     ('0)
+    .addr_map_i             (AddrMap      ),
+    .en_default_mst_port_i  ('0           ),
+    .default_mst_port_i     ('0           )
   );
 
   // -------------------------------------------------------------------------
@@ -406,20 +409,20 @@ module opensoc_top
       .NumBanks   ( 1              ),
       .BufDepth   ( 1              )
     ) u_axi_to_mem (
-      .clk_i       (clk_sys),
-      .rst_ni      (rst_sys_n),
+      .clk_i       (clk_sys           ),
+      .rst_ni      (rst_sys_n         ),
       .busy_o      (axi_to_mem_busy[i]),
-      .axi_req_i   (xbar_mst_req[i]),
-      .axi_resp_o  (xbar_mst_resp[i]),
-      .mem_req_o   (mem_req[i]),
-      .mem_gnt_i   (mem_gnt[i]),
-      .mem_addr_o  (mem_addr[i]),
-      .mem_wdata_o (mem_wdata[i]),
-      .mem_strb_o  (mem_strb[i]),
-      .mem_atop_o  (mem_atop[i]),
-      .mem_we_o    (mem_we[i]),
-      .mem_rvalid_i(mem_rvalid[i]),
-      .mem_rdata_i (mem_rdata[i])
+      .axi_req_i   (xbar_mst_req[i]   ),
+      .axi_resp_o  (xbar_mst_resp[i]  ),
+      .mem_req_o   (mem_req[i]        ),
+      .mem_gnt_i   (mem_gnt[i]        ),
+      .mem_addr_o  (mem_addr[i]       ),
+      .mem_wdata_o (mem_wdata[i]      ),
+      .mem_strb_o  (mem_strb[i]       ),
+      .mem_atop_o  (mem_atop[i]       ),
+      .mem_we_o    (mem_we[i]         ),
+      .mem_rvalid_i(mem_rvalid[i]     ),
+      .mem_rdata_i (mem_rdata[i]      )
     );
   end
 
@@ -435,16 +438,16 @@ module opensoc_top
       .Depth(RamDepth),
       .MemInitFile(SRAMInitFile)
     ) u_ram (
-      .clk_i       (clk_sys),
-      .rst_ni      (rst_sys_n),
+      .clk_i       (clk_sys      ),
+      .rst_ni      (rst_sys_n    ),
 
-      .req_i       (mem_req[0]),
-      .we_i        (mem_we[0]),
-      .be_i        (mem_strb[0]),
-      .addr_i      (mem_addr[0]),
-      .wdata_i     (mem_wdata[0]),
+      .req_i       (mem_req[0]   ),
+      .we_i        (mem_we[0]    ),
+      .be_i        (mem_strb[0]  ),
+      .addr_i      (mem_addr[0]  ),
+      .wdata_i     (mem_wdata[0] ),
       .rvalid_o    (mem_rvalid[0]),
-      .rdata_o     (mem_rdata[0])
+      .rdata_o     (mem_rdata[0] )
     );
 
   // -------------------------------------------------------------------------
@@ -464,16 +467,16 @@ module opensoc_top
   simulator_ctrl #(
     .LogName("opensoc_top.log")
     ) u_simulator_ctrl (
-      .clk_i     (clk_sys),
-      .rst_ni    (rst_sys_n),
+      .clk_i     (clk_sys      ),
+      .rst_ni    (rst_sys_n    ),
 
-      .req_i     (mem_req[1]),
-      .we_i      (mem_we[1]),
-      .be_i      (mem_strb[1]),
-      .addr_i    (mem_addr[1]),
-      .wdata_i   (mem_wdata[1]),
+      .req_i     (mem_req[1]   ),
+      .we_i      (mem_we[1]    ),
+      .be_i      (mem_strb[1]  ),
+      .addr_i    (mem_addr[1]  ),
+      .wdata_i   (mem_wdata[1] ),
       .rvalid_o  (mem_rvalid[1]),
-      .rdata_o   (mem_rdata[1])
+      .rdata_o   (mem_rdata[1] )
     );
 `endif
 
@@ -486,96 +489,96 @@ module opensoc_top
     .DataWidth    (32),
     .AddressWidth (32)
     ) u_timer (
-      .clk_i          (clk_sys),
-      .rst_ni         (rst_sys_n),
+      .clk_i          (clk_sys         ),
+      .rst_ni         (rst_sys_n       ),
 
-      .timer_req_i    (mem_req[2]),
-      .timer_we_i     (mem_we[2]),
-      .timer_be_i     (mem_strb[2]),
-      .timer_addr_i   (mem_addr[2]),
-      .timer_wdata_i  (mem_wdata[2]),
-      .timer_rvalid_o (mem_rvalid[2]),
-      .timer_rdata_o  (mem_rdata[2]),
+      .timer_req_i    (mem_req[2]      ),
+      .timer_we_i     (mem_we[2]       ),
+      .timer_be_i     (mem_strb[2]     ),
+      .timer_addr_i   (mem_addr[2]     ),
+      .timer_wdata_i  (mem_wdata[2]    ),
+      .timer_rvalid_o (mem_rvalid[2]   ),
+      .timer_rdata_o  (mem_rdata[2]    ),
       .timer_err_o    (timer_err_unused),
-      .timer_intr_o   (timer_irq)
+      .timer_intr_o   (timer_irq       )
     );
 
   // -------------------------------------------------------------------------
   // UART
   // -------------------------------------------------------------------------
   uart u_uart (
-    .clk_i     (clk_sys),
-    .rst_ni    (rst_sys_n),
+    .clk_i     (clk_sys      ),
+    .rst_ni    (rst_sys_n    ),
 
-    .req_i     (mem_req[3]),
-    .addr_i    (mem_addr[3]),
-    .we_i      (mem_we[3]),
-    .be_i      (mem_strb[3]),
-    .wdata_i   (mem_wdata[3]),
+    .req_i     (mem_req[3]   ),
+    .addr_i    (mem_addr[3]  ),
+    .we_i      (mem_we[3]    ),
+    .be_i      (mem_strb[3]  ),
+    .wdata_i   (mem_wdata[3] ),
     .rvalid_o  (mem_rvalid[3]),
-    .rdata_o   (mem_rdata[3]),
+    .rdata_o   (mem_rdata[3] ),
 
-    .irq_o     (uart_irq),
+    .irq_o     (uart_irq     ),
 
-    .uart_tx_o (uart_tx_o),
-    .uart_rx_i (uart_rx_i)
+    .uart_tx_o (uart_tx_o    ),
+    .uart_rx_i (uart_rx_i    )
   );
 
   // -------------------------------------------------------------------------
   // PIO (replaces GPIO — provides GPIO-compatible DIR/OUT/IN registers)
   // -------------------------------------------------------------------------
   pio u_pio (
-    .clk_i          (clk_sys),
-    .rst_ni         (rst_sys_n),
+    .clk_i          (clk_sys       ),
+    .rst_ni         (rst_sys_n     ),
 
-    .ctrl_req_i     (mem_req[4]),
-    .ctrl_addr_i    (mem_addr[4]),
-    .ctrl_we_i      (mem_we[4]),
-    .ctrl_be_i      (mem_strb[4]),
-    .ctrl_wdata_i   (mem_wdata[4]),
-    .ctrl_rvalid_o  (mem_rvalid[4]),
-    .ctrl_rdata_o   (mem_rdata[4]),
+    .ctrl_req_i     (mem_req[4]    ),
+    .ctrl_addr_i    (mem_addr[4]   ),
+    .ctrl_we_i      (mem_we[4]     ),
+    .ctrl_be_i      (mem_strb[4]   ),
+    .ctrl_wdata_i   (mem_wdata[4]  ),
+    .ctrl_rvalid_o  (mem_rvalid[4] ),
+    .ctrl_rdata_o   (mem_rdata[4]  ),
 
-    .dma_req_o      (pio_dma_req),
-    .dma_addr_o     (pio_dma_addr),
-    .dma_we_o       (pio_dma_we),
-    .dma_wdata_o    (pio_dma_wdata),
-    .dma_be_o       (pio_dma_be),
-    .dma_gnt_i      (pio_dma_gnt),
+    .dma_req_o      (pio_dma_req   ),
+    .dma_addr_o     (pio_dma_addr  ),
+    .dma_we_o       (pio_dma_we    ),
+    .dma_wdata_o    (pio_dma_wdata ),
+    .dma_be_o       (pio_dma_be    ),
+    .dma_gnt_i      (pio_dma_gnt   ),
     .dma_rvalid_i   (pio_dma_rvalid),
-    .dma_rdata_i    (pio_dma_rdata),
-    .dma_err_i      (pio_dma_err),
+    .dma_rdata_i    (pio_dma_rdata ),
+    .dma_err_i      (pio_dma_err   ),
 
-    .irq_o          (pio_irq),
+    .irq_o          (pio_irq       ),
 
-    .gpio_i         (gpio_i),
-    .gpio_o         (gpio_o),
-    .gpio_oe        (gpio_oe)
+    .gpio_i         (gpio_i        ),
+    .gpio_o         (gpio_o        ),
+    .gpio_oe        (gpio_oe       )
   );
 
   // -------------------------------------------------------------------------
   // I2C Controller
   // -------------------------------------------------------------------------
   i2c_controller u_i2c (
-    .clk_i      (clk_sys),
-    .rst_ni     (rst_sys_n),
+    .clk_i      (clk_sys      ),
+    .rst_ni     (rst_sys_n    ),
 
-    .req_i      (mem_req[5]),
-    .addr_i     (mem_addr[5]),
-    .we_i       (mem_we[5]),
-    .be_i       (mem_strb[5]),
-    .wdata_i    (mem_wdata[5]),
+    .req_i      (mem_req[5]   ),
+    .addr_i     (mem_addr[5]  ),
+    .we_i       (mem_we[5]    ),
+    .be_i       (mem_strb[5]  ),
+    .wdata_i    (mem_wdata[5] ),
     .rvalid_o   (mem_rvalid[5]),
-    .rdata_o    (mem_rdata[5]),
+    .rdata_o    (mem_rdata[5] ),
 
-    .irq_o      (i2c_irq),
+    .irq_o      (i2c_irq      ),
 
-    .i2c_scl_o  (i2c_scl_o),
-    .i2c_scl_oe (i2c_scl_oe),
-    .i2c_scl_i  (i2c_scl_i),
-    .i2c_sda_o  (i2c_sda_o),
-    .i2c_sda_oe (i2c_sda_oe),
-    .i2c_sda_i  (i2c_sda_i)
+    .i2c_scl_o  (i2c_scl_o    ),
+    .i2c_scl_oe (i2c_scl_oe   ),
+    .i2c_scl_i  (i2c_scl_i    ),
+    .i2c_sda_o  (i2c_sda_o    ),
+    .i2c_sda_oe (i2c_sda_oe   ),
+    .i2c_sda_i  (i2c_sda_i    )
   );
 
   // -------------------------------------------------------------------------
@@ -587,30 +590,51 @@ module opensoc_top
     logic [3:0]  relu_dma_be;
 
     axi_from_mem #(
-      .MemAddrWidth ( 32 ), .AxiAddrWidth ( AxiAddrWidth ), .DataWidth ( AxiDataWidth ),
-      .MaxRequests  ( 2  ), .AxiProt      ( 3'b000       ),
-      .axi_req_t ( axi_in_req_t ), .axi_rsp_t ( axi_in_resp_t )
+      .MemAddrWidth ( 32              ),
+      .AxiAddrWidth ( AxiAddrWidth    ),
+      .DataWidth    ( AxiDataWidth    ),
+      .MaxRequests  ( 2               ),
+      .AxiProt      ( 3'b000          ),
+      .axi_req_t    ( axi_in_req_t    ),
+      .axi_rsp_t    ( axi_in_resp_t   )
     ) u_axi_from_mem_relu_dma (
-      .clk_i(clk_sys), .rst_ni(rst_sys_n),
-      .mem_req_i(relu_dma_req), .mem_addr_i(relu_dma_addr), .mem_we_i(relu_dma_we),
-      .mem_wdata_i(relu_dma_wdata), .mem_be_i(relu_dma_be),
-      .mem_gnt_o(relu_dma_gnt), .mem_rsp_valid_o(relu_dma_rvalid),
-      .mem_rsp_rdata_o(relu_dma_rdata), .mem_rsp_error_o(relu_dma_err),
-      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE), .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
-      .axi_req_o(xbar_slv_req[ReluDmaMstIdx]), .axi_rsp_i(xbar_slv_resp[ReluDmaMstIdx])
+      .clk_i          (clk_sys                      ),
+      .rst_ni         (rst_sys_n                    ),
+      .mem_req_i      (relu_dma_req                 ),
+      .mem_addr_i      (relu_dma_addr               ),
+      .mem_we_i        (relu_dma_we                 ),
+      .mem_wdata_i     (relu_dma_wdata              ),
+      .mem_be_i        (relu_dma_be                 ),
+      .mem_gnt_o       (relu_dma_gnt                ),
+      .mem_rsp_valid_o (relu_dma_rvalid             ),
+      .mem_rsp_rdata_o (relu_dma_rdata              ),
+      .mem_rsp_error_o (relu_dma_err                ),
+      .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE   ),
+      .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE   ),
+      .axi_req_o       (xbar_slv_req[ReluDmaMstIdx] ),
+      .axi_rsp_i       (xbar_slv_resp[ReluDmaMstIdx])
     );
 
     relu_accel u_relu_accel (
-      .clk_i(clk_sys), .rst_ni(rst_sys_n),
-      .ctrl_req_i(mem_req[ReluSlvIdx]), .ctrl_addr_i(mem_addr[ReluSlvIdx]),
-      .ctrl_we_i(mem_we[ReluSlvIdx]), .ctrl_be_i(mem_strb[ReluSlvIdx]),
-      .ctrl_wdata_i(mem_wdata[ReluSlvIdx]),
-      .ctrl_rvalid_o(mem_rvalid[ReluSlvIdx]), .ctrl_rdata_o(mem_rdata[ReluSlvIdx]),
-      .dma_req_o(relu_dma_req), .dma_addr_o(relu_dma_addr),
-      .dma_we_o(relu_dma_we), .dma_wdata_o(relu_dma_wdata), .dma_be_o(relu_dma_be),
-      .dma_gnt_i(relu_dma_gnt), .dma_rvalid_i(relu_dma_rvalid),
-      .dma_rdata_i(relu_dma_rdata), .dma_err_i(relu_dma_err),
-      .irq_o(relu_irq)
+      .clk_i         (clk_sys               ),
+      .rst_ni        (rst_sys_n             ),
+      .ctrl_req_i    (mem_req[ReluSlvIdx]   ),
+      .ctrl_addr_i   (mem_addr[ReluSlvIdx]  ),
+      .ctrl_we_i     (mem_we[ReluSlvIdx]    ),
+      .ctrl_be_i     (mem_strb[ReluSlvIdx]  ),
+      .ctrl_wdata_i  (mem_wdata[ReluSlvIdx] ),
+      .ctrl_rvalid_o (mem_rvalid[ReluSlvIdx]),
+      .ctrl_rdata_o  (mem_rdata[ReluSlvIdx] ),
+      .dma_req_o     (relu_dma_req          ),
+      .dma_addr_o    (relu_dma_addr         ),
+      .dma_we_o      (relu_dma_we           ),
+      .dma_wdata_o   (relu_dma_wdata        ),
+      .dma_be_o      (relu_dma_be           ),
+      .dma_gnt_i     (relu_dma_gnt          ),
+      .dma_rvalid_i  (relu_dma_rvalid       ),
+      .dma_rdata_i   (relu_dma_rdata        ),
+      .dma_err_i     (relu_dma_err          ),
+      .irq_o         (relu_irq              )
     );
   end else begin : gen_no_relu
     assign relu_irq = 1'b0;
@@ -625,30 +649,51 @@ module opensoc_top
     logic [3:0]  vmac_dma_be;
 
     axi_from_mem #(
-      .MemAddrWidth ( 32 ), .AxiAddrWidth ( AxiAddrWidth ), .DataWidth ( AxiDataWidth ),
-      .MaxRequests  ( 2  ), .AxiProt      ( 3'b000       ),
-      .axi_req_t ( axi_in_req_t ), .axi_rsp_t ( axi_in_resp_t )
+      .MemAddrWidth ( 32            ),
+      .AxiAddrWidth ( AxiAddrWidth  ),
+      .DataWidth    ( AxiDataWidth  ),
+      .MaxRequests  ( 2             ),
+      .AxiProt      ( 3'b000        ),
+      .axi_req_t    ( axi_in_req_t  ),
+      .axi_rsp_t    ( axi_in_resp_t )
     ) u_axi_from_mem_vmac_dma (
-      .clk_i(clk_sys), .rst_ni(rst_sys_n),
-      .mem_req_i(vmac_dma_req), .mem_addr_i(vmac_dma_addr), .mem_we_i(vmac_dma_we),
-      .mem_wdata_i(vmac_dma_wdata), .mem_be_i(vmac_dma_be),
-      .mem_gnt_o(vmac_dma_gnt), .mem_rsp_valid_o(vmac_dma_rvalid),
-      .mem_rsp_rdata_o(vmac_dma_rdata), .mem_rsp_error_o(vmac_dma_err),
-      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE), .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
-      .axi_req_o(xbar_slv_req[VmacDmaMstIdx]), .axi_rsp_i(xbar_slv_resp[VmacDmaMstIdx])
+      .clk_i(clk_sys                           ),
+      .rst_ni(rst_sys_n                        ),
+      .mem_req_i(vmac_dma_req                  ),
+      .mem_addr_i(vmac_dma_addr                ),
+      .mem_we_i(vmac_dma_we                    ),
+      .mem_wdata_i(vmac_dma_wdata              ),
+      .mem_be_i(vmac_dma_be                    ),
+      .mem_gnt_o(vmac_dma_gnt                  ),
+      .mem_rsp_valid_o(vmac_dma_rvalid         ),
+      .mem_rsp_rdata_o(vmac_dma_rdata          ),
+      .mem_rsp_error_o(vmac_dma_err            ),
+      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE),
+      .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
+      .axi_req_o(xbar_slv_req[VmacDmaMstIdx]   ),
+      .axi_rsp_i(xbar_slv_resp[VmacDmaMstIdx]  )
     );
 
     vec_mac u_vec_mac (
-      .clk_i(clk_sys), .rst_ni(rst_sys_n),
-      .ctrl_req_i(mem_req[VmacSlvIdx]), .ctrl_addr_i(mem_addr[VmacSlvIdx]),
-      .ctrl_we_i(mem_we[VmacSlvIdx]), .ctrl_be_i(mem_strb[VmacSlvIdx]),
-      .ctrl_wdata_i(mem_wdata[VmacSlvIdx]),
-      .ctrl_rvalid_o(mem_rvalid[VmacSlvIdx]), .ctrl_rdata_o(mem_rdata[VmacSlvIdx]),
-      .dma_req_o(vmac_dma_req), .dma_addr_o(vmac_dma_addr),
-      .dma_we_o(vmac_dma_we), .dma_wdata_o(vmac_dma_wdata), .dma_be_o(vmac_dma_be),
-      .dma_gnt_i(vmac_dma_gnt), .dma_rvalid_i(vmac_dma_rvalid),
-      .dma_rdata_i(vmac_dma_rdata), .dma_err_i(vmac_dma_err),
-      .irq_o(vmac_irq)
+      .clk_i        (clk_sys               ),
+      .rst_ni       (rst_sys_n             ),
+      .ctrl_req_i   (mem_req[VmacSlvIdx]   ),
+      .ctrl_addr_i  (mem_addr[VmacSlvIdx]  ),
+      .ctrl_we_i    (mem_we[VmacSlvIdx]    ),
+      .ctrl_be_i    (mem_strb[VmacSlvIdx]  ),
+      .ctrl_wdata_i (mem_wdata[VmacSlvIdx] ),
+      .ctrl_rvalid_o(mem_rvalid[VmacSlvIdx]),
+      .ctrl_rdata_o (mem_rdata[VmacSlvIdx] ),
+      .dma_req_o    (vmac_dma_req          ),
+      .dma_addr_o   (vmac_dma_addr         ),
+      .dma_we_o     (vmac_dma_we           ),
+      .dma_wdata_o  (vmac_dma_wdata        ),
+      .dma_be_o     (vmac_dma_be           ),
+      .dma_gnt_i    (vmac_dma_gnt          ),
+      .dma_rvalid_i (vmac_dma_rvalid       ),
+      .dma_rdata_i  (vmac_dma_rdata        ),
+      .dma_err_i    (vmac_dma_err          ),
+      .irq_o        (vmac_irq              )
     );
   end else begin : gen_no_vmac
     assign vmac_irq = 1'b0;
@@ -663,30 +708,51 @@ module opensoc_top
     logic [3:0]  sgdma_dma_be;
 
     axi_from_mem #(
-      .MemAddrWidth ( 32 ), .AxiAddrWidth ( AxiAddrWidth ), .DataWidth ( AxiDataWidth ),
-      .MaxRequests  ( 2  ), .AxiProt      ( 3'b000       ),
-      .axi_req_t ( axi_in_req_t ), .axi_rsp_t ( axi_in_resp_t )
+      .MemAddrWidth ( 32            ),
+      .AxiAddrWidth ( AxiAddrWidth  ),
+      .DataWidth    ( AxiDataWidth  ),
+      .MaxRequests  ( 2             ),
+      .AxiProt      ( 3'b000        ),
+      .axi_req_t    ( axi_in_req_t  ),
+      .axi_rsp_t    ( axi_in_resp_t )
     ) u_axi_from_mem_sgdma (
-      .clk_i(clk_sys), .rst_ni(rst_sys_n),
-      .mem_req_i(sgdma_dma_req), .mem_addr_i(sgdma_dma_addr), .mem_we_i(sgdma_dma_we),
-      .mem_wdata_i(sgdma_dma_wdata), .mem_be_i(sgdma_dma_be),
-      .mem_gnt_o(sgdma_dma_gnt), .mem_rsp_valid_o(sgdma_dma_rvalid),
-      .mem_rsp_rdata_o(sgdma_dma_rdata), .mem_rsp_error_o(sgdma_dma_err),
-      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE), .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
-      .axi_req_o(xbar_slv_req[SgDmaDmaMstIdx]), .axi_rsp_i(xbar_slv_resp[SgDmaDmaMstIdx])
+      .clk_i           (clk_sys                       ),
+      .rst_ni          (rst_sys_n                     ),
+      .mem_req_i       (sgdma_dma_req                 ),
+      .mem_addr_i      (sgdma_dma_addr                ),
+      .mem_we_i        (sgdma_dma_we                  ),
+      .mem_wdata_i     (sgdma_dma_wdata               ),
+      .mem_be_i        (sgdma_dma_be                  ),
+      .mem_gnt_o       (sgdma_dma_gnt                 ),
+       .mem_rsp_valid_o(sgdma_dma_rvalid              ),
+      .mem_rsp_rdata_o (sgdma_dma_rdata               ),
+      .mem_rsp_error_o (sgdma_dma_err                 ),
+      .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE     ),
+      .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE     ),
+      .axi_req_o       (xbar_slv_req[SgDmaDmaMstIdx]  ),
+      .axi_rsp_i       (xbar_slv_resp[SgDmaDmaMstIdx] )
     );
 
     sg_dma u_sg_dma (
-      .clk_i(clk_sys), .rst_ni(rst_sys_n),
-      .ctrl_req_i(mem_req[SgDmaSlvIdx]), .ctrl_addr_i(mem_addr[SgDmaSlvIdx]),
-      .ctrl_we_i(mem_we[SgDmaSlvIdx]), .ctrl_be_i(mem_strb[SgDmaSlvIdx]),
-      .ctrl_wdata_i(mem_wdata[SgDmaSlvIdx]),
-      .ctrl_rvalid_o(mem_rvalid[SgDmaSlvIdx]), .ctrl_rdata_o(mem_rdata[SgDmaSlvIdx]),
-      .dma_req_o(sgdma_dma_req), .dma_addr_o(sgdma_dma_addr),
-      .dma_we_o(sgdma_dma_we), .dma_wdata_o(sgdma_dma_wdata), .dma_be_o(sgdma_dma_be),
-      .dma_gnt_i(sgdma_dma_gnt), .dma_rvalid_i(sgdma_dma_rvalid),
-      .dma_rdata_i(sgdma_dma_rdata), .dma_err_i(sgdma_dma_err),
-      .irq_o(sg_dma_irq)
+      .clk_i        (clk_sys                ),
+      .rst_ni       (rst_sys_n              ),
+      .ctrl_req_i   (mem_req[SgDmaSlvIdx]   ),
+      .ctrl_addr_i  (mem_addr[SgDmaSlvIdx]  ),
+      .ctrl_we_i    (mem_we[SgDmaSlvIdx]    ),
+      .ctrl_be_i    (mem_strb[SgDmaSlvIdx]  ),
+      .ctrl_wdata_i (mem_wdata[SgDmaSlvIdx] ),
+      .ctrl_rvalid_o(mem_rvalid[SgDmaSlvIdx]),
+      .ctrl_rdata_o (mem_rdata[SgDmaSlvIdx] ),
+      .dma_req_o    (sgdma_dma_req          ),
+      .dma_addr_o   (sgdma_dma_addr         ),
+      .dma_we_o     (sgdma_dma_we           ),
+      .dma_wdata_o  (sgdma_dma_wdata        ),
+      .dma_be_o     (sgdma_dma_be           ),
+      .dma_gnt_i    (sgdma_dma_gnt          ),
+      .dma_rvalid_i (sgdma_dma_rvalid       ),
+      .dma_rdata_i  (sgdma_dma_rdata        ),
+      .dma_err_i    (sgdma_dma_err          ),
+      .irq_o        (sg_dma_irq             )
     );
   end else begin : gen_no_sg_dma
     assign sg_dma_irq = 1'b0;
@@ -701,30 +767,51 @@ module opensoc_top
     logic [3:0]  smax_dma_be;
 
     axi_from_mem #(
-      .MemAddrWidth ( 32 ), .AxiAddrWidth ( AxiAddrWidth ), .DataWidth ( AxiDataWidth ),
-      .MaxRequests  ( 2  ), .AxiProt      ( 3'b000       ),
-      .axi_req_t ( axi_in_req_t ), .axi_rsp_t ( axi_in_resp_t )
+      .MemAddrWidth ( 32            ),
+      .AxiAddrWidth ( AxiAddrWidth  ),
+      .DataWidth    ( AxiDataWidth  ),
+      .MaxRequests  ( 2             ),
+      .AxiProt      ( 3'b000        ),
+      .axi_req_t    ( axi_in_req_t  ),
+      .axi_rsp_t    ( axi_in_resp_t )
     ) u_axi_from_mem_smax_dma (
-      .clk_i(clk_sys), .rst_ni(rst_sys_n),
-      .mem_req_i(smax_dma_req), .mem_addr_i(smax_dma_addr), .mem_we_i(smax_dma_we),
-      .mem_wdata_i(smax_dma_wdata), .mem_be_i(smax_dma_be),
-      .mem_gnt_o(smax_dma_gnt), .mem_rsp_valid_o(smax_dma_rvalid),
-      .mem_rsp_rdata_o(smax_dma_rdata), .mem_rsp_error_o(smax_dma_err),
-      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE), .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
-      .axi_req_o(xbar_slv_req[SmaxDmaMstIdx]), .axi_rsp_i(xbar_slv_resp[SmaxDmaMstIdx])
+      .clk_i(clk_sys                           ),
+      .rst_ni(rst_sys_n                        ),
+      .mem_req_i(smax_dma_req                  ),
+      .mem_addr_i(smax_dma_addr                ),
+      .mem_we_i(smax_dma_we                    ),
+      .mem_wdata_i(smax_dma_wdata              ),
+      .mem_be_i(smax_dma_be                    ),
+      .mem_gnt_o(smax_dma_gnt                  ),
+      .mem_rsp_valid_o(smax_dma_rvalid         ),
+      .mem_rsp_rdata_o(smax_dma_rdata          ),
+      .mem_rsp_error_o(smax_dma_err            ),
+      .slv_aw_cache_i(axi_pkg::CACHE_MODIFIABLE),
+      .slv_ar_cache_i(axi_pkg::CACHE_MODIFIABLE),
+      .axi_req_o(xbar_slv_req[SmaxDmaMstIdx]   ),
+      .axi_rsp_i(xbar_slv_resp[SmaxDmaMstIdx]  )
     );
 
     softmax u_softmax (
-      .clk_i(clk_sys), .rst_ni(rst_sys_n),
-      .ctrl_req_i(mem_req[SmaxSlvIdx]), .ctrl_addr_i(mem_addr[SmaxSlvIdx]),
-      .ctrl_we_i(mem_we[SmaxSlvIdx]), .ctrl_be_i(mem_strb[SmaxSlvIdx]),
-      .ctrl_wdata_i(mem_wdata[SmaxSlvIdx]),
-      .ctrl_rvalid_o(mem_rvalid[SmaxSlvIdx]), .ctrl_rdata_o(mem_rdata[SmaxSlvIdx]),
-      .dma_req_o(smax_dma_req), .dma_addr_o(smax_dma_addr),
-      .dma_we_o(smax_dma_we), .dma_wdata_o(smax_dma_wdata), .dma_be_o(smax_dma_be),
-      .dma_gnt_i(smax_dma_gnt), .dma_rvalid_i(smax_dma_rvalid),
-      .dma_rdata_i(smax_dma_rdata), .dma_err_i(smax_dma_err),
-      .irq_o(softmax_irq)
+      .clk_i        (clk_sys               ),
+      .rst_ni       (rst_sys_n             ),
+      .ctrl_req_i   (mem_req[SmaxSlvIdx]   ),
+      .ctrl_addr_i  (mem_addr[SmaxSlvIdx]  ),
+      .ctrl_we_i    (mem_we[SmaxSlvIdx]    ),
+      .ctrl_be_i    (mem_strb[SmaxSlvIdx]  ),
+      .ctrl_wdata_i (mem_wdata[SmaxSlvIdx] ),
+      .ctrl_rvalid_o(mem_rvalid[SmaxSlvIdx]),
+      .ctrl_rdata_o (mem_rdata[SmaxSlvIdx] ),
+      .dma_req_o    (smax_dma_req          ),
+      .dma_addr_o   (smax_dma_addr         ),
+      .dma_we_o     (smax_dma_we           ),
+      .dma_wdata_o  (smax_dma_wdata        ),
+      .dma_be_o     (smax_dma_be           ),
+      .dma_gnt_i    (smax_dma_gnt          ),
+      .dma_rvalid_i (smax_dma_rvalid       ),
+      .dma_rdata_i  (smax_dma_rdata        ),
+      .dma_err_i    (smax_dma_err          ),
+      .irq_o        (softmax_irq           )
     );
   end else begin : gen_no_softmax
     assign softmax_irq = 1'b0;

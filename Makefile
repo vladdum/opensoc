@@ -180,6 +180,7 @@ else ifeq ($(FLOW),fpga-basys3)
 else ifeq ($(FLOW),yosys)
 	bash hw/asic/synth.sh
 else ifeq ($(FLOW),ol2)
+	$(MAKE) synth-setup
 	bash hw/asic/openlane2/run.sh
 else
 	$(error Unknown FLOW=$(FLOW). Use: fpga-arty, fpga-basys3, ol2, or yosys)
