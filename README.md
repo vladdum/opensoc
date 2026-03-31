@@ -97,13 +97,24 @@ All build commands below should be run inside the WSL/Ubuntu terminal.
   pip3 install fusesoc
   pip3 install -U -r hw/ip/ibex/python-requirements.txt
   ```
-- **RISC-V GCC toolchain** — lowRISC provides pre-built toolchains at
+- **RISC-V GCC toolchain** — the Ibex Makefiles expect the `riscv32-unknown-elf-` prefix.
+  On Debian/Ubuntu, install the `riscv64` toolchain (which can target rv32) and create
+  symlinks:
+  ```bash
+  sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+  # Create riscv32-unknown-elf-* symlinks expected by the Ibex build system
+  for tool in gcc g++ objcopy objdump ld ar as ranlib nm strip; do
+    sudo ln -sf /usr/bin/riscv64-unknown-elf-$tool /usr/local/bin/riscv32-unknown-elf-$tool
+  done
+  ```
+  Alternatively, lowRISC provides pre-built `riscv32-unknown-elf` toolchains at
   <https://github.com/lowRISC/lowrisc-toolchains/releases>.
-  The compiler prefix should be `riscv32-unknown-elf-`.
-- **libelf** — on Debian/Ubuntu: `sudo apt-get install libelf-dev`.
+- **srecord** — required for building test software (`srec_cat` converts binaries to vmem):
+  `sudo apt-get install srecord`.
+- **libelf** — required for the Verilator simulation build:
+  `sudo apt-get install libelf-dev`.
 - **GTKWave** (optional, for waveform viewing) — on Debian/Ubuntu: `sudo apt-get install gtkwave`.
   Requires WSLg (WSL2 on Windows 10 21H2+) or an X server (e.g. VcXsrv) for GUI display.
-- **srecord** (optional, for vmem files) — on Debian/Ubuntu: `sudo apt-get install srecord`.
 
 #### Synthesis-specific prerequisites
 
