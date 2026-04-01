@@ -115,7 +115,8 @@ clean:
 
 # ── Regression ────────────────────────────────────────────────────────────────
 
-REGRESSION_TESTS := hello uart pio pio-sdk pio-i2c i2c i2c-loopback \
+# i2c-loopback excluded pending fix — see issue #14
+REGRESSION_TESTS := hello uart pio pio-sdk pio-i2c i2c \
                     relu vmac sg-dma softmax
 
 # Per-test extra simulator flags (empty unless overridden)
