@@ -221,7 +221,10 @@ static void test_jmp_x_decrement(void) {
     spin(50);
 
     uint32_t rxval = pio_sm_get_blocking(pio0, 0);
-    check("JMP X-- loop result", rxval, 0);
+    // JMP X-- is a true post-decrement (RP2040 TRM §3.4.2): X is decremented
+    // unconditionally; the pre-decrement value determines the branch.
+    // After 4 iterations (X: 3→2→1→0→0xFFFFFFFF), X wraps on the fall-through.
+    check("JMP X-- loop result", rxval, 0xFFFFFFFF);
 
     pio_sm_set_enabled(pio0, 0, false);
 }

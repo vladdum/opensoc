@@ -120,6 +120,11 @@ module pio_sm (
   logic [15:0] exec_pending_q;
   logic        exec_pending_valid_q;
 
+  // IRQ wait state: set on the first cycle of an irq_wait instruction so we
+  // can distinguish "flag not yet registered" (cycle 0) from "flag cleared"
+  // (cycle N after being set), both of which see irq_flags_i[idx] = 0.
+  logic        irq_wait_active_q;
+
   // ===========================================================================
   // Output assigns
   // ===========================================================================
@@ -386,6 +391,7 @@ module pio_sm (
       delay_cnt_q          <= 5'd0;
       exec_pending_q       <= 16'd0;
       exec_pending_valid_q <= 1'b0;
+      irq_wait_active_q    <= 1'b0;
       irq_set_o   <= 8'd0;
       irq_clr_o   <= 8'd0;
       tx_pull_o   <= 1'b0;
@@ -409,6 +415,7 @@ module pio_sm (
         osr_cnt_q            <= 6'd0;
         delay_cnt_q          <= 5'd0;
         exec_pending_valid_q <= 1'b0;
+        irq_wait_active_q    <= 1'b0;
       end else if (tick) begin
         // ---------------------------------------------------------------
         // Delay phase: count down, no instruction execution
@@ -740,20 +747,25 @@ module pio_sm (
               end
 
               if (irq_wait && !irq_clear) begin
-                // WAIT: stall until the flag we just set gets cleared
-                if (irq_flags_i[irq_flag_idx] || 1'b1) begin
-                  // On set+wait, set the flag and stall.
-                  // We stay in this instruction until the flag is externally cleared.
+                // WAIT: stall until the flag we just set gets cleared.
+                // irq_wait_active_q distinguishes "first cycle before flag is
+                // registered" (both see irq_flags_i=0) from "flag cleared":
+                //   cycle 0: irq_wait_active_q=0 → unconditionally stall
+                //   cycle 1+: irq_wait_active_q=1, flag now registered → stall
+                //             until irq_flags_i clears
+                if (!irq_wait_active_q) begin
+                  // First cycle: flag not yet registered — must stall
                   do_stall = 1'b1;
-                  // But don't re-set the flag every tick — only set on first cycle
-                  // Check if flag is already set from our previous set
-                  if (irq_flags_i[irq_flag_idx]) begin
-                    irq_set_o[irq_flag_idx] <= 1'b0;
-                    // Still stalling — flag hasn't been cleared yet
-                  end else begin
-                    // Flag has been cleared by external entity — stop stalling
-                    do_stall = 1'b0;
-                  end
+                  irq_wait_active_q <= 1'b1;
+                end else if (irq_flags_i[irq_flag_idx]) begin
+                  // Flag still set — keep stalling; cancel irq_set re-pulse
+                  irq_set_o[irq_flag_idx] <= 1'b0;
+                  do_stall = 1'b1;
+                end else begin
+                  // Flag cleared by external entity — resume
+                  irq_set_o[irq_flag_idx] <= 1'b0;
+                  do_stall = 1'b0;
+                  irq_wait_active_q <= 1'b0;
                 end
               end
 

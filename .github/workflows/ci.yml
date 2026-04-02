@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            verilator \
+            gcc-riscv64-unknown-elf \
+            binutils-riscv64-unknown-elf \
+            srecord \
+            libelf-dev
+
+      - name: Create riscv32-unknown-elf symlinks
+        run: |
+          for tool in gcc objcopy objdump ld ar as nm strip; do
+            sudo ln -sf /usr/bin/riscv64-unknown-elf-$tool \
+                        /usr/local/bin/riscv32-unknown-elf-$tool
+          done
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-fusesoc-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: pip-fusesoc-
+
+      - name: Install FuseSoC
+        run: pip install fusesoc
+
+      - name: Cache Verilator build
+        uses: actions/cache@v4
+        with:
+          path: build/opensoc_soc_opensoc_top_0
+          key: verilator-${{ runner.os }}-${{ hashFiles('opensoc_top.core', 'hw/top/**', 'hw/ip/**', 'dv/**') }}
+
+      - name: Build simulator
+        run: make build
+
+      - name: Run regression
+        run: make regression
+
+      - name: Upload regression logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-logs
+          path: build/opensoc_soc_opensoc_top_0/sim-verilator/regression/
+          if-no-files-found: ignore

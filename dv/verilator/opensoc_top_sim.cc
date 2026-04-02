@@ -5,7 +5,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "Vopensoc_top__Syms.h"
+#include "Vopensoc_top_wrapper__Syms.h"
 #include "ibex_pcounts.h"
 #include "opensoc_top_sim.h"
 #include "verilated_toplevel.h"
@@ -65,7 +65,7 @@ bool OpenSocSim::Finish() {
   // Set the scope to the root scope, the ibex_pcount_string function otherwise
   // doesn't know the scope itself. Could be moved to ibex_pcount_string, but
   // would require a way to set the scope name from here, similar to MemUtil.
-  svSetScope(svGetScopeFromName("TOP.opensoc_top"));
+  svSetScope(svGetScopeFromName("TOP.opensoc_top_wrapper"));
 
   std::cout << "\nPerformance Counters" << std::endl
             << "====================" << std::endl;

@@ -2,20 +2,20 @@ CAPI=2:
 # Copyright OpenSoC contributors.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-name: "opensoc:fpga:basys3"
-description: "OpenSoC FPGA build for Digilent Basys 3 (Artix-7 XC7A35T)"
+name: "opensoc:fpga:arty_a7"
+description: "OpenSoC FPGA build for Digilent Arty A7-100T (Artix-7 XC7A100T)"
 
 filesets:
   files_rtl:
     depend:
       - "opensoc:soc:opensoc_top"
     files:
-      - fpga/basys3/opensoc_fpga_top.sv
+      - hw/fpga/arty_a7/opensoc_fpga_arty_a7_top.sv
     file_type: systemVerilogSource
 
   files_constraints:
     files:
-      - fpga/basys3/basys3.xdc
+      - hw/fpga/arty_a7/arty_a7.xdc
     file_type: xdc
 
 targets:
@@ -24,15 +24,13 @@ targets:
     filesets:
       - files_rtl
       - files_constraints
-    toplevel: opensoc_fpga_top
+    toplevel: opensoc_fpga_arty_a7_top
     tools:
       vivado:
-        part: xc7a35tcpg236-1
+        part: xc7a100tcsg324-1
     parameters:
       - SYNTHESIS=true
       - FPGA_XILINX=true
-      - FPGA_BASYS3=true
-      - RegFile=ibex_pkg::RegFileFPGA
       - PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric
 
 parameters:
@@ -45,17 +43,7 @@ parameters:
     datatype: bool
     default: true
     paramtype: vlogdefine
-    description: "Enables Xilinx DSP pragmas for performance counters in ibex"
-  FPGA_BASYS3:
-    datatype: bool
-    default: true
-    paramtype: vlogdefine
-    description: "Selects the Basys 3 small-board config (64 KB RAM, no accelerators)"
-  RegFile:
-    datatype: str
-    default: ibex_pkg::RegFileFPGA
-    paramtype: vlogdefine
-    description: "FPGA-optimized register file (infers RAM32M, saves ~600 LUTs)"
+    description: "Enables Xilinx DSP pragmas for performance counters in ibex; also selects RegFileFPGA in derived config pkg"
   PRIM_DEFAULT_IMPL:
     datatype: str
     paramtype: vlogdefine

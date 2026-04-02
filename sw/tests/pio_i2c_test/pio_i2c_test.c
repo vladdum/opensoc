@@ -16,8 +16,9 @@
  *  6. pio_i2c_write helper — multi-byte write transaction
  *  7. Program management — add, remove, re-add
  *
- * Note: No I2C slave exists in simulation. gpio_i defaults to 0, so the
- * ACK bit reads as 0 (ACK). Pin behavior is verified via dbg_padout/padoe.
+ * Note: No I2C slave exists in simulation. The open-drain wrapper drives
+ * sda_bus HIGH when no side asserts OE, so the ACK bit reads as 1 (NACK).
+ * Pin behavior is verified via dbg_padout/padoe.
  */
 
 #include "simple_system_common.h"
@@ -163,8 +164,9 @@ static void test_ack_readback(void) {
     check("RX FIFO not empty", pio_sm_is_rx_fifo_empty(pio0, 0) == 0, 1);
 
     uint32_t ack_word = pio_sm_get(pio0, 0);
-    // In simulation, gpio_i defaults to 0, so IN reads 0 = ACK
-    check("ACK bit = 0 (gpio_i default)", ack_word & 1, 0);
+    // Open-drain wrapper: sda_bus = ~i2c_sda_oe & ~gpio_oe[0].
+    // With no slave pulling SDA low, sda_bus = HIGH (1) = NACK.
+    check("ACK bit = 1 (NACK, no slave)", ack_word & 1, 1);
 }
 
 // -----------------------------------------------------------------------
@@ -183,8 +185,8 @@ static void test_i2c_write_helper(void) {
     // Write 2 data bytes to address 0x50
     uint8_t data[] = { 0x42, 0x55 };
     bool ok = pio_i2c_write(pio0, sm, 0x50, data, 2);
-    // In simulation with gpio_i=0, ACK is always received
-    check("pio_i2c_write returns true", ok, 1);
+    // No slave in simulation — SDA floats HIGH (NACK), so write returns false
+    check("pio_i2c_write returns false (NACK, no slave)", ok, 0);
 
     spin(2000);
 

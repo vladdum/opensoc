@@ -132,6 +132,7 @@ module pio (
   // Per-SM IRQ outputs (combined)
   logic [7:0] sm_irq_set [NumSm];
   logic [7:0] sm_irq_clr [NumSm];
+  logic [7:0] irq_set_all, irq_clr_all; // OR-reduction across all SMs
 
   // TX FIFOs (CPU writes, SM reads)
   logic [31:0] tx_fifo_mem [NumSm][FifoDepth];
@@ -191,6 +192,8 @@ module pio (
   logic        cpu_tx_push;
   logic [1:0]  cpu_tx_sm;
   logic [31:0] cpu_tx_wdata;
+  // cpu_rx_pop is combinatorial so the FIFO always_ff sees it in the same clock
+  // cycle as ctrl_req_i, advancing rd_ptr immediately (not one cycle late).
   logic        cpu_rx_pop;
   logic [1:0]  cpu_rx_sm;
 
@@ -225,6 +228,28 @@ module pio (
 
   // IRQ output
   assign irq_o = |irq_flags_q | (dma_done_q & dma_done_ie);
+
+  // Combinational OR-reduction of all SM IRQ set/clear signals.
+  // Using an always_comb loop avoids the SV NBA last-write-wins pitfall of a
+  // for loop inside always_ff where only the final iteration would take effect.
+  always_comb begin
+    irq_set_all = '0;
+    irq_clr_all = '0;
+    for (int i = 0; i < NumSm; i++) begin
+      irq_set_all |= sm_irq_set[i];
+      irq_clr_all |= sm_irq_clr[i];
+    end
+  end
+
+  // CPU-side RX FIFO pop: combinatorial so the FIFO always_ff sees it in the
+  // same clock cycle as ctrl_req_i, advancing rd_ptr immediately (not one
+  // cycle late after a registered cpu_rx_pop would take effect).
+  always_comb begin
+    cpu_rx_pop = ctrl_req_i && !ctrl_we_i &&
+                 ctrl_addr_i[9:0] >= REG_RXF0 &&
+                 ctrl_addr_i[9:0] <  (REG_RXF0 + 10'h10);
+    cpu_rx_sm  = ctrl_addr_i[3:2];
+  end
 
   // ===========================================================================
   // FIFO status — generate
@@ -489,7 +514,6 @@ module pio (
       clkdiv_restart <= 4'd0;
       sm_force_exec  <= 4'd0;
       cpu_tx_push    <= 1'b0;
-      cpu_rx_pop     <= 1'b0;
 
       // Latch DMA ctrl fields on GO (request from DMA FSM block)
       if (dma_latch_ctrl) begin
@@ -499,10 +523,8 @@ module pio (
         dma_ctrl_q[31]   <= ctrl_wdata_i[31];   // DONE_IE
       end
 
-      // IRQ flag update: set from SMs, clear from SMs, W1C from CPU
-      for (int i = 0; i < NumSm; i++) begin
-        irq_flags_q <= (irq_flags_q | sm_irq_set[i]) & ~sm_irq_clr[i];
-      end
+      // IRQ flag update: set from SMs, clear from SMs (W1C from CPU handled below)
+      irq_flags_q <= (irq_flags_q | irq_set_all) & ~irq_clr_all;
 
       // Read path
       ctrl_rvalid_o <= ctrl_req_i;
@@ -608,13 +630,6 @@ module pio (
         endcase
       end
 
-      // CPU-side RX FIFO read: signal FIFO block to advance pointer
-      if (ctrl_req_i && !ctrl_we_i &&
-          ctrl_addr_i[9:0] >= REG_RXF0 &&
-          ctrl_addr_i[9:0] < (REG_RXF0 + 10'h10)) begin
-        cpu_rx_pop <= 1'b1;
-        cpu_rx_sm  <= ctrl_addr_i[3:2];
-      end
     end
   end
 

@@ -4,10 +4,8 @@
 
 // OpenSoC derived configuration package.
 //
-// Selects the active configuration package based on preprocessor defines:
-//   FPGA_BASYS3  → opensoc_top_fpga_config_pkg  (Basys 3: 64 KB, no accels)
-//   FPGA_XILINX  → opensoc_config_pkg            (Arty A7-100T: 512 KB, all accels)
-//   (neither)    → opensoc_config_pkg            (ASIC / simulation: same unified config)
+// All targets (FPGA Arty A7-100T, ASIC, simulation) use the unified
+// opensoc_config_pkg (512 KB RAM, all accelerators enabled, CUT_ALL_PORTS).
 //
 // Then computes every derived value (crossbar dimensions, port indices, AXI
 // widths, typedefs, crossbar config struct, and address map).
@@ -49,31 +47,19 @@ package opensoc_derived_config_pkg;
   localparam              SRAMInitFile     = opensoc_config_pkg::SRAMInitFile;
 
   // -------------------------------------------------------------------------
-  // Parameters that differ between Basys 3 and the unified config
+  // Parameters from the unified config
   // -------------------------------------------------------------------------
-`ifdef FPGA_BASYS3
-  localparam int unsigned   RamDepth         = opensoc_top_fpga_config_pkg::RamDepth;
-  localparam bit            EnableReLU       = opensoc_top_fpga_config_pkg::EnableReLU;
-  localparam bit            EnableVMAC       = opensoc_top_fpga_config_pkg::EnableVMAC;
-  localparam bit            EnableSgDma      = opensoc_top_fpga_config_pkg::EnableSgDma;
-  localparam bit            EnableSoftmax    = opensoc_top_fpga_config_pkg::EnableSoftmax;
-  localparam xbar_latency_e XbarLatencyMode  = opensoc_top_fpga_config_pkg::XbarLatencyMode;
-`else
-  // Unified config: ASIC synthesis or full-feature FPGA (Arty A7-100T, etc.)
   localparam int unsigned   RamDepth         = opensoc_config_pkg::RamDepth;
   localparam bit            EnableReLU       = opensoc_config_pkg::EnableReLU;
   localparam bit            EnableVMAC       = opensoc_config_pkg::EnableVMAC;
   localparam bit            EnableSgDma      = opensoc_config_pkg::EnableSgDma;
   localparam bit            EnableSoftmax    = opensoc_config_pkg::EnableSoftmax;
   localparam xbar_latency_e XbarLatencyMode  = opensoc_config_pkg::XbarLatencyMode;
-`endif
 
   // -------------------------------------------------------------------------
-  // Register file: FPGA block-RAM RF on any Xilinx target; FF RF for ASIC/sim
+  // Register file: FPGA block-RAM RF on Xilinx targets; FF RF for ASIC/sim
   // -------------------------------------------------------------------------
-`ifdef FPGA_BASYS3
-  localparam regfile_e RegFile = opensoc_top_fpga_config_pkg::RegFile;
-`elsif FPGA_XILINX
+`ifdef FPGA_XILINX
   localparam regfile_e RegFile = RegFileFPGA;
 `else
   localparam regfile_e RegFile = opensoc_config_pkg::RegFile;  // macro → RegFileFF

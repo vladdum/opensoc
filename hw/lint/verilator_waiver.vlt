@@ -14,12 +14,14 @@
 
 // Boolean top-level parameters set via fusesoc with -GRV32E=1 (rather than
 // -GRV32E=1'b1) cause WIDTH warnings. Waive for opensoc_top.sv.
-lint_off -rule WIDTH -file "*/rtl/opensoc_top.sv"
+lint_off -rule WIDTH -file "*/top/opensoc_top.sv"
          -match "*expects 1 bits*Initial value's CONST '32'h1'*"
 
 // Packed struct literal fields (xbar_cfg_t, xbar_rule_32_t) trigger WIDTHCONCAT
-lint_off -rule WIDTHCONCAT -file "*/rtl/opensoc_top.sv"
-lint_off -rule WIDTHCONCAT -file "*/rtl/opensoc_derived_config_pkg.sv"
+lint_off -rule WIDTHCONCAT -file "*/top/opensoc_top.sv"
+
+// Unsized parameters in struct literals in derived config pkg trigger WIDTHCONCAT
+lint_off -rule WIDTHCONCAT -file "*/top/opensoc_derived_config_pkg.sv"
 
 // Pre-existing ibex/lowrisc warnings that surface with AXI dependencies
 lint_off -rule REDEFMACRO    -file "*prim_assert*"
@@ -30,11 +32,11 @@ lint_off -rule SYNCASYNCNET  -file "*/pulp-platform.org*axi*"
 lint_off -rule SYNCASYNCNET  -file "*/pulp-platform.org*common_cells*"
 
 // Unused signals from AXI bridges in opensoc_top
-lint_off -rule UNUSED -file "*/rtl/opensoc_top.sv"
+lint_off -rule UNUSED -file "*/top/opensoc_top.sv"
          -match "*axi_to_mem_busy*"
-lint_off -rule UNUSED -file "*/rtl/opensoc_top.sv"
+lint_off -rule UNUSED -file "*/top/opensoc_top.sv"
          -match "*mem_atop*"
-lint_off -rule UNUSED -file "*/rtl/opensoc_top.sv"
+lint_off -rule UNUSED -file "*/top/opensoc_top.sv"
          -match "*timer_err_unused*"
 
 // New peripherals: unused upper bits of bus signals (addr, be, wdata) are expected
@@ -50,6 +52,10 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/sg_dma.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/softmax.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/softmax_core.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/exp_lut.sv"
+
+// Sim wrapper: only gpio_oe[1:0] are used for I2C loopback; upper bits are outputs
+lint_off -rule UNUSEDSIGNAL  -file "*/dv/rtl/opensoc_top_wrapper.sv"
+         -match "*gpio_oe*"
 
 // Dual-SoC wrapper: unused GPIO/I2C output signals
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_dual_uart.sv"

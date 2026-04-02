@@ -239,11 +239,13 @@ static void test_jmp_x_decrement(void) {
 
   uint32_t rxval = pio_sm_get_blocking(pio0, 0);
   // After JMP X-- loop: X starts at 3, decrements each iteration.
+  // JMP X-- is a true post-decrement: X is decremented unconditionally,
+  // and the pre-decrement value determines whether to jump.
   // Iteration 1: X=3 (!=0, jump), X becomes 2
   // Iteration 2: X=2 (!=0, jump), X becomes 1
   // Iteration 3: X=1 (!=0, jump), X becomes 0
-  // Iteration 4: X=0 (==0, fall through), MOV ISR,X → ISR=0
-  check("JMP X-- loop result", rxval, 0);
+  // Iteration 4: X=0 (==0, fall through), X wraps to 0xFFFFFFFF, MOV ISR,X → ISR=0xFFFFFFFF
+  check("JMP X-- loop result", rxval, 0xFFFFFFFF);
 
   pio_sm_set_enabled(pio0, 0, false);
 }
