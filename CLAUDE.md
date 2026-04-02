@@ -57,6 +57,52 @@ Each flow calls its own FuseSoC setup target internally; `hw/synth/sources.f` is
 
 Clean rebuild: `make clean && make synth`.
 
+### Simulation & Tests
+
+```bash
+make build                    # build Verilator sim (default TOP=opensoc_top)
+make build TOP=dual_uart      # build dual-UART topology
+make build TOP=i2c_loopback   # build I2C loopback topology
+
+make run-hello                # run hello world test
+make run-uart                 # UART TX/RX test
+make run-pio                  # PIO GPIO, FIFO, clock divider
+make run-pio-sdk              # PIO SDK compat (sidesets, EXEC)
+make run-pio-i2c              # PIO-based I2C
+make run-i2c                  # Hardware I2C controller
+make run-relu                 # ReLU accelerator (8192-word DMA)
+make run-vmac                 # Vector MAC (12 test cases, saturation)
+make run-sg-dma               # Scatter-gather DMA (chaining, throughput)
+make run-softmax              # Softmax pipeline (3-pass, accuracy check)
+make run-aes                  # AES-128/192/256 encrypt/decrypt
+make run-dual-uart            # Dual-SoC UART handshake (8 rounds)
+make run-i2c-loopback         # I2C master + PIO slave loopback
+```
+
+**Makefile variables:** `TRACE=1` enables FST waveform tracing; `WAVES=1` opens GTKWave after sim. `SW_ARCH=rv32imc_zicsr_zifencei` (default) can be overridden to `rv32im` for no compressed instructions.
+
+**Three simulator topologies:**
+- `opensoc_top` — standard SoC (default)
+- `opensoc_dual_uart` — two SoC instances connected via UART (`hw/top/opensoc_dual_uart.sv`)
+- `opensoc_i2c_loopback` — SoC with I2C master looped back to PIO slave (`hw/top/opensoc_i2c_loopback.sv`)
+
+**Build output paths:**
+- `build/opensoc_soc_opensoc_top_0/sim-verilator/`
+- `build/opensoc_soc_opensoc_dual_uart_0/sim-verilator/`
+- `build/opensoc_soc_opensoc_i2c_loopback_0/sim-verilator/`
+
+### Software Toolchain
+
+Tests use `riscv32-unknown-elf-gcc` (lowRISC RISC-V GCC). All test Makefiles include `hw/ip/ibex/examples/sw/simple_system/common/common.mk` which provides the standard build pattern: `PROGRAM=<name>` + `include common.mk`.
+
+**Compiler flags:** `-march=rv32imc_zicsr_zifencei -mabi=ilp32 -mcmodel=medany -nostdlib -nostartfiles -ffreestanding`
+
+**Build outputs per test:** `.elf`, `.vmem` (via `srec_cat`), `.bin`, `.dis` (disassembly). The simulator loads ELFs directly via `--meminit=ram,<path>.elf`.
+
+**Linker script:** `hw/ip/ibex/examples/sw/simple_system/common/link.ld` — RAM at 0x100000, stack at 0x130000 (32 KB), entry at `_vectors_start + 0x80`.
+
+**Register definitions:** `sw/include/opensoc_regs.h` — base addresses, register offsets, and PIO instruction encoder macros for all peripherals and accelerators.
+
 ## Architecture
 
 ```
@@ -92,7 +138,10 @@ Memory map: RAM at 0x100000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x20000,
 - `hw/fpga/arty_a7/` — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth script
 - `hw/asic/` — ASIC synthesis (sv2v + Yosys script, OpenLane 2 flow)
 - `hw/synth/` — Shared source file list (`sources.f`) for all synth flows
-- `hw/opensoc_top.core` — FuseSoC core file defining dependencies and build targets
+- `hw/opensoc_top.core` — FuseSoC core file (main SoC: lint, sim, synth targets)
+- `hw/opensoc_dual_uart.core` — Dual-SoC UART topology core file
+- `hw/opensoc_i2c_loopback.core` — I2C loopback topology core file
+- `hw/opensoc_fpga_arty_a7.core` — Arty A7-100T FPGA synthesis core file
 - `hw/lint/` — Verilator waiver files
 - `hw/ip/ibex/` — Ibex submodule (CPU core + shared sim RTL like bus, ram, timer)
 - `hw/ip/pulp_axi/` — PULP AXI submodule (crossbar, bridges)
@@ -111,7 +160,9 @@ Memory map: RAM at 0x100000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x20000,
   - `opentitan_aes.core` — FuseSoC core; depends on Ibex's lowrisc prim cores for shared modules
   - `lc_ctrl_pkg.core` — Stub `lowrisc:ip:lc_ctrl_pkg` satisfying transitive deps
 - `hw/rtl/crypto_cluster.sv` — Wraps AES with OpenSoC's mem interface (req/addr/we/be/wdata → TL-UL)
-- `dv/` — Design verification (Verilator testbench)
+- `dv/verilator/` — Verilator C++ testbenches (opensoc_top, dual_uart, i2c_loopback) + GTKWave save files
+- `sw/include/opensoc_regs.h` — Register definitions, base addresses, PIO instruction encoders
+- `docs/` — IP documentation (pio, sg_dma, vec_mac, softmax)
 - `sw/lib/` — Pico SDK-compatible PIO library (header-only)
   - `hardware/pio.h` — Main API (PIO type, SM config, FIFO, program loading)
   - `hardware/pio_instructions.h` — Instruction encoders + `enum pio_src_dest`
@@ -168,3 +219,22 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B
 - Constraints: `hw/fpga/arty_a7/arty_a7.xdc`
 - Synth script: `hw/fpga/arty_a7/synth.tcl`
 
+## Verilator Testbench
+
+C++ testbenches in `dv/verilator/` use `VerilatorSimCtrl` and `VerilatorMemUtil` from Ibex's DV infrastructure. Key features:
+- ELF loading via `--meminit=ram,<path>.elf`
+- FST waveform tracing (`--trace-fst`, `--trace-structs`)
+- Performance counter CSV output (`opensoc_top_pcount.csv`) via `ibex_pcount_string()`
+- Verilator options: `--unroll-count 72`, `--output-split 20000`, `--build-jobs 0`, C++17
+- Link flags: `-pthread -lutil -lelf`
+
+## Git Submodules
+
+| Submodule | Source | Branch |
+|-----------|--------|--------|
+| `hw/ip/ibex` | `github.com/vladdum/ibex` | default |
+| `hw/ip/pulp_axi` | `github.com/vladdum/axi` | `opensoc-patches` |
+| `hw/ip/common_cells` | `github.com/vladdum/common_cells` | `opensoc-patches` |
+| `hw/ip/pulp_obi` | `github.com/pulp-platform/obi` | default |
+
+The `pulp_axi` and `common_cells` submodules point to forks with `opensoc-patches` branches containing project-specific customizations.
