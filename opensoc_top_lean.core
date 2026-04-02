@@ -2,10 +2,10 @@ CAPI=2:
 # Copyright OpenSoC contributors.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-name: "opensoc:soc:opensoc_top"
-description: "OpenSoC top-level based on ibex_simple_system"
+name: "opensoc:soc:opensoc_top_lean"
+description: "OpenSoC top-level — lean build (no accelerators, no crypto)"
 filesets:
-  files_rtl_base:
+  files_rtl:
     depend:
       - lowrisc:ibex:ibex_top
       - lowrisc:prim_generic:all
@@ -18,33 +18,6 @@ filesets:
       - hw/top/opensoc_config_pkg.sv
       - hw/top/opensoc_derived_config_pkg.sv
       - hw/top/opensoc_top.sv
-    file_type: systemVerilogSource
-
-  files_relu:
-    depend:
-      - "opensoc:ip:relu_accel"
-    file_type: systemVerilogSource
-
-  files_vmac:
-    depend:
-      - "opensoc:ip:vec_mac"
-    file_type: systemVerilogSource
-
-  files_sgdma:
-    depend:
-      - "opensoc:ip:sg_dma"
-    file_type: systemVerilogSource
-
-  files_softmax:
-    depend:
-      - "opensoc:ip:softmax"
-    file_type: systemVerilogSource
-
-  files_crypto:
-    depend:
-      - "opensoc:ip:opentitan_aes"
-    files:
-      - hw/top/crypto_cluster.sv
     file_type: systemVerilogSource
 
   files_lint_verilator:
@@ -77,65 +50,26 @@ parameters:
     datatype: str
     default: ibex_pkg::RV32MFast
     paramtype: vlogdefine
-    description: "RV32M implementation parameter enum"
 
   RV32B:
     datatype: str
     default: ibex_pkg::RV32BNone
     paramtype: vlogdefine
-    description: "Bitmanip implementation parameter enum"
 
   RV32ZC:
     datatype: str
     default: ibex_pkg::RV32ZcaZcbZcmp
     paramtype: vlogdefine
-    description: "Compressed instructions parameter enum"
 
   RegFile:
     datatype: str
     default: ibex_pkg::RegFileFF
     paramtype: vlogdefine
-    description: "Register file implementation parameter enum"
-
-  EnableReLU:
-    datatype: int
-    default: 0
-    paramtype: vlogdefine
-    description: "Enable ReLU accelerator (0=off, 1=on)"
-
-  EnableVMAC:
-    datatype: int
-    default: 0
-    paramtype: vlogdefine
-    description: "Enable vector MAC accelerator (0=off, 1=on)"
-
-  EnableSgDma:
-    datatype: int
-    default: 0
-    paramtype: vlogdefine
-    description: "Enable scatter-gather DMA (0=off, 1=on)"
-
-  EnableSoftmax:
-    datatype: int
-    default: 0
-    paramtype: vlogdefine
-    description: "Enable softmax accelerator (0=off, 1=on)"
-
-  EnableCrypto:
-    datatype: int
-    default: 0
-    paramtype: vlogdefine
-    description: "Enable crypto cluster / OpenTitan AES (0=off, 1=on)"
 
 targets:
   default: &default_target
     filesets:
-      - files_rtl_base
-      - enable_relu ? (files_relu)
-      - enable_vmac ? (files_vmac)
-      - enable_sgdma ? (files_sgdma)
-      - enable_softmax ? (files_softmax)
-      - enable_crypto ? (files_crypto)
+      - files_rtl
       - tool_verilator ? (files_lint_verilator)
     toplevel: opensoc_top
     parameters:
@@ -143,11 +77,6 @@ targets:
       - RV32B
       - RV32ZC
       - RegFile
-      - EnableReLU
-      - EnableVMAC
-      - EnableSgDma
-      - EnableSoftmax
-      - EnableCrypto
 
   lint:
     <<: *default_target
@@ -164,12 +93,7 @@ targets:
 
   sim:
     filesets:
-      - files_rtl_base
-      - enable_relu ? (files_relu)
-      - enable_vmac ? (files_vmac)
-      - enable_sgdma ? (files_sgdma)
-      - enable_softmax ? (files_softmax)
-      - enable_crypto ? (files_crypto)
+      - files_rtl
       - files_lint_verilator
       - files_sim_sv
       - files_verilator_sim
@@ -180,11 +104,6 @@ targets:
       - RV32B
       - RV32ZC
       - RegFile
-      - EnableReLU
-      - EnableVMAC
-      - EnableSgDma
-      - EnableSoftmax
-      - EnableCrypto
     default_tool: verilator
     tools:
       verilator:

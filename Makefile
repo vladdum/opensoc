@@ -2,26 +2,56 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-FUSESOC    := fusesoc
-CORES_ROOT := --cores-root=. \
-              --cores-root=hw/ip/ibex \
-              --cores-root=hw/ip/ibex/vendor/lowrisc_ip \
-              --cores-root=hw/ip/common_cells \
-              --cores-root=hw/ip/pulp_axi \
-              --cores-root=hw/ip/relu_accel \
-              --cores-root=hw/ip/vec_mac \
-              --cores-root=hw/ip/sg_dma \
-              --cores-root=hw/ip/softmax \
-              --cores-root=hw/ip/pio \
-              --cores-root=hw/ip/i2c_controller \
-              --cores-root=hw/ip/uart \
-              --cores-root=hw/ip/opentitan_aes
-
+FUSESOC        := fusesoc
+export CXX     ?= ccache g++
 TRACE  ?=
 WAVES  ?=
 FLOW   ?= fpga-arty
 VIVADO ?= vivado
-TOP    ?= opensoc_top
+TOP    ?= opensoc_top_lean
+
+CORES_ROOT_BASE := --cores-root=. \
+                   --cores-root=hw/ip/ibex \
+                   --cores-root=hw/ip/ibex/vendor/lowrisc_ip \
+                   --cores-root=hw/ip/common_cells \
+                   --cores-root=hw/ip/pulp_axi \
+                   --cores-root=hw/ip/pio \
+                   --cores-root=hw/ip/i2c_controller \
+                   --cores-root=hw/ip/uart
+CORES_ROOT_ACCELS := --cores-root=hw/ip/relu_accel \
+                     --cores-root=hw/ip/vec_mac \
+                     --cores-root=hw/ip/sg_dma \
+                     --cores-root=hw/ip/softmax \
+                     --cores-root=hw/ip/opentitan_aes
+
+ifeq ($(TOP),opensoc_top_lean)
+CORES_ROOT := $(CORES_ROOT_BASE)
+else
+CORES_ROOT := $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS)
+endif
+
+# ── IP enable flags (sim/lint only; FPGA/ASIC use config_pkg defaults) ────────
+ENABLE_RELU    ?= 0
+ENABLE_VMAC    ?= 0
+ENABLE_SGDMA   ?= 0
+ENABLE_SOFTMAX ?= 0
+ENABLE_CRYPTO  ?= 0
+
+ifneq ($(TOP),opensoc_top_lean)
+FUSESOC_FLAGS := \
+  $(if $(filter 1,$(ENABLE_RELU)),--flag enable_relu,) \
+  $(if $(filter 1,$(ENABLE_VMAC)),--flag enable_vmac,) \
+  $(if $(filter 1,$(ENABLE_SGDMA)),--flag enable_sgdma,) \
+  $(if $(filter 1,$(ENABLE_SOFTMAX)),--flag enable_softmax,) \
+  $(if $(filter 1,$(ENABLE_CRYPTO)),--flag enable_crypto,)
+
+FUSESOC_DEFINES := \
+  --EnableReLU $(ENABLE_RELU) \
+  --EnableVMAC $(ENABLE_VMAC) \
+  --EnableSgDma $(ENABLE_SGDMA) \
+  --EnableSoftmax $(ENABLE_SOFTMAX) \
+  --EnableCrypto $(ENABLE_CRYPTO)
+endif
 
 SW_ARCH  := rv32imc_zicsr_zifencei
 GTKW_DIR := dv/verilator
@@ -33,7 +63,7 @@ SIM_TRACE_FLAGS := $(if $(or $(TRACE),$(WAVES)),--trace,)
 SW_DIR         := hw/ip/ibex/examples/sw/simple_system
 SW_TEST_DIR    := sw/tests
 
-SIM_DIR        := build/opensoc_soc_opensoc_top_0/sim-verilator
+SIM_DIR        := build/opensoc_soc_$(TOP)_0/sim-verilator
 
 SYNTH_SRC_DIR_ARTY := build/opensoc_fpga_arty_a7_0/synth-vivado/src
 
@@ -67,7 +97,8 @@ ELF_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test/i2c_loopback_test.elf
 
 # ── Simulator top registry ────────────────────────────────────────────────────
 
-BUILD_CORE_opensoc_top := opensoc:soc:opensoc_top
+BUILD_CORE_opensoc_top      := opensoc:soc:opensoc_top
+BUILD_CORE_opensoc_top_lean := opensoc:soc:opensoc_top_lean
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 
@@ -76,10 +107,11 @@ help:
 	@echo "Usage: make <target> [OPTIONS]"
 	@echo ""
 	@echo "Lint"
-	@echo "  lint                        Run Verilator lint"
+	@echo "  lint                        Run Verilator lint (lean by default)"
 	@echo ""
 	@echo "Simulator build"
-	@echo "  build                       Build simulator"
+	@echo "  build                       Build lean simulator (no IPs, fast)"
+	@echo "  build TOP=opensoc_top       Build full simulator with enabled IPs"
 	@echo ""
 	@echo "Regression"
 	@echo "  regression                  Build sim + run all tests in parallel"
@@ -108,8 +140,16 @@ help:
 	@echo "  clean                       Remove build directory"
 	@echo ""
 	@echo "Options"
+	@echo "  TOP=opensoc_top_lean        Build lean core (default, no IPs)"
+	@echo "  TOP=opensoc_top             Build full core (use with ENABLE_* flags)"
+	@echo "  ENABLE_RELU=1               Include ReLU accelerator"
+	@echo "  ENABLE_VMAC=1               Include vector MAC accelerator"
+	@echo "  ENABLE_SGDMA=1              Include scatter-gather DMA"
+	@echo "  ENABLE_SOFTMAX=1            Include softmax accelerator"
+	@echo "  ENABLE_CRYPTO=1             Include crypto cluster (OpenTitan AES)"
 	@echo "  TRACE=1                     Enable FST waveform dump"
 	@echo "  WAVES=1                     Enable waveform dump and open GTKWave"
+	@echo "  CXX='ccache g++'            Use ccache (default if ccache installed)"
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -163,7 +203,7 @@ _reg-run-%: FORCE
 
 .PHONY: lint
 lint:
-	$(FUSESOC) $(CORES_ROOT) run --target=lint opensoc:soc:opensoc_top
+	$(FUSESOC) $(CORES_ROOT) run --target=lint $(FUSESOC_FLAGS) opensoc:soc:opensoc_top $(FUSESOC_DEFINES)
 
 # ── Simulator build ───────────────────────────────────────────────────────────
 
@@ -171,7 +211,7 @@ lint:
 build:
 	@test -n "$(BUILD_CORE_$(TOP))" || \
 	  { echo "Unknown TOP='$(TOP)'. Valid: opensoc_top"; exit 1; }
-	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build $(BUILD_CORE_$(TOP))
+	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build $(FUSESOC_FLAGS) $(BUILD_CORE_$(TOP)) $(FUSESOC_DEFINES)
 
 # ── Run targets ───────────────────────────────────────────────────────────────
 

@@ -61,12 +61,29 @@ package opensoc_config_pkg;
   localparam int unsigned RamDepth         = 131072;  // 512 KB (131072 × 32-bit words)
 
   // -------------------------------------------------------------------------
-  // Accelerator enables (all on)
+  // Accelerator / IP enables
+  // Defaults: all off. FPGA/ASIC targets pass explicit +define+ to enable.
   // -------------------------------------------------------------------------
-  localparam bit EnableReLU    = 1'b1;
-  localparam bit EnableVMAC    = 1'b1;
-  localparam bit EnableSgDma   = 1'b1;
-  localparam bit EnableSoftmax = 1'b1;
+`ifndef EnableReLU
+  `define EnableReLU    1'b0
+`endif
+`ifndef EnableVMAC
+  `define EnableVMAC    1'b0
+`endif
+`ifndef EnableSgDma
+  `define EnableSgDma   1'b0
+`endif
+`ifndef EnableSoftmax
+  `define EnableSoftmax 1'b0
+`endif
+`ifndef EnableCrypto
+  `define EnableCrypto  1'b0
+`endif
+  localparam bit EnableReLU    = `EnableReLU;
+  localparam bit EnableVMAC    = `EnableVMAC;
+  localparam bit EnableSgDma   = `EnableSgDma;
+  localparam bit EnableSoftmax = `EnableSoftmax;
+  localparam bit EnableCrypto  = `EnableCrypto;
 
   // -------------------------------------------------------------------------
   // AXI crossbar latency mode

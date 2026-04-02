@@ -6,6 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Do not include `Co-Authored-By` trailers in commit messages.
 
+## Pull Requests
+
+Before creating any PR:
+
+1. Squash all commits on the branch into a single commit.
+2. Rebase on main:
+
+```bash
+git pull --rebase --autostash origin main
+```
+
 ## Project Overview
 
 OpenSoC is a RISC-V SoC built on the lowRISC **Ibex** CPU core. The top-level module (`opensoc_top`) uses an AXI4 crossbar (`axi_xbar` from PULP) to connect the Ibex CPU (instruction fetch + data port) to 1 MB SRAM, a simulation control module, and a timer.
