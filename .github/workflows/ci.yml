@@ -40,6 +40,9 @@ jobs:
       - name: Install FuseSoC
         run: pip install fusesoc
 
+      - name: Lint
+        run: make lint
+
       - name: Cache Verilator build
         uses: actions/cache@v4
         with:
