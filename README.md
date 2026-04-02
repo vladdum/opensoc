@@ -16,6 +16,7 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── uart                — UART with TX/RX FIFOs
 ├── pio                 — Programmable I/O: 4 state machines, GPIO compat, DMA (hw/ip/pio/)
 ├── i2c_controller      — I2C master controller
+├── crypto_cluster      — AES-128/192/256 crypto accelerator (OpenTitan AES, hw/ip/opentitan_aes/)
 ├── relu_accel          — ReLU accelerator with DMA (hw/ip/relu_accel/) [optional]
 ├── vec_mac             — INT8 vector MAC accelerator with DMA (hw/ip/vec_mac/) [optional]
 ├── sg_dma              — Scatter-gather DMA engine (hw/ip/sg_dma/) [optional]
@@ -31,6 +32,7 @@ opensoc_top (hw/top/opensoc_top.sv)
 | UART           | `0x40000`    | 1 kB  | fast[0]    |
 | PIO            | `0x50000`    | 1 kB  | fast[1]    |
 | I2C            | `0x60000`    | 1 kB  | fast[2]    |
+| Crypto (AES)   | `0xB0000`    | 4 kB  | —          |
 | ReLU Accel     | `0x70000`    | 1 kB  | fast[3]    |
 | Vector MAC     | `0x80000`    | 1 kB  | fast[4]    |
 | SG DMA         | `0x90000`    | 1 kB  | fast[5]    |
@@ -177,6 +179,7 @@ Available tests:
 | `run-vmac` | Vector MAC: 12 tests incl. saturation and multi-kick |
 | `run-sg-dma` | SG-DMA: chaining, zero-length descriptors, throughput |
 | `run-softmax` | Softmax: uniform, one-hot, accuracy vs. C reference |
+| `run-aes` | AES-128 ECB encrypt/decrypt with NIST FIPS-197 test vector |
 | `run-dual-uart` | Two-SoC UART handshake and 8-round data exchange |
 | `run-i2c-loopback` | I2C master + PIO slave: write, read, clock stretching |
 
@@ -255,6 +258,21 @@ gtkwave build/opensoc_soc_opensoc_top_0/sim-verilator/sim.fst
 
 Saved waveform views (`.gtkw` files) are stored in `dv/verilator/`.
 
+### Module-Level Testbenches
+
+Standalone Verilator testbenches for individual modules live in `dv/sv/` and are built via `dv/sim/Makefile`:
+
+```bash
+cd dv/sim
+make list                       # show available testbenches
+make tb-axi-lite-to-tlul        # build and run
+make tb-axi-lite-to-tlul-build  # build only
+make all                        # build and run all testbenches
+make clean                      # remove build artifacts
+```
+
+To add a new testbench, place the SV file in `dv/sv/` and register it in `dv/sim/Makefile` with a `TB_TEMPLATE` call.
+
 ## Repository Structure
 
 ```
@@ -272,13 +290,16 @@ hw/ip/relu_accel/    — ReLU accelerator IP (reusable DMA framework)
 hw/ip/vec_mac/       — Vector MAC accelerator IP (INT8 dot product)
 hw/ip/sg_dma/        — Scatter-gather DMA engine IP
 hw/ip/softmax/       — Softmax pipeline IP (3-pass, exp LUT)
+hw/ip/opentitan_aes/ — OpenTitan AES block (direct RTL, not a submodule)
 hw/fpga/arty_a7/     — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth.tcl
 hw/asic/             — ASIC synthesis (sv2v + Yosys, OpenLane 2 flow)
 hw/synth/            — Shared source file list (sources.f) for non-Vivado flows
-dv/verilator/        — Verilator simulation testbench
+dv/sv/               — Module-level SystemVerilog testbenches
+dv/sim/              — Makefile for building/running module testbenches
+dv/verilator/        — Verilator SoC-level simulation testbench
 sw/lib/              — Pico SDK-compatible PIO library (header-only)
 sw/include/          — Shared headers (opensoc_regs.h)
-sw/tests/            — Test software
+sw/tests/            — Test software (incl. aes_test)
 ```
 
 ## License

@@ -19,6 +19,12 @@ docs/brainstorms/
 __pycache__/
 *.pyc
 
+# Verilator build artifacts
+obj_dir/
+
+# Verilator source (built locally, not part of project)
+verilator/
+
 # Vivado temp files
 .Xil/
 tight_setup_hold_pins.txt

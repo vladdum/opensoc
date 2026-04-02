@@ -75,7 +75,8 @@ package opensoc_derived_config_pkg;
   localparam int unsigned NumAccel   = 32'(EnableReLU) + 32'(EnableVMAC)
                                      + 32'(EnableSgDma) + 32'(EnableSoftmax);
   localparam int unsigned NumMasters = 3 + NumAccel;  // instr + data + PIO DMA + accel DMAs
-  localparam int unsigned NumSlaves  = 6 + NumAccel;  // RAM + SimCtrl + Timer + UART + PIO + I2C + accel ctrls
+  // RAM + SimCtrl + Timer + UART + PIO + I2C + Crypto + accel ctrls
+  localparam int unsigned NumSlaves  = 7 + NumAccel;
   localparam int unsigned NumRules   = NumSlaves;
 
   // -------------------------------------------------------------------------
@@ -88,12 +89,15 @@ package opensoc_derived_config_pkg;
   localparam int unsigned SmaxDmaMstIdx  = 2 + 32'(EnableReLU) + 32'(EnableVMAC) + 32'(EnableSgDma);
 
   // -------------------------------------------------------------------------
-  // Slave port indices: 0=RAM, 1=SimCtrl, 2=Timer, 3=UART, 4=PIO, 5=I2C, [accel ctrls...]
+  // Slave port indices: 0=RAM, 1=SimCtrl, 2=Timer, 3=UART, 4=PIO, 5=I2C,
+  //                     6=Crypto, [accel ctrls...]
   // -------------------------------------------------------------------------
-  localparam int unsigned ReluSlvIdx  = 6;
-  localparam int unsigned VmacSlvIdx  = 6 + 32'(EnableReLU);
-  localparam int unsigned SgDmaSlvIdx = 6 + 32'(EnableReLU) + 32'(EnableVMAC);
-  localparam int unsigned SmaxSlvIdx  = 6 + 32'(EnableReLU) + 32'(EnableVMAC) + 32'(EnableSgDma);
+  localparam int unsigned CryptoSlvIdx = 6;
+  localparam int unsigned ReluSlvIdx   = 7;
+  localparam int unsigned VmacSlvIdx   = 7 + 32'(EnableReLU);
+  localparam int unsigned SgDmaSlvIdx  = 7 + 32'(EnableReLU) + 32'(EnableVMAC);
+  localparam int unsigned SmaxSlvIdx   = 7 + 32'(EnableReLU)
+                                       + 32'(EnableVMAC) + 32'(EnableSgDma);
 
   // -------------------------------------------------------------------------
   // AXI bus widths
@@ -154,8 +158,9 @@ package opensoc_derived_config_pkg;
     map[3] = '{ idx: 32'd3, start_addr: 32'h0004_0000, end_addr: 32'h0004_0400 }; // UART    1 kB
     map[4] = '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }; // PIO     1 kB
     map[5] = '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }; // I2C     1 kB
+    map[6] = '{ idx: 32'd6, start_addr: 32'h000B_0000, end_addr: 32'h000B_1000 }; // Crypto  4 kB
     // Accelerator slaves (conditional)
-    r = 6;
+    r = 7;
     if (EnableReLU)    begin map[r] = '{ idx: r, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }; r = r + 1; end
     if (EnableVMAC)    begin map[r] = '{ idx: r, start_addr: 32'h0008_0000, end_addr: 32'h0008_0400 }; r = r + 1; end
     if (EnableSgDma)   begin map[r] = '{ idx: r, start_addr: 32'h0009_0000, end_addr: 32'h0009_0400 }; r = r + 1; end

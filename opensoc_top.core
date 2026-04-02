@@ -18,10 +18,12 @@ filesets:
       - "opensoc:ip:pio"
       - "opensoc:ip:i2c_controller"
       - "opensoc:ip:uart"
+      - "opensoc:ip:opentitan_aes"
     files:
       - hw/top/opensoc_config_pkg.sv
       - hw/top/opensoc_derived_config_pkg.sv
       - hw/top/opensoc_top.sv
+      - hw/top/crypto_cluster.sv
     file_type: systemVerilogSource
 
   files_lint_verilator:

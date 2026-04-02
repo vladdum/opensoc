@@ -14,7 +14,8 @@ CORES_ROOT := --cores-root=. \
               --cores-root=hw/ip/softmax \
               --cores-root=hw/ip/pio \
               --cores-root=hw/ip/i2c_controller \
-              --cores-root=hw/ip/uart
+              --cores-root=hw/ip/uart \
+              --cores-root=hw/ip/opentitan_aes
 
 TRACE  ?=
 WAVES  ?=
@@ -48,6 +49,7 @@ SW_DIR_relu    := $(SW_TEST_DIR)/relu_test
 SW_DIR_vmac    := $(SW_TEST_DIR)/vmac_test
 SW_DIR_sg-dma      := $(SW_TEST_DIR)/sg_dma_test
 SW_DIR_softmax     := $(SW_TEST_DIR)/softmax_test
+SW_DIR_aes         := $(SW_TEST_DIR)/aes_test
 SW_DIR_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test
 
 ELF_hello   := $(SW_DIR)/hello_test/hello_test.elf
@@ -60,6 +62,7 @@ ELF_relu    := $(SW_TEST_DIR)/relu_test/relu_test.elf
 ELF_vmac    := $(SW_TEST_DIR)/vmac_test/vmac_test.elf
 ELF_sg-dma      := $(SW_TEST_DIR)/sg_dma_test/sg_dma_test.elf
 ELF_softmax     := $(SW_TEST_DIR)/softmax_test/softmax_test.elf
+ELF_aes         := $(SW_TEST_DIR)/aes_test/aes_test.elf
 ELF_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test/i2c_loopback_test.elf
 
 # ── Simulator top registry ────────────────────────────────────────────────────
@@ -92,6 +95,7 @@ help:
 	@echo "  run-vmac         Vector MAC: 12 tests incl. saturation and multi-kick"
 	@echo "  run-sg-dma       SG-DMA: chaining, zero-length descriptors, throughput"
 	@echo "  run-softmax      Softmax: uniform, one-hot, accuracy vs. C reference"
+	@echo "  run-aes          AES-128 ECB encrypt/decrypt with NIST test vector"
 	@echo "  run-i2c-loopback I2C master + PIO slave: write, read, clock stretching"
 	@echo ""
 	@echo "Synthesis"
@@ -117,7 +121,7 @@ clean:
 
 # i2c-loopback excluded pending fix — see issue #14
 REGRESSION_TESTS := hello uart pio pio-sdk pio-i2c i2c \
-                    relu vmac sg-dma softmax
+                    relu vmac sg-dma softmax aes
 
 # Per-test extra simulator flags (empty unless overridden)
 SIM_FLAGS_i2c-loopback := -c 500000

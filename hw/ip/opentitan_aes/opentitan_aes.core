@@ -1,0 +1,118 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Minimal extraction of OpenTitan AES + dependencies for OpenSoC integration.
+# Original source: https://github.com/lowRISC/opentitan
+#
+# Prim cells and packages are reused from Ibex's vendored lowrisc_ip via
+# FuseSoC depends. Only AES RTL, TL-UL adapter, and stub packages (for
+# peripherals not present in OpenSoC) are included directly.
+name: "opensoc:ip:opentitan_aes"
+description: "OpenTitan AES block with minimal prim/tlul dependencies"
+
+filesets:
+  files_rtl:
+    depend:
+      # Prim cells (provided by Ibex's vendored lowrisc_ip)
+      - lowrisc:prim:assert:0.1
+      - lowrisc:prim:blanker
+      - lowrisc:prim:cdc_rand_delay
+      # lowrisc:prim:gf_mult excluded — AES needs newer version with OutputZeroUntilAck
+      - lowrisc:prim:lc_sync:0.1
+      - lowrisc:prim:lfsr:0.1
+      - lowrisc:prim:mubi:0.1
+      - lowrisc:prim:onehot
+      - lowrisc:prim:onehot_check
+      - lowrisc:prim:reg_we_check
+      - lowrisc:prim:sec_anchor:0.1
+      - lowrisc:prim:secded:0.1
+      - lowrisc:prim:sparse_fsm
+      - lowrisc:prim:subreg
+      - lowrisc:prim:trivium:0.1
+      - lowrisc:prim:util:0.1
+      # Prim generic implementations
+      - lowrisc:prim_generic:and2
+      - lowrisc:prim_generic:buf
+      - lowrisc:prim_generic:flop
+      - lowrisc:prim_generic:flop_2sync
+      - lowrisc:prim_generic:flop_en
+      - lowrisc:prim_generic:xor2
+    files:
+      # ── Local prim overrides (avoid lowrisc:prim:alert SVA parse errors) ─
+      - prim/prim_alert_pkg.sv
+      - prim/prim_diff_decode.sv
+      - prim/prim_alert_sender.sv
+      - prim/prim_gf_mult.sv
+      - prim/prim_sync_reqack.sv
+      - prim/prim_sync_reqack_data.sv
+
+      # ── Stub packages (not in Ibex — minimal defs for AES) ──────────────
+      # lc_ctrl packages provided by lc_ctrl_pkg.core (lowrisc:ip:lc_ctrl_pkg)
+      # edn/csrng packages provided by edn_pkg.core (lowrisc:ip:edn_pkg)
+      - packages/top_pkg.sv
+      - packages/entropy_src_pkg.sv
+      - packages/csrng_reg_pkg.sv
+      - packages/csrng_pkg.sv
+      - packages/edn_pkg.sv
+      - packages/keymgr_reg_pkg.sv
+      - packages/keymgr_pkg.sv
+
+      # ── TL-UL (not in Ibex) ────────────────────────────────────────────
+      - tlul/tlul_pkg.sv
+      - tlul/tlul_cmd_intg_chk.sv
+      - tlul/tlul_rsp_intg_gen.sv
+      - tlul/tlul_data_integ_dec.sv
+      - tlul/tlul_data_integ_enc.sv
+      - tlul/tlul_err.sv
+      - tlul/tlul_adapter_reg.sv
+
+      # ── AES packages ───────────────────────────────────────────────────
+      - aes/aes_reg_pkg.sv
+      - aes/aes_pkg.sv
+      - aes/aes_sbox_canright_pkg.sv
+      - aes/aes_sel_buf_chk.sv
+
+      # ── AES core ────────────────────────────────────────────────────────
+      - aes/aes_cipher_control_fsm_n.sv
+      - aes/aes_cipher_control_fsm_p.sv
+      - aes/aes_cipher_control_fsm.sv
+      - aes/aes_cipher_control.sv
+      - aes/aes_control_fsm_n.sv
+      - aes/aes_control_fsm_p.sv
+      - aes/aes_control_fsm.sv
+      - aes/aes_control.sv
+      - aes/aes_ctr_fsm_n.sv
+      - aes/aes_ctr_fsm_p.sv
+      - aes/aes_ctr_fsm.sv
+      - aes/aes_ctr.sv
+      - aes/aes_ctrl_gcm_reg_shadowed.sv
+      - aes/aes_ctrl_reg_shadowed.sv
+      - aes/aes_ghash.sv
+      - aes/aes_ghash_wrap.sv
+      - aes/aes_key_expand.sv
+      - aes/aes_mix_columns.sv
+      - aes/aes_mix_single_column.sv
+      - aes/aes_prng_clearing.sv
+      - aes/aes_prng_masking.sv
+      - aes/aes_reduced_round.sv
+      - aes/aes_reg_status.sv
+      - aes/aes_reg_top.sv
+      - aes/aes_sbox.sv
+      - aes/aes_sbox_canright.sv
+      - aes/aes_sbox_canright_masked.sv
+      - aes/aes_sbox_canright_masked_noreuse.sv
+      - aes/aes_sbox_dom.sv
+      - aes/aes_sbox_lut.sv
+      - aes/aes_shift_rows.sv
+      - aes/aes_sub_bytes.sv
+      - aes/aes_cipher_core.sv
+      - aes/aes_core.sv
+      - aes/aes.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - files_rtl

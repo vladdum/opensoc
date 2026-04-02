@@ -20,6 +20,7 @@
 #define VMAC_BASE       0x80000
 #define SGDMA_BASE      0x90000
 #define SMAX_BASE       0xA0000
+#define CRYPTO_BASE     0xB0000
 #define RAM_BASE        0x100000
 
 // Sim Control (0x20000) and Timer (0x30000) registers are in
@@ -223,6 +224,44 @@
 #define SMAX_CTRL_GO      0x1
 #define SMAX_STATUS_BUSY  0x1
 #define SMAX_STATUS_DONE  0x2
+
+// ---------------------------------------------------------------------------
+// AES / Crypto Cluster (0xB0000) — OpenTitan AES register map
+// ---------------------------------------------------------------------------
+#define AES_KEY_SHARE0(n)   (CRYPTO_BASE + 0x04 + (n)*4)  // n=0..7
+#define AES_KEY_SHARE1(n)   (CRYPTO_BASE + 0x24 + (n)*4)  // n=0..7
+#define AES_IV(n)           (CRYPTO_BASE + 0x44 + (n)*4)  // n=0..3
+#define AES_DATA_IN(n)      (CRYPTO_BASE + 0x54 + (n)*4)  // n=0..3
+#define AES_DATA_OUT(n)     (CRYPTO_BASE + 0x64 + (n)*4)  // n=0..3
+#define AES_CTRL            (CRYPTO_BASE + 0x74)  // Shadowed control
+#define AES_CTRL_AUX        (CRYPTO_BASE + 0x78)  // Auxiliary control
+#define AES_CTRL_AUX_REGWEN (CRYPTO_BASE + 0x7C)
+#define AES_TRIGGER         (CRYPTO_BASE + 0x80)
+#define AES_STATUS          (CRYPTO_BASE + 0x84)
+
+// AES_CTRL field values (write twice for shadowed register)
+#define AES_OP_ENC          0x01  // bits[1:0] = 2'b01
+#define AES_OP_DEC          0x02  // bits[1:0] = 2'b10
+#define AES_MODE_ECB        (0x01 << 2)  // bits[7:2]
+#define AES_MODE_CBC        (0x02 << 2)
+#define AES_MODE_CTR        (0x04 << 2)
+#define AES_KEY_128         (0x01 << 8)  // bits[10:8]
+#define AES_KEY_192         (0x02 << 8)
+#define AES_KEY_256         (0x04 << 8)
+#define AES_MANUAL_OP       (1 << 15)    // bit 15
+
+// AES_TRIGGER bits
+#define AES_TRIGGER_START              (1 << 0)
+#define AES_TRIGGER_KEY_IV_DATA_CLEAR  (1 << 1)
+#define AES_TRIGGER_DATA_OUT_CLEAR     (1 << 2)
+#define AES_TRIGGER_PRNG_RESEED        (1 << 3)
+
+// AES_STATUS bits
+#define AES_STATUS_IDLE          (1 << 0)
+#define AES_STATUS_STALL         (1 << 1)
+#define AES_STATUS_OUTPUT_LOST   (1 << 2)
+#define AES_STATUS_OUTPUT_VALID  (1 << 3)
+#define AES_STATUS_INPUT_READY   (1 << 4)
 
 // ---------------------------------------------------------------------------
 // IRQ assignments (irq_fast_i bit positions)

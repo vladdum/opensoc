@@ -26,9 +26,12 @@ make run-hello
 # Verilator lint (the primary build target today)
 make lint
 
-# Equivalent manual command
+# Equivalent manual command (see Makefile CORES_ROOT for all paths)
 fusesoc --cores-root=. --cores-root=hw/ip/ibex --cores-root=hw/ip/ibex/vendor/lowrisc_ip \
   --cores-root=hw/ip/common_cells --cores-root=hw/ip/pulp_axi \
+  --cores-root=hw/ip/relu_accel --cores-root=hw/ip/vec_mac \
+  --cores-root=hw/ip/sg_dma --cores-root=hw/ip/softmax \
+  --cores-root=hw/ip/pio --cores-root=hw/ip/opentitan_aes \
   run --target=lint opensoc:soc:opensoc_top
 ```
 
@@ -68,6 +71,7 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── uart                   — UART TX/RX with 8-deep FIFOs (0x40000)
 ├── pio                    — Programmable I/O: 4 state machines, 32-instr shared memory, GPIO compat (0x50000)
 ├── i2c_controller         — I2C master controller (0x60000)
+├── crypto_cluster         — AES-128/192/256 crypto accelerator via OpenTitan AES (0xB0000)
 ├── relu_accel             — ReLU accelerator with DMA (0x70000) [optional]
 ├── vec_mac                — INT8 vector MAC accelerator with DMA (0x80000) [optional]
 ├── sg_dma                 — Scatter-gather DMA engine (0x90000) [optional]
@@ -78,7 +82,7 @@ opensoc_top (hw/top/opensoc_top.sv)
 
 Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
 
-Memory map: RAM at 0x100000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x20000, Timer at 0x30000, UART at 0x40000, PIO at 0x50000, I2C at 0x60000, ReLU at 0x70000, VMAC at 0x80000, SG DMA at 0x90000, Softmax at 0xA0000. Boot address is 0x100000+0x80.
+Memory map: RAM at 0x100000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x20000, Timer at 0x30000, UART at 0x40000, PIO at 0x50000, I2C at 0x60000, Crypto (AES) at 0xB0000, ReLU at 0x70000, VMAC at 0x80000, SG DMA at 0x90000, Softmax at 0xA0000. Boot address is 0x100000+0x80.
 
 ## Repository Structure
 
@@ -99,6 +103,14 @@ Memory map: RAM at 0x100000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x20000,
 - `hw/ip/vec_mac/` — Vector MAC accelerator IP
 - `hw/ip/sg_dma/` — Scatter-gather DMA engine IP
 - `hw/ip/softmax/` — Softmax pipeline IP
+- `hw/ip/opentitan_aes/` — OpenTitan AES block (direct RTL copy, not a submodule)
+  - `aes/` — AES core RTL (40 files from OpenTitan `hw/ip/aes/rtl/`)
+  - `tlul/` — TL-UL bus adapter files (not in Ibex)
+  - `prim/` — Local prim overrides (newer `prim_gf_mult`, `prim_alert_sender` with SVA stripped for Verilator)
+  - `packages/` — Stub packages for OpenTitan peripherals not in OpenSoC (lc_ctrl, edn, keymgr, csrng, entropy_src, top_pkg)
+  - `opentitan_aes.core` — FuseSoC core; depends on Ibex's lowrisc prim cores for shared modules
+  - `lc_ctrl_pkg.core` — Stub `lowrisc:ip:lc_ctrl_pkg` satisfying transitive deps
+- `hw/rtl/crypto_cluster.sv` — Wraps AES with OpenSoC's mem interface (req/addr/we/be/wdata → TL-UL)
 - `dv/` — Design verification (Verilator testbench)
 - `sw/lib/` — Pico SDK-compatible PIO library (header-only)
   - `hardware/pio.h` — Main API (PIO type, SM config, FIFO, program loading)
@@ -106,7 +118,7 @@ Memory map: RAM at 0x100000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x20000,
   - `hardware/structs/pio.h` — `pio_hw_t` / `pio_sm_hw_t` register struct definitions
   - `hardware_pio_compat.h` — OpenSoC-specific glue (`hw_set_bits`, `clock_get_hz`, GPIO stubs)
   - `pio_programs/i2c.pio.h` — PIO I2C TX program (pioasm-format header with init/write helpers)
-- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, pio_i2c, i2c_loopback, relu, vmac, sg_dma, softmax)
+- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, pio_i2c, i2c_loopback, relu, vmac, sg_dma, softmax, aes)
 
 ## FuseSoC Core Dependencies
 
@@ -119,8 +131,9 @@ The core `opensoc:soc:opensoc_top` depends on:
 - `opensoc:ip:vec_mac` — Vector MAC accelerator
 - `opensoc:ip:sg_dma` — Scatter-gather DMA engine
 - `opensoc:ip:softmax` — Softmax pipeline
+- `opensoc:ip:opentitan_aes` — OpenTitan AES block (with stub packages and local prim overrides)
 
-Nine `--cores-root` paths are needed: repo root, `hw/ip/ibex`, `hw/ip/ibex/vendor/lowrisc_ip`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`.
+Eleven `--cores-root` paths are needed: repo root, `hw/ip/ibex`, `hw/ip/ibex/vendor/lowrisc_ip`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`, `hw/ip/opentitan_aes`.
 
 ## Key Ibex Parameters
 
@@ -132,10 +145,10 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B
 - Slave-port ID width: 1 bit (from `axi_from_mem`)
 - Master-port ID width: computed as `$clog2(NumMasters) + 1` (4 bits with all accels enabled)
 - User width: 1 bit
-- Masters/slaves: parameterized — 3+N masters, 6+N slaves (N = number of enabled accelerators)
-  - Default (sim/FPGA): 7 masters, 10 slaves (all 4 accelerators enabled)
+- Masters/slaves: parameterized — 3+N masters, 7+N slaves (N = number of enabled accelerators; +1 for crypto)
+  - Default (sim/FPGA): 7 masters, 11 slaves (all 4 accelerators enabled + crypto)
 - Master order: instr, data, [accel DMAs in order], PIO DMA (always last)
-- Slave order: RAM, SimCtrl, Timer, UART, PIO, I2C, [accel ctrls in order]
+- Slave order: RAM, SimCtrl, Timer, UART, PIO, I2C, Crypto, [accel ctrls in order]
 - `MaxRequests = 2` on all bridges; `MaxMstTrans = 4`, `MaxSlvTrans = 4` on xbar
 - ATOPs disabled; `XbarLatencyMode`: `CUT_ALL_PORTS` on all targets (pipeline registers for timing closure; harmless for simulation and ASIC)
 
@@ -146,7 +159,7 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B
 - Part: XC7A100T-1CSG324C (Artix-7, 63K LUTs, 607 KB BRAM)
 - System clock: 100 MHz board oscillator → `PLLE2_ADV` → 50 MHz
 - RAM: 512 KB block RAM (`RamDepth = 131072`)
-- Accelerators: all enabled (`EnableReLU/VMAC/SgDma/Softmax = 1`) → 7 masters, 10 slaves
+- Accelerators: all enabled (`EnableReLU/VMAC/SgDma/Softmax = 1`) → 7 masters, 11 slaves
 - AXI latency: `CUT_ALL_PORTS`
 - Reset: `btn[0]` active-high → 2-FF synchronizer → active-low `rst_n`
 - Verilog defines: `SYNTHESIS=1`, `FPGA_XILINX=1` → derived pkg selects `opensoc_config_pkg`
