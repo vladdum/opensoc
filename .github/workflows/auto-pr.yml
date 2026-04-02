@@ -1,0 +1,33 @@
+name: Auto PR
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-24.04
+
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create PR if none exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          EXISTING=$(gh pr list --head "$BRANCH" --base main --json number --jq 'length')
+          if [ "$EXISTING" -eq 0 ]; then
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "$BRANCH" \
+              --body "Auto-created PR for branch \`$BRANCH\`."
+          else
+            echo "PR already exists for $BRANCH, skipping."
+          fi
