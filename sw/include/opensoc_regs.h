@@ -23,6 +23,7 @@
 #define SGDMA_BASE      0x40070000UL
 #define SMAX_BASE       0x40080000UL
 #define CONV1D_BASE     0x40090000UL
+#define CONV2D_BASE     0x400B0000UL
 #define CRYPTO_BASE     0x400A0000UL
 
 // SIM_CTRL_BASE and TIMER_BASE are defined in sw/common/simple_system_regs.h.
@@ -249,6 +250,31 @@
 #define CONV1D_PAD_SAME     0x3
 
 // ---------------------------------------------------------------------------
+// 2D Convolution Engine (0x400B0000)
+// ---------------------------------------------------------------------------
+#define CONV2D_CTRL          (CONV2D_BASE + 0x00)
+#define CONV2D_STATUS        (CONV2D_BASE + 0x04)
+#define CONV2D_SRC_ADDR      (CONV2D_BASE + 0x08)
+#define CONV2D_DST_ADDR      (CONV2D_BASE + 0x0C)
+#define CONV2D_IER           (CONV2D_BASE + 0x14)
+#define CONV2D_IMG_WIDTH     (CONV2D_BASE + 0x18)
+#define CONV2D_IMG_HEIGHT    (CONV2D_BASE + 0x1C)
+#define CONV2D_KERNEL_SIZE   (CONV2D_BASE + 0x20)
+#define CONV2D_PADDING_MODE  (CONV2D_BASE + 0x24)
+#define CONV2D_KERNEL_W(n)   (CONV2D_BASE + 0x28 + (n) * 4)
+
+#define CONV2D_CTRL_GO          0x1
+#define CONV2D_CTRL_SOFT_RESET  0x2
+
+#define CONV2D_STATUS_BUSY  0x1
+#define CONV2D_STATUS_DONE  0x2
+
+#define CONV2D_IER_DONE     0x1
+
+#define CONV2D_PAD_VALID    0x0
+#define CONV2D_PAD_SAME     0x1
+
+// ---------------------------------------------------------------------------
 // AES / Crypto Cluster (0x400A0000) — OpenTitan AES register map
 // ---------------------------------------------------------------------------
 #define AES_KEY_SHARE0(n)   (CRYPTO_BASE + 0x04 + (n)*4)  // n=0..7
@@ -297,5 +323,6 @@
 #define IRQ_SGDMA   5
 #define IRQ_SMAX    6
 #define IRQ_CONV1D  7
+#define IRQ_CONV2D  8
 
 #endif  // OPENSOC_REGS_H__

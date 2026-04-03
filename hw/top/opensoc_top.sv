@@ -63,6 +63,7 @@ module opensoc_top
   logic sg_dma_irq;
   logic softmax_irq;
   logic conv1d_irq;
+  logic conv2d_irq;
   logic [14:0] ibex_irq_fast;
 
   // -------------------------------------------------------------------------
@@ -309,7 +310,7 @@ module opensoc_top
 `endif
     );
 
-    assign ibex_irq_fast = {7'b0, conv1d_irq, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
+    assign ibex_irq_fast = {6'b0, conv2d_irq, conv1d_irq, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
 
   // -------------------------------------------------------------------------
   // AXI bridges: Ibex memory ports → AXI (axi_from_mem)
@@ -947,6 +948,65 @@ module opensoc_top
     );
   end else begin : gen_no_conv1d
     assign conv1d_irq = 1'b0;
+  end
+
+  // -------------------------------------------------------------------------
+  // Conv2D Engine (DMA bridge + instance)
+  // -------------------------------------------------------------------------
+  if (EnableConv2d) begin : gen_conv2d
+    logic        conv2d_dma_req,   conv2d_dma_we,   conv2d_dma_gnt,  conv2d_dma_rvalid, conv2d_dma_err;
+    logic [31:0] conv2d_dma_addr,  conv2d_dma_wdata, conv2d_dma_rdata;
+    logic [3:0]  conv2d_dma_be;
+
+    axi_from_mem #(
+      .MemAddrWidth ( 32            ),
+      .AxiAddrWidth ( AxiAddrWidth  ),
+      .DataWidth    ( AxiDataWidth  ),
+      .MaxRequests  ( 2             ),
+      .AxiProt      ( 3'b000        ),
+      .axi_req_t    ( axi_in_req_t  ),
+      .axi_rsp_t    ( axi_in_resp_t )
+    ) u_axi_from_mem_conv2d_dma (
+      .clk_i           (clk_sys                          ),
+      .rst_ni          (rst_sys_n                        ),
+      .mem_req_i       (conv2d_dma_req                   ),
+      .mem_addr_i      (conv2d_dma_addr                  ),
+      .mem_we_i        (conv2d_dma_we                    ),
+      .mem_wdata_i     (conv2d_dma_wdata                 ),
+      .mem_be_i        (conv2d_dma_be                    ),
+      .mem_gnt_o       (conv2d_dma_gnt                   ),
+      .mem_rsp_valid_o (conv2d_dma_rvalid                ),
+      .mem_rsp_rdata_o (conv2d_dma_rdata                 ),
+      .mem_rsp_error_o (conv2d_dma_err                   ),
+      .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE        ),
+      .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE        ),
+      .axi_req_o       (xbar_slv_req[Conv2dDmaMstIdx]    ),
+      .axi_rsp_i       (xbar_slv_resp[Conv2dDmaMstIdx]   )
+    );
+
+    conv2d u_conv2d (
+      .clk_i         (clk_sys                  ),
+      .rst_ni        (rst_sys_n                ),
+      .ctrl_req_i    (mem_req[Conv2dSlvIdx]    ),
+      .ctrl_addr_i   (mem_addr[Conv2dSlvIdx]   ),
+      .ctrl_we_i     (mem_we[Conv2dSlvIdx]     ),
+      .ctrl_be_i     (mem_strb[Conv2dSlvIdx]   ),
+      .ctrl_wdata_i  (mem_wdata[Conv2dSlvIdx]  ),
+      .ctrl_rvalid_o (mem_rvalid[Conv2dSlvIdx] ),
+      .ctrl_rdata_o  (mem_rdata[Conv2dSlvIdx]  ),
+      .dma_req_o     (conv2d_dma_req           ),
+      .dma_addr_o    (conv2d_dma_addr          ),
+      .dma_we_o      (conv2d_dma_we            ),
+      .dma_wdata_o   (conv2d_dma_wdata         ),
+      .dma_be_o      (conv2d_dma_be            ),
+      .dma_gnt_i     (conv2d_dma_gnt           ),
+      .dma_rvalid_i  (conv2d_dma_rvalid        ),
+      .dma_rdata_i   (conv2d_dma_rdata         ),
+      .dma_err_i     (conv2d_dma_err           ),
+      .irq_o         (conv2d_irq               )
+    );
+  end else begin : gen_no_conv2d
+    assign conv2d_irq = 1'b0;
   end
 
 endmodule

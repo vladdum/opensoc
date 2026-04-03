@@ -54,6 +54,11 @@ filesets:
       - "opensoc:ip:conv1d"
     file_type: systemVerilogSource
 
+  files_conv2d:
+    depend:
+      - "opensoc:ip:conv2d"
+    file_type: systemVerilogSource
+
   files_lint_verilator:
     files:
       - hw/lint/verilator_waiver.vlt: {file_type: vlt}
@@ -140,6 +145,12 @@ parameters:
     paramtype: vlogdefine
     description: "Enable 1D convolution engine (0=off, 1=on)"
 
+  EnableConv2d:
+    datatype: int
+    default: 0
+    paramtype: vlogdefine
+    description: "Enable 2D convolution engine (0=off, 1=on)"
+
 targets:
   default: &default_target
     filesets:
@@ -150,6 +161,7 @@ targets:
       - enable_softmax ? (files_softmax)
       - enable_crypto ? (files_crypto)
       - enable_conv1d ? (files_conv1d)
+      - enable_conv2d ? (files_conv2d)
       - tool_verilator ? (files_lint_verilator)
     toplevel: opensoc_top
     parameters:
@@ -163,6 +175,7 @@ targets:
       - EnableSoftmax
       - EnableCrypto
       - EnableConv1d
+      - EnableConv2d
 
   lint:
     <<: *default_target
@@ -186,6 +199,7 @@ targets:
       - enable_softmax ? (files_softmax)
       - enable_crypto ? (files_crypto)
       - enable_conv1d ? (files_conv1d)
+      - enable_conv2d ? (files_conv2d)
       - files_lint_verilator
       - files_sim_sv
       - files_verilator_sim
@@ -202,6 +216,7 @@ targets:
       - EnableSoftmax
       - EnableCrypto
       - EnableConv1d
+      - EnableConv2d
     default_tool: verilator
     tools:
       verilator:

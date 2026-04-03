@@ -55,6 +55,10 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/exp_lut.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/conv1d.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/conv1d_pe.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/shift_reg.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/conv2d.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/conv2d_pe.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/line_buffer.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/addr_gen.sv"
 
 // Sim wrapper: only gpio_oe[1:0] are used for I2C loopback; upper bits are outputs
 lint_off -rule UNUSEDSIGNAL  -file "*/dv/rtl/opensoc_top_wrapper.sv"
