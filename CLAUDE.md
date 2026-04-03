@@ -35,7 +35,7 @@ git pull --rebase --autostash origin main
 
 ## Project Overview
 
-OpenSoC is a RISC-V SoC built on the lowRISC **Ibex** CPU core. The top-level module (`opensoc_top`) uses an AXI4 crossbar (`axi_xbar` from PULP) to connect the Ibex CPU (instruction fetch + data port) to 1 MB SRAM, a simulation control module, and a timer.
+OpenSoC is a RISC-V SoC built on the lowRISC **Ibex** CPU core. The top-level module (`opensoc_top`) uses an AXI4 crossbar (`axi_xbar` from PULP) to connect the Ibex CPU to 1 MB SRAM and a set of peripherals: simulator control, timer, UART, PIO, I2C, AES crypto cluster, and five optional accelerators (ReLU, vector MAC, scatter-gather DMA, Softmax, Conv1D).
 
 ## Build Commands
 
@@ -77,7 +77,7 @@ make synth-setup-arty         # FuseSoC setup for Arty A7-100T (collect sources)
 
 Each flow calls its own FuseSoC setup target internally; `hw/synth/sources.f` is the shared file list used by the non-Vivado flows.
 
-**FPGA-arty flow** (`FLOW=fpga-arty`, default): Targets Arty A7-100T (XC7A100T). Vivado must be on PATH. Add to `~/.bashrc`: `source /opt/Xilinx/2025.2/Vivado/settings64.sh`. Uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode. Sets `FPGA_XILINX=1`; derived config selects unified config (512 KB RAM, all 4 accelerators, `CUT_ALL_PORTS`). Reports written to `build/vivado/`.
+**FPGA-arty flow** (`FLOW=fpga-arty`, default): Targets Arty A7-100T (XC7A100T). Vivado must be on PATH. Add to `~/.bashrc`: `source /opt/Xilinx/2025.2/Vivado/settings64.sh`. Uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode. Sets `FPGA_XILINX=1`; derived config selects unified config (512 KB RAM, all 5 accelerators + crypto, `CUT_ALL_PORTS`). Reports written to `build/vivado/`.
 
 **OpenLane 2 flow** (`FLOW=ol2`): Runs sv2v → Yosys (Sky130 mapped) → OpenROAD STA. Prerequisites: `sv2v`, Nix with flakes enabled (`experimental-features = nix-command flakes` in `/etc/nix/nix.conf`). The Nix flake provides matched Yosys + OpenROAD + OpenLane. Results in `build/openlane2/runs/`.
 
@@ -107,9 +107,9 @@ opensoc_top (hw/top/opensoc_top.sv)
 └── conv1d                 — 1D convolution engine with DMA (0x40090000) [optional]
 ```
 
-`opensoc_top` has **no module parameters** — all configuration comes from `opensoc_derived_config_pkg` (imported via wildcard). `opensoc_config_pkg` is the single unified config (512 KB RAM, all 4 accels, `CUT_ALL_PORTS`) used for both ASIC and FPGA targets.
+`opensoc_top` has **no module parameters** — all configuration comes from `opensoc_derived_config_pkg` (imported via wildcard). `opensoc_config_pkg` is the single unified config (512 KB RAM, all 5 accels + crypto, `CUT_ALL_PORTS`) used for both ASIC and FPGA targets.
 
-Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`, `EnableConv1d`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
+Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`, `EnableConv1d`, `EnableCrypto`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
 
 Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x40000000, Timer at 0x40010000, UART at 0x40020000, PIO at 0x40030000, I2C at 0x40040000, ReLU at 0x40050000, VMAC at 0x40060000, SG DMA at 0x40070000, Softmax at 0x40080000, Conv1d at 0x40090000, Crypto (AES) at 0x400A0000. Boot address is 0x20000080.
 
@@ -121,7 +121,7 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
 - `hw/fpga/arty_a7/` — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth script
 - `hw/asic/` — ASIC synthesis (sv2v + Yosys script, OpenLane 2 flow)
 - `hw/synth/` — Shared source file list (`sources.f`) for all synth flows
-- `hw/opensoc_top.core` — FuseSoC core file defining dependencies and build targets
+- `opensoc_top.core` — FuseSoC core file defining dependencies and build targets (repo root)
 - `hw/lint/` — Verilator waiver files
 - `hw/ip/ibex/` — Ibex submodule (CPU core + shared sim RTL like bus, ram, timer)
 - `hw/ip/pulp_axi/` — PULP AXI submodule (crossbar, bridges)
@@ -142,14 +142,19 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
   - `lc_ctrl_pkg.core` — Stub `lowrisc:ip:lc_ctrl_pkg` satisfying transitive deps
   - `crypto_cluster.sv` — Wraps AES with OpenSoC's mem interface (req/addr/we/be/wdata → TL-UL)
   - `axi_lite_to_tlul.sv` — AXI4-Lite to TL-UL bridge (single-outstanding, used by crypto cluster)
-- `dv/` — Design verification (Verilator testbench)
+- `dv/` — Design verification
+  - `dv/verilator/` — SoC-level Verilator simulation (C++ driver, sim header, GTKWave views)
+  - `dv/rtl/` — RTL simulation wrapper (`opensoc_top_wrapper.sv`)
+  - `dv/sv/` — Module-level SystemVerilog testbenches
+  - `dv/sim/` — Makefile for building/running module testbenches
 - `sw/lib/` — Pico SDK-compatible PIO library (header-only)
   - `hardware/pio.h` — Main API (PIO type, SM config, FIFO, program loading)
   - `hardware/pio_instructions.h` — Instruction encoders + `enum pio_src_dest`
   - `hardware/structs/pio.h` — `pio_hw_t` / `pio_sm_hw_t` register struct definitions
   - `hardware_pio_compat.h` — OpenSoC-specific glue (`hw_set_bits`, `clock_get_hz`, GPIO stubs)
   - `pio_programs/i2c.pio.h` — PIO I2C TX program (pioasm-format header with init/write helpers)
-- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, pio_i2c, i2c_loopback, relu, vmac, sg_dma, softmax, aes, conv1d_test)
+- `sw/common/` — Shared SW support files (`link.ld`, `simple_system_regs.h`, `common.mk`, `crt0.S`)
+- `sw/tests/` — Test software (hello, uart, i2c, pio, pio_sdk, pio_i2c, i2c_loopback, relu, vmac, sg_dma, softmax, aes, conv1d)
 
 ## FuseSoC Core Dependencies
 
