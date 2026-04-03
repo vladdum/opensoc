@@ -20,7 +20,8 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── relu_accel          — ReLU accelerator with DMA (hw/ip/relu_accel/) [optional]
 ├── vec_mac             — INT8 vector MAC accelerator with DMA (hw/ip/vec_mac/) [optional]
 ├── sg_dma              — Scatter-gather DMA engine (hw/ip/sg_dma/) [optional]
-└── softmax             — Softmax pipeline accelerator with DMA (hw/ip/softmax/) [optional]
+├── softmax             — Softmax pipeline accelerator with DMA (hw/ip/softmax/) [optional]
+└── conv1d              — 1D convolution engine with DMA (hw/ip/conv1d/) [optional]
 ```
 
 ### Memory Map
@@ -37,6 +38,7 @@ opensoc_top (hw/top/opensoc_top.sv)
 | Vector MAC     | `0x40060000`   | 1 kB  | fast[4]    |
 | SG DMA         | `0x40070000`   | 1 kB  | fast[5]    |
 | Softmax        | `0x40080000`   | 1 kB  | fast[6]    |
+| Conv1d         | `0x40090000`   | 1 kB  | fast[7]    |
 | Crypto (AES)   | `0x400A0000`   | 4 kB  | —          |
 
 Register definitions for all peripherals: [`sw/include/opensoc_regs.h`](sw/include/opensoc_regs.h)
@@ -180,6 +182,7 @@ Available tests:
 | `run-sg-dma` | SG-DMA: chaining, zero-length descriptors, throughput |
 | `run-softmax` | Softmax: uniform, one-hot, accuracy vs. C reference |
 | `run-aes` | AES-128 ECB encrypt/decrypt with NIST FIPS-197 test vector |
+| `run-conv1d` | 1D convolution: FIR filter and same-padding mode verify |
 | `run-dual-uart` | Two-SoC UART handshake and 8-round data exchange |
 | `run-i2c-loopback` | I2C master + PIO slave: write, read, clock stretching |
 
@@ -290,6 +293,7 @@ hw/ip/relu_accel/    — ReLU accelerator IP (reusable DMA framework)
 hw/ip/vec_mac/       — Vector MAC accelerator IP (INT8 dot product)
 hw/ip/sg_dma/        — Scatter-gather DMA engine IP
 hw/ip/softmax/       — Softmax pipeline IP (3-pass, exp LUT)
+hw/ip/conv1d/        — 1D convolution engine IP (shift register + parallel PE)
 hw/ip/opentitan_aes/ — OpenTitan AES block (direct RTL, not a submodule)
 hw/fpga/arty_a7/     — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth.tcl
 hw/asic/             — ASIC synthesis (sv2v + Yosys, OpenLane 2 flow)

@@ -59,6 +59,7 @@ fusesoc --cores-root=. --cores-root=hw/ip/ibex --cores-root=hw/ip/ibex/vendor/lo
   --cores-root=hw/ip/relu_accel --cores-root=hw/ip/vec_mac \
   --cores-root=hw/ip/sg_dma --cores-root=hw/ip/softmax \
   --cores-root=hw/ip/pio --cores-root=hw/ip/opentitan_aes \
+  --cores-root=hw/ip/conv1d \
   run --target=lint opensoc:soc:opensoc_top
 ```
 
@@ -102,14 +103,15 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── relu_accel             — ReLU accelerator with DMA (0x40050000) [optional]
 ├── vec_mac                — INT8 vector MAC accelerator with DMA (0x40060000) [optional]
 ├── sg_dma                 — Scatter-gather DMA engine (0x40070000) [optional]
-└── softmax                — Softmax pipeline with DMA (0x40080000) [optional]
+├── softmax                — Softmax pipeline with DMA (0x40080000) [optional]
+└── conv1d                 — 1D convolution engine with DMA (0x40090000) [optional]
 ```
 
 `opensoc_top` has **no module parameters** — all configuration comes from `opensoc_derived_config_pkg` (imported via wildcard). `opensoc_config_pkg` is the single unified config (512 KB RAM, all 4 accels, `CUT_ALL_PORTS`) used for both ASIC and FPGA targets.
 
-Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
+Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`, `EnableConv1d`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
 
-Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x40000000, Timer at 0x40010000, UART at 0x40020000, PIO at 0x40030000, I2C at 0x40040000, ReLU at 0x40050000, VMAC at 0x40060000, SG DMA at 0x40070000, Softmax at 0x40080000, Crypto (AES) at 0x400A0000. Boot address is 0x20000080.
+Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x40000000, Timer at 0x40010000, UART at 0x40020000, PIO at 0x40030000, I2C at 0x40040000, ReLU at 0x40050000, VMAC at 0x40060000, SG DMA at 0x40070000, Softmax at 0x40080000, Conv1d at 0x40090000, Crypto (AES) at 0x400A0000. Boot address is 0x20000080.
 
 ## Repository Structure
 
@@ -130,6 +132,7 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
 - `hw/ip/vec_mac/` — Vector MAC accelerator IP
 - `hw/ip/sg_dma/` — Scatter-gather DMA engine IP
 - `hw/ip/softmax/` — Softmax pipeline IP
+- `hw/ip/conv1d/` — 1D convolution engine IP (shift register + PE)
 - `hw/ip/opentitan_aes/` — OpenTitan AES block (direct RTL copy, not a submodule)
   - `aes/` — AES core RTL (40 files from OpenTitan `hw/ip/aes/rtl/`)
   - `tlul/` — TL-UL bus adapter files (not in Ibex)
@@ -146,7 +149,7 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
   - `hardware/structs/pio.h` — `pio_hw_t` / `pio_sm_hw_t` register struct definitions
   - `hardware_pio_compat.h` — OpenSoC-specific glue (`hw_set_bits`, `clock_get_hz`, GPIO stubs)
   - `pio_programs/i2c.pio.h` — PIO I2C TX program (pioasm-format header with init/write helpers)
-- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, pio_i2c, i2c_loopback, relu, vmac, sg_dma, softmax, aes)
+- `sw/tests/` — Test software (uart, i2c, pio, pio_sdk, pio_i2c, i2c_loopback, relu, vmac, sg_dma, softmax, aes, conv1d_test)
 
 ## FuseSoC Core Dependencies
 
@@ -159,9 +162,10 @@ The core `opensoc:soc:opensoc_top` depends on:
 - `opensoc:ip:vec_mac` — Vector MAC accelerator
 - `opensoc:ip:sg_dma` — Scatter-gather DMA engine
 - `opensoc:ip:softmax` — Softmax pipeline
+- `opensoc:ip:conv1d` — 1D convolution engine
 - `opensoc:ip:opentitan_aes` — OpenTitan AES block (with stub packages and local prim overrides)
 
-Eleven `--cores-root` paths are needed: repo root, `hw/ip/ibex`, `hw/ip/ibex/vendor/lowrisc_ip`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`, `hw/ip/opentitan_aes`.
+Twelve `--cores-root` paths are needed: repo root, `hw/ip/ibex`, `hw/ip/ibex/vendor/lowrisc_ip`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`, `hw/ip/conv1d`, `hw/ip/opentitan_aes`.
 
 ## Key Ibex Parameters
 
@@ -174,7 +178,7 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B
 - Master-port ID width: computed as `$clog2(NumMasters) + 1` (4 bits with all accels enabled)
 - User width: 1 bit
 - Masters/slaves: parameterized — 3+N masters, 7+N slaves (N = number of enabled accelerators; +1 for crypto)
-  - Default (sim/FPGA): 7 masters, 11 slaves (all 4 accelerators enabled + crypto)
+  - Default (sim/FPGA): 8 masters, 12 slaves (all 5 accelerators enabled + crypto)
 - Master order: instr, data, [accel DMAs in order], PIO DMA (always last)
 - Slave order: RAM, SimCtrl, Timer, UART, PIO, I2C, Crypto, [accel ctrls in order]
 - `MaxRequests = 2` on all bridges; `MaxMstTrans = 4`, `MaxSlvTrans = 4` on xbar
@@ -187,7 +191,7 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B
 - Part: XC7A100T-1CSG324C (Artix-7, 63K LUTs, 607 KB BRAM)
 - System clock: 100 MHz board oscillator → `PLLE2_ADV` → 50 MHz
 - RAM: 512 KB block RAM (`RamDepth = 131072`)
-- Accelerators: all enabled (`EnableReLU/VMAC/SgDma/Softmax = 1`) → 7 masters, 11 slaves
+- Accelerators: all enabled (`EnableReLU/VMAC/SgDma/Softmax/Conv1d = 1`) → 8 masters, 12 slaves
 - AXI latency: `CUT_ALL_PORTS`
 - Reset: `btn[0]` active-high → 2-FF synchronizer → active-low `rst_n`
 - Verilog defines: `SYNTHESIS=1`, `FPGA_XILINX=1` → derived pkg selects `opensoc_config_pkg`

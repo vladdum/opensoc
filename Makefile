@@ -22,7 +22,8 @@ CORES_ROOT_ACCELS := --cores-root=hw/ip/relu_accel \
                      --cores-root=hw/ip/vec_mac \
                      --cores-root=hw/ip/sg_dma \
                      --cores-root=hw/ip/softmax \
-                     --cores-root=hw/ip/opentitan_aes
+                     --cores-root=hw/ip/opentitan_aes \
+                     --cores-root=hw/ip/conv1d
 
 ifeq ($(TOP),opensoc_top_lean)
 CORES_ROOT := $(CORES_ROOT_BASE)
@@ -36,6 +37,7 @@ ENABLE_VMAC    ?= 0
 ENABLE_SGDMA   ?= 0
 ENABLE_SOFTMAX ?= 0
 ENABLE_CRYPTO  ?= 0
+ENABLE_CONV1D  ?= 0
 
 ifneq ($(TOP),opensoc_top_lean)
 FUSESOC_FLAGS := \
@@ -43,14 +45,16 @@ FUSESOC_FLAGS := \
   $(if $(filter 1,$(ENABLE_VMAC)),--flag enable_vmac,) \
   $(if $(filter 1,$(ENABLE_SGDMA)),--flag enable_sgdma,) \
   $(if $(filter 1,$(ENABLE_SOFTMAX)),--flag enable_softmax,) \
-  $(if $(filter 1,$(ENABLE_CRYPTO)),--flag enable_crypto,)
+  $(if $(filter 1,$(ENABLE_CRYPTO)),--flag enable_crypto,) \
+  $(if $(filter 1,$(ENABLE_CONV1D)),--flag enable_conv1d,)
 
 FUSESOC_DEFINES := \
   --EnableReLU $(ENABLE_RELU) \
   --EnableVMAC $(ENABLE_VMAC) \
   --EnableSgDma $(ENABLE_SGDMA) \
   --EnableSoftmax $(ENABLE_SOFTMAX) \
-  --EnableCrypto $(ENABLE_CRYPTO)
+  --EnableCrypto $(ENABLE_CRYPTO) \
+  --EnableConv1d $(ENABLE_CONV1D)
 endif
 
 SW_ARCH  := rv32imc_zicsr_zifencei
@@ -83,6 +87,7 @@ SW_DIR_vmac    := $(SW_TEST_DIR)/vmac_test
 SW_DIR_sg-dma      := $(SW_TEST_DIR)/sg_dma_test
 SW_DIR_softmax     := $(SW_TEST_DIR)/softmax_test
 SW_DIR_aes         := $(SW_TEST_DIR)/aes_test
+SW_DIR_conv1d      := $(SW_TEST_DIR)/conv1d_test
 SW_DIR_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test
 
 SW_BUILD_DIR := build/sw
@@ -98,6 +103,7 @@ ELF_vmac         := $(SW_BUILD_DIR)/vmac_test/vmac_test.elf
 ELF_sg-dma       := $(SW_BUILD_DIR)/sg_dma_test/sg_dma_test.elf
 ELF_softmax      := $(SW_BUILD_DIR)/softmax_test/softmax_test.elf
 ELF_aes          := $(SW_BUILD_DIR)/aes_test/aes_test.elf
+ELF_conv1d       := $(SW_BUILD_DIR)/conv1d_test/conv1d_test.elf
 ELF_i2c-loopback := $(SW_BUILD_DIR)/i2c_loopback_test/i2c_loopback_test.elf
 
 # ── Simulator top registry ────────────────────────────────────────────────────
@@ -135,6 +141,7 @@ help:
 	@echo "  run-sg-dma       SG-DMA: chaining, zero-length descriptors, throughput"
 	@echo "  run-softmax      Softmax: uniform, one-hot, accuracy vs. C reference"
 	@echo "  run-aes          AES-128 ECB encrypt/decrypt with NIST test vector"
+	@echo "  run-conv1d       1D convolution: FIR filter and same-padding mode verify"
 	@echo "  run-i2c-loopback I2C master + PIO slave: write, read, clock stretching"
 	@echo ""
 	@echo "Synthesis"
@@ -154,6 +161,7 @@ help:
 	@echo "  ENABLE_SGDMA=1              Include scatter-gather DMA"
 	@echo "  ENABLE_SOFTMAX=1            Include softmax accelerator"
 	@echo "  ENABLE_CRYPTO=1             Include crypto cluster (OpenTitan AES)"
+	@echo "  ENABLE_CONV1D=1             Include 1D convolution engine"
 	@echo "  TRACE=1                     Enable FST waveform dump"
 	@echo "  WAVES=1                     Enable waveform dump and open GTKWave"
 	@echo "  CXX='ccache g++'            Use ccache (default if ccache installed)"
@@ -178,12 +186,14 @@ REGRESSION_TESTS := $(REGRESSION_BASE) \
                     $(if $(filter 1,$(ENABLE_SOFTMAX)),softmax) \
 
 # Full set — all IPs enabled; used by regression-full and CI
-REGRESSION_FULL_TESTS := $(REGRESSION_BASE) relu vmac sg-dma softmax aes
+REGRESSION_FULL_TESTS := $(REGRESSION_BASE) relu vmac sg-dma softmax aes conv1d
 FULL_FLAGS := TOP=opensoc_top \
-              ENABLE_RELU=1 ENABLE_VMAC=1 ENABLE_SGDMA=1 ENABLE_SOFTMAX=1 ENABLE_CRYPTO=1
+              ENABLE_RELU=1 ENABLE_VMAC=1 ENABLE_SGDMA=1 ENABLE_SOFTMAX=1 ENABLE_CRYPTO=1 \
+              ENABLE_CONV1D=1
 
-# Per-IP regression entries (crypto/aes conditioned on ENABLE_CRYPTO)
+# Per-IP regression entries (conditioned on ENABLE_* flags)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CRYPTO)),aes)
+REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV1D)),conv1d)
 
 # Per-test extra simulator flags (empty unless overridden)
 SIM_FLAGS_i2c-loopback := -c 500000
@@ -235,9 +245,11 @@ _reg-run-%: FORCE
 .PHONY: lint
 lint:
 	$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=lint \
-	    --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax --flag enable_crypto \
+	    --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
+	    --flag enable_crypto --flag enable_conv1d \
 	    opensoc:soc:opensoc_top \
-	    --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableCrypto 1
+	    --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
+	    --EnableCrypto 1 --EnableConv1d 1
 
 # ── Simulator build ───────────────────────────────────────────────────────────
 
@@ -262,7 +274,7 @@ build:
 
 # Standard run targets — static pattern rule so each target is explicit
 # (visible to bash completion) while sharing a single recipe.
-RUN_TESTS := hello uart pio pio-sdk pio-i2c i2c relu vmac sg-dma softmax
+RUN_TESTS := hello uart pio pio-sdk pio-i2c i2c relu vmac sg-dma softmax conv1d
 
 .PHONY: $(addprefix run-,$(RUN_TESTS))
 $(addprefix run-,$(RUN_TESTS)): run-%:
@@ -325,7 +337,8 @@ synth-setup-arty:
 	    echo "synth-setup-arty: completed by another process, skipping"; \
 	  else \
 	    $(FUSESOC) $(CORES_ROOT) run --target=synth --setup opensoc:fpga:arty_a7 \
-	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableCrypto 1; \
+	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
+	      --EnableCrypto 1 --EnableConv1d 1; \
 	  fi; \
 	  exec 9>&-; \
 	fi
