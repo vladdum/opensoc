@@ -22,6 +22,7 @@
 #define VMAC_BASE       0x40060000UL
 #define SGDMA_BASE      0x40070000UL
 #define SMAX_BASE       0x40080000UL
+#define CONV1D_BASE     0x40090000UL
 #define CRYPTO_BASE     0x400A0000UL
 
 // SIM_CTRL_BASE and TIMER_BASE are defined in sw/common/simple_system_regs.h.
@@ -224,6 +225,30 @@
 #define SMAX_STATUS_DONE  0x2
 
 // ---------------------------------------------------------------------------
+// 1D Convolution Engine (0x40090000)
+// ---------------------------------------------------------------------------
+#define CONV1D_CTRL         (CONV1D_BASE + 0x00)
+#define CONV1D_STATUS       (CONV1D_BASE + 0x04)
+#define CONV1D_SRC_ADDR     (CONV1D_BASE + 0x08)
+#define CONV1D_DST_ADDR     (CONV1D_BASE + 0x0C)
+#define CONV1D_LENGTH       (CONV1D_BASE + 0x10)
+#define CONV1D_IER          (CONV1D_BASE + 0x14)
+#define CONV1D_KERNEL_SIZE  (CONV1D_BASE + 0x18)
+#define CONV1D_PADDING_MODE (CONV1D_BASE + 0x1C)
+#define CONV1D_KERNEL_W(n)  (CONV1D_BASE + 0x20 + (n) * 4)
+
+#define CONV1D_CTRL_GO          0x1
+#define CONV1D_CTRL_SOFT_RESET  0x2
+
+#define CONV1D_STATUS_BUSY  0x1
+#define CONV1D_STATUS_DONE  0x2
+
+#define CONV1D_IER_DONE     0x1
+
+#define CONV1D_PAD_VALID    0x0
+#define CONV1D_PAD_SAME     0x3
+
+// ---------------------------------------------------------------------------
 // AES / Crypto Cluster (0x400A0000) — OpenTitan AES register map
 // ---------------------------------------------------------------------------
 #define AES_KEY_SHARE0(n)   (CRYPTO_BASE + 0x04 + (n)*4)  // n=0..7
@@ -271,5 +296,6 @@
 #define IRQ_VMAC    4
 #define IRQ_SGDMA   5
 #define IRQ_SMAX    6
+#define IRQ_CONV1D  7
 
 #endif  // OPENSOC_REGS_H__

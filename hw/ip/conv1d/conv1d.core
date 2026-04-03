@@ -1,0 +1,18 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:conv1d"
+description: "1D Convolution Engine with DMA (INT8 input, INT32 output)"
+filesets:
+  rtl:
+    files:
+      - rtl/shift_reg.sv
+      - rtl/conv1d_pe.sv
+      - rtl/conv1d.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - rtl
