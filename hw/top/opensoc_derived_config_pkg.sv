@@ -153,19 +153,19 @@ package opensoc_derived_config_pkg;
     addr_map_t   map;
     int unsigned r;
     // Core slaves (always present)
-    map[0] = '{ idx: 32'd0, start_addr: 32'h0010_0000, end_addr: 32'h0020_0000 }; // RAM     1 MB
-    map[1] = '{ idx: 32'd1, start_addr: 32'h0002_0000, end_addr: 32'h0002_0400 }; // SimCtrl 1 kB
-    map[2] = '{ idx: 32'd2, start_addr: 32'h0003_0000, end_addr: 32'h0003_0400 }; // Timer   1 kB
-    map[3] = '{ idx: 32'd3, start_addr: 32'h0004_0000, end_addr: 32'h0004_0400 }; // UART    1 kB
-    map[4] = '{ idx: 32'd4, start_addr: 32'h0005_0000, end_addr: 32'h0005_0400 }; // PIO     1 kB
-    map[5] = '{ idx: 32'd5, start_addr: 32'h0006_0000, end_addr: 32'h0006_0400 }; // I2C     1 kB
+    map[0] = '{ idx: 32'd0, start_addr: 32'h2000_0000, end_addr: 32'h2010_0000 }; // RAM      1 MB
+    map[1] = '{ idx: 32'd1, start_addr: 32'h4000_0000, end_addr: 32'h4000_0400 }; // SimCtrl  1 kB
+    map[2] = '{ idx: 32'd2, start_addr: 32'h4001_0000, end_addr: 32'h4001_0400 }; // Timer    1 kB
+    map[3] = '{ idx: 32'd3, start_addr: 32'h4002_0000, end_addr: 32'h4002_0400 }; // UART     1 kB
+    map[4] = '{ idx: 32'd4, start_addr: 32'h4003_0000, end_addr: 32'h4003_0400 }; // PIO      1 kB
+    map[5] = '{ idx: 32'd5, start_addr: 32'h4004_0000, end_addr: 32'h4004_0400 }; // I2C      1 kB
     // Optional slaves
     r = 6;
-    if (EnableCrypto)  begin map[r] = '{ idx: r, start_addr: 32'h000B_0000, end_addr: 32'h000B_1000 }; r = r + 1; end
-    if (EnableReLU)    begin map[r] = '{ idx: r, start_addr: 32'h0007_0000, end_addr: 32'h0007_0400 }; r = r + 1; end
-    if (EnableVMAC)    begin map[r] = '{ idx: r, start_addr: 32'h0008_0000, end_addr: 32'h0008_0400 }; r = r + 1; end
-    if (EnableSgDma)   begin map[r] = '{ idx: r, start_addr: 32'h0009_0000, end_addr: 32'h0009_0400 }; r = r + 1; end
-    if (EnableSoftmax) begin map[r] = '{ idx: r, start_addr: 32'h000A_0000, end_addr: 32'h000A_0400 }; r = r + 1; end
+    if (EnableCrypto)  begin map[r] = '{ idx: r, start_addr: 32'h400A_0000, end_addr: 32'h400A_1000 }; r = r + 1; end
+    if (EnableReLU)    begin map[r] = '{ idx: r, start_addr: 32'h4005_0000, end_addr: 32'h4005_0400 }; r = r + 1; end
+    if (EnableVMAC)    begin map[r] = '{ idx: r, start_addr: 32'h4006_0000, end_addr: 32'h4006_0400 }; r = r + 1; end
+    if (EnableSgDma)   begin map[r] = '{ idx: r, start_addr: 32'h4007_0000, end_addr: 32'h4007_0400 }; r = r + 1; end
+    if (EnableSoftmax) begin map[r] = '{ idx: r, start_addr: 32'h4008_0000, end_addr: 32'h4008_0400 }; r = r + 1; end
     return map;
   endfunction
 

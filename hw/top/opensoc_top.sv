@@ -211,7 +211,7 @@ module opensoc_top
 
       .hart_id_i                 (32'b0),
       // First instruction executed is at 0x0 + 0x80
-      .boot_addr_i               (32'h00100000),
+      .boot_addr_i               (32'h20000000),
 
       .instr_req_o               (instr_req),
       .instr_gnt_i               (instr_gnt),

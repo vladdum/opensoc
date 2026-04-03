@@ -2,6 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Worktrees
+
+Agent worktrees under `.claude/worktrees/` must be removed once the task is complete. Do not leave stale worktrees behind.
+
+Before removing a worktree:
+1. Check for uncommitted changes: `git -C .claude/worktrees/<name> status`
+2. Check for unpushed commits: `git -C .claude/worktrees/<name> log --oneline origin/main..HEAD`
+3. If there are changes worth keeping, commit or cherry-pick them to the appropriate branch first.
+4. Then remove the worktree:
+
+```bash
+git worktree remove .claude/worktrees/<name>
+```
+
+If the worktree has changes that should be discarded, use `--force`.
+
 ## Git Commits
 
 Do not include `Co-Authored-By` trailers in commit messages.
@@ -77,23 +93,23 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── axi_xbar               — AXI4 crossbar (N masters × M slaves, sized by enable params)
 ├── axi_to_mem ×M          — AXI-to-memory bridges (core peripherals + enabled accels)
 ├── ram_1p                 — 1 MB single-port SRAM (sim) / 512 KB block RAM (FPGA)
-├── simulator_ctrl         — ASCII output and simulation halt (0x20000)
-├── timer                  — Timer with interrupt (0x30000)
-├── uart                   — UART TX/RX with 8-deep FIFOs (0x40000)
-├── pio                    — Programmable I/O: 4 state machines, 32-instr shared memory, GPIO compat (0x50000)
-├── i2c_controller         — I2C master controller (0x60000)
-├── crypto_cluster         — AES-128/192/256 crypto accelerator via OpenTitan AES (0xB0000)
-├── relu_accel             — ReLU accelerator with DMA (0x70000) [optional]
-├── vec_mac                — INT8 vector MAC accelerator with DMA (0x80000) [optional]
-├── sg_dma                 — Scatter-gather DMA engine (0x90000) [optional]
-└── softmax                — Softmax pipeline with DMA (0xA0000) [optional]
+├── simulator_ctrl         — ASCII output and simulation halt (0x40000000)
+├── timer                  — Timer with interrupt (0x40010000)
+├── uart                   — UART TX/RX with 8-deep FIFOs (0x40020000)
+├── pio                    — Programmable I/O: 4 state machines, 32-instr shared memory, GPIO compat (0x40030000)
+├── i2c_controller         — I2C master controller (0x40040000)
+├── crypto_cluster         — AES-128/192/256 crypto accelerator via OpenTitan AES (0x400A0000)
+├── relu_accel             — ReLU accelerator with DMA (0x40050000) [optional]
+├── vec_mac                — INT8 vector MAC accelerator with DMA (0x40060000) [optional]
+├── sg_dma                 — Scatter-gather DMA engine (0x40070000) [optional]
+└── softmax                — Softmax pipeline with DMA (0x40080000) [optional]
 ```
 
 `opensoc_top` has **no module parameters** — all configuration comes from `opensoc_derived_config_pkg` (imported via wildcard). `opensoc_config_pkg` is the single unified config (512 KB RAM, all 4 accels, `CUT_ALL_PORTS`) used for both ASIC and FPGA targets.
 
 Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
 
-Memory map: RAM at 0x100000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x20000, Timer at 0x30000, UART at 0x40000, PIO at 0x50000, I2C at 0x60000, Crypto (AES) at 0xB0000, ReLU at 0x70000, VMAC at 0x80000, SG DMA at 0x90000, Softmax at 0xA0000. Boot address is 0x100000+0x80.
+Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x40000000, Timer at 0x40010000, UART at 0x40020000, PIO at 0x40030000, I2C at 0x40040000, ReLU at 0x40050000, VMAC at 0x40060000, SG DMA at 0x40070000, Softmax at 0x40080000, Crypto (AES) at 0x400A0000. Boot address is 0x20000080.
 
 ## Repository Structure
 

@@ -27,7 +27,8 @@ jobs:
               --base main \
               --head "$BRANCH" \
               --title "$BRANCH" \
-              --body "Auto-created PR for branch \`$BRANCH\`."
+              --body "Auto-created PR for branch \`$BRANCH\`." \
+            || true
           else
             echo "PR already exists for $BRANCH, skipping."
           fi

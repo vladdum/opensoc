@@ -7,7 +7,7 @@
 
 class OpenSocSim {
  public:
-  static constexpr uint32_t kRAM_BaseAddr = 0x100000u;
+  static constexpr uint32_t kRAM_BaseAddr = 0x20000000u;
   static constexpr uint32_t kRAM_SizeBytes = 0x100000u;
 
   OpenSocSim(const char *ram_hier_path, int ram_size_words);

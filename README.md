@@ -25,23 +25,23 @@ opensoc_top (hw/top/opensoc_top.sv)
 
 ### Memory Map
 
-| Peripheral     | Base Address | Size  | IRQ        |
-|----------------|--------------|-------|------------|
-| Simulator Ctrl | `0x20000`    | 1 kB  | —          |
-| Timer          | `0x30000`    | 1 kB  | mtimer     |
-| UART           | `0x40000`    | 1 kB  | fast[0]    |
-| PIO            | `0x50000`    | 1 kB  | fast[1]    |
-| I2C            | `0x60000`    | 1 kB  | fast[2]    |
-| Crypto (AES)   | `0xB0000`    | 4 kB  | —          |
-| ReLU Accel     | `0x70000`    | 1 kB  | fast[3]    |
-| Vector MAC     | `0x80000`    | 1 kB  | fast[4]    |
-| SG DMA         | `0x90000`    | 1 kB  | fast[5]    |
-| Softmax        | `0xA0000`    | 1 kB  | fast[6]    |
-| RAM            | `0x100000`   | 512 KB | — |
+| Peripheral     | Base Address   | Size  | IRQ        |
+|----------------|----------------|-------|------------|
+| RAM            | `0x20000000`   | 1 MB  | —          |
+| Simulator Ctrl | `0x40000000`   | 1 kB  | —          |
+| Timer          | `0x40010000`   | 1 kB  | mtimer     |
+| UART           | `0x40020000`   | 1 kB  | fast[0]    |
+| PIO            | `0x40030000`   | 1 kB  | fast[1]    |
+| I2C            | `0x40040000`   | 1 kB  | fast[2]    |
+| ReLU Accel     | `0x40050000`   | 1 kB  | fast[3]    |
+| Vector MAC     | `0x40060000`   | 1 kB  | fast[4]    |
+| SG DMA         | `0x40070000`   | 1 kB  | fast[5]    |
+| Softmax        | `0x40080000`   | 1 kB  | fast[6]    |
+| Crypto (AES)   | `0x400A0000`   | 4 kB  | —          |
 
 Register definitions for all peripherals: [`sw/include/opensoc_regs.h`](sw/include/opensoc_regs.h)
 
-Boot address: `0x100080` (RAM base + 0x80).
+Boot address: `0x20000080` (RAM base + 0x80).
 
 ## Getting Started
 
