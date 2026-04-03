@@ -84,6 +84,7 @@ opensoc_ip_relu_accel_0/rtl/*.sv
 opensoc_ip_sg_dma_0/rtl/*.sv
 opensoc_ip_softmax_0/rtl/*.sv
 opensoc_ip_vec_mac_0/rtl/*.sv
+opensoc_ip_ram_0/rtl/opensoc_ram.sv
 opensoc_soc_opensoc_top_0/hw/top/opensoc_top.sv
 opensoc_ip_uart_0/rtl/uart.sv
 opensoc_ip_i2c_controller_0/rtl/i2c_controller.sv

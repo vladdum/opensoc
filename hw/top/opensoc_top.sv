@@ -487,7 +487,7 @@ module opensoc_top
   // -------------------------------------------------------------------------
   // SRAM (single-port, crossbar arbitrates instr vs data)
   // -------------------------------------------------------------------------
-  ram_1p #(
+  opensoc_ram #(
       .Depth(RamDepth),
       .MemInitFile(SRAMInitFile)
     ) u_ram (

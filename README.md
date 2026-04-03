@@ -294,6 +294,7 @@ hw/ip/vec_mac/       — Vector MAC accelerator IP (INT8 dot product)
 hw/ip/sg_dma/        — Scatter-gather DMA engine IP
 hw/ip/softmax/       — Softmax pipeline IP (3-pass, exp LUT)
 hw/ip/conv1d/        — 1D convolution engine IP (shift register + parallel PE)
+hw/ip/ram/           — Technology-dispatch RAM wrapper (XPM/FPGA, sky130 stub/ASIC, ram_1p/sim)
 hw/ip/opentitan_aes/ — OpenTitan AES block (direct RTL, not a submodule)
 hw/fpga/arty_a7/     — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth.tcl
 hw/asic/             — ASIC synthesis (sv2v + Yosys, OpenLane 2 flow)

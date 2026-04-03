@@ -59,7 +59,7 @@ fusesoc --cores-root=. --cores-root=hw/ip/ibex --cores-root=hw/ip/ibex/vendor/lo
   --cores-root=hw/ip/relu_accel --cores-root=hw/ip/vec_mac \
   --cores-root=hw/ip/sg_dma --cores-root=hw/ip/softmax \
   --cores-root=hw/ip/pio --cores-root=hw/ip/opentitan_aes \
-  --cores-root=hw/ip/conv1d \
+  --cores-root=hw/ip/conv1d --cores-root=hw/ip/ram \
   run --target=lint opensoc:soc:opensoc_top
 ```
 
@@ -133,6 +133,7 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
 - `hw/ip/sg_dma/` — Scatter-gather DMA engine IP
 - `hw/ip/softmax/` — Softmax pipeline IP
 - `hw/ip/conv1d/` — 1D convolution engine IP (shift register + PE)
+- `hw/ip/ram/` — Technology-dispatch RAM wrapper (`opensoc_ram.sv`)
 - `hw/ip/opentitan_aes/` — OpenTitan AES block (direct RTL copy, not a submodule)
   - `aes/` — AES core RTL (40 files from OpenTitan `hw/ip/aes/rtl/`)
   - `tlul/` — TL-UL bus adapter files (not in Ibex)
@@ -169,8 +170,9 @@ The core `opensoc:soc:opensoc_top` depends on:
 - `opensoc:ip:softmax` — Softmax pipeline
 - `opensoc:ip:conv1d` — 1D convolution engine
 - `opensoc:ip:opentitan_aes` — OpenTitan AES block (with stub packages and local prim overrides)
+- `opensoc:ip:ram` — Technology-dispatch RAM wrapper (XPM/FPGA, sky130 stub/ASIC, ram_1p/sim)
 
-Twelve `--cores-root` paths are needed: repo root, `hw/ip/ibex`, `hw/ip/ibex/vendor/lowrisc_ip`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`, `hw/ip/conv1d`, `hw/ip/opentitan_aes`.
+Thirteen `--cores-root` paths are needed: repo root, `hw/ip/ibex`, `hw/ip/ibex/vendor/lowrisc_ip`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`, `hw/ip/conv1d`, `hw/ip/opentitan_aes`, `hw/ip/ram`.
 
 ## Key Ibex Parameters
 

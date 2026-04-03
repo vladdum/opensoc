@@ -1,0 +1,19 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:ram"
+description: "Technology-dispatch RAM wrapper (XPM for FPGA, Sky130 stub for ASIC, ram_1p for sim)"
+
+filesets:
+  rtl:
+    depend:
+      - lowrisc:ibex:sim_shared
+    files:
+      - rtl/opensoc_ram.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - rtl
