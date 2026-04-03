@@ -58,6 +58,11 @@ DEFINES=(
     -DVERILATOR=1
     -DRegFile=ibex_pkg::RegFileFF
     -DPRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric
+    -DEnableReLU=1
+    -DEnableVMAC=1
+    -DEnableSgDma=1
+    -DEnableSoftmax=1
+    -DEnableCrypto=1
 )
 
 # ============================================================================

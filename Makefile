@@ -65,11 +65,14 @@ SW_TEST_DIR    := sw/tests
 
 SIM_DIR        := build/opensoc_soc_$(TOP)_0/sim-verilator
 
+# run-* targets always use the full simulator (built by build-full)
+RUN_SIM_DIR    := build/opensoc_soc_opensoc_top_0/sim-verilator
+
 SYNTH_SRC_DIR_ARTY := build/opensoc_fpga_arty_a7_0/synth-vivado/src
 
 # ── Per-test registry ─────────────────────────────────────────────────────────
 
-SW_DIR_hello   := $(SW_DIR)/hello_test
+SW_DIR_hello   := $(SW_TEST_DIR)/hello_test
 SW_DIR_uart    := $(SW_TEST_DIR)/uart_test
 SW_DIR_pio     := $(SW_TEST_DIR)/pio_test
 SW_DIR_pio-sdk := $(SW_TEST_DIR)/pio_sdk_test
@@ -82,18 +85,20 @@ SW_DIR_softmax     := $(SW_TEST_DIR)/softmax_test
 SW_DIR_aes         := $(SW_TEST_DIR)/aes_test
 SW_DIR_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test
 
-ELF_hello   := $(SW_DIR)/hello_test/hello_test.elf
-ELF_uart    := $(SW_TEST_DIR)/uart_test/uart_test.elf
-ELF_pio     := $(SW_TEST_DIR)/pio_test/pio_test.elf
-ELF_pio-sdk := $(SW_TEST_DIR)/pio_sdk_test/pio_sdk_test.elf
-ELF_pio-i2c := $(SW_TEST_DIR)/pio_i2c_test/pio_i2c_test.elf
-ELF_i2c     := $(SW_TEST_DIR)/i2c_test/i2c_test.elf
-ELF_relu    := $(SW_TEST_DIR)/relu_test/relu_test.elf
-ELF_vmac    := $(SW_TEST_DIR)/vmac_test/vmac_test.elf
-ELF_sg-dma      := $(SW_TEST_DIR)/sg_dma_test/sg_dma_test.elf
-ELF_softmax     := $(SW_TEST_DIR)/softmax_test/softmax_test.elf
-ELF_aes         := $(SW_TEST_DIR)/aes_test/aes_test.elf
-ELF_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test/i2c_loopback_test.elf
+SW_BUILD_DIR := build/sw
+
+ELF_hello        := $(SW_BUILD_DIR)/hello_test/hello_test.elf
+ELF_uart         := $(SW_BUILD_DIR)/uart_test/uart_test.elf
+ELF_pio          := $(SW_BUILD_DIR)/pio_test/pio_test.elf
+ELF_pio-sdk      := $(SW_BUILD_DIR)/pio_sdk_test/pio_sdk_test.elf
+ELF_pio-i2c      := $(SW_BUILD_DIR)/pio_i2c_test/pio_i2c_test.elf
+ELF_i2c          := $(SW_BUILD_DIR)/i2c_test/i2c_test.elf
+ELF_relu         := $(SW_BUILD_DIR)/relu_test/relu_test.elf
+ELF_vmac         := $(SW_BUILD_DIR)/vmac_test/vmac_test.elf
+ELF_sg-dma       := $(SW_BUILD_DIR)/sg_dma_test/sg_dma_test.elf
+ELF_softmax      := $(SW_BUILD_DIR)/softmax_test/softmax_test.elf
+ELF_aes          := $(SW_BUILD_DIR)/aes_test/aes_test.elf
+ELF_i2c-loopback := $(SW_BUILD_DIR)/i2c_loopback_test/i2c_loopback_test.elf
 
 # ── Simulator top registry ────────────────────────────────────────────────────
 
@@ -112,9 +117,11 @@ help:
 	@echo "Simulator build"
 	@echo "  build                       Build lean simulator (no IPs, fast)"
 	@echo "  build TOP=opensoc_top       Build full simulator with enabled IPs"
+	@echo "  build-full                  Build full simulator (all IPs)"
 	@echo ""
 	@echo "Regression"
-	@echo "  regression                  Build sim + run all tests in parallel"
+	@echo "  regression                  Run tests for currently enabled IPs"
+	@echo "  regression-full             Build full sim + run all tests (CI)"
 	@echo ""
 	@echo "Run (builds SW then runs simulation)"
 	@echo "  run-hello        Print hex values and test timer interrupts"
@@ -159,9 +166,24 @@ clean:
 
 # ── Regression ────────────────────────────────────────────────────────────────
 
+# Base tests always run regardless of which IPs are enabled
+REGRESSION_BASE := hello uart pio pio-sdk pio-i2c i2c
+
+# IP tests: included when the corresponding ENABLE_* flag is set
 # i2c-loopback excluded pending fix — see issue #14
-REGRESSION_TESTS := hello uart pio pio-sdk pio-i2c i2c \
-                    relu vmac sg-dma softmax aes
+REGRESSION_TESTS := $(REGRESSION_BASE) \
+                    $(if $(filter 1,$(ENABLE_RELU)),relu) \
+                    $(if $(filter 1,$(ENABLE_VMAC)),vmac) \
+                    $(if $(filter 1,$(ENABLE_SGDMA)),sg-dma) \
+                    $(if $(filter 1,$(ENABLE_SOFTMAX)),softmax) \
+
+# Full set — all IPs enabled; used by regression-full and CI
+REGRESSION_FULL_TESTS := $(REGRESSION_BASE) relu vmac sg-dma softmax aes
+FULL_FLAGS := TOP=opensoc_top \
+              ENABLE_RELU=1 ENABLE_VMAC=1 ENABLE_SGDMA=1 ENABLE_SOFTMAX=1 ENABLE_CRYPTO=1
+
+# Per-IP regression entries (crypto/aes conditioned on ENABLE_CRYPTO)
+REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CRYPTO)),aes)
 
 # Per-test extra simulator flags (empty unless overridden)
 SIM_FLAGS_i2c-loopback := -c 500000
@@ -186,6 +208,15 @@ regression: $(SIM_DIR)/Vopensoc_top_wrapper
 	echo ""; echo "  $$pass passed, $$fail failed"; \
 	[ $$fail -eq 0 ]
 
+# Full build + regression (all IPs) — used by CI
+.PHONY: build-full
+build-full:
+	$(MAKE) build $(FULL_FLAGS)
+
+.PHONY: regression-full
+regression-full:
+	$(MAKE) regression $(FULL_FLAGS)
+
 .PHONY: FORCE
 
 _reg-sw-%: FORCE
@@ -203,7 +234,10 @@ _reg-run-%: FORCE
 
 .PHONY: lint
 lint:
-	$(FUSESOC) $(CORES_ROOT) run --target=lint $(FUSESOC_FLAGS) opensoc:soc:opensoc_top $(FUSESOC_DEFINES)
+	$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=lint \
+	    --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax --flag enable_crypto \
+	    opensoc:soc:opensoc_top \
+	    --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableCrypto 1
 
 # ── Simulator build ───────────────────────────────────────────────────────────
 
@@ -211,34 +245,57 @@ lint:
 build:
 	@test -n "$(BUILD_CORE_$(TOP))" || \
 	  { echo "Unknown TOP='$(TOP)'. Valid: opensoc_top"; exit 1; }
-	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build $(FUSESOC_FLAGS) $(BUILD_CORE_$(TOP)) $(FUSESOC_DEFINES)
+	@_build_start=$$(date +%s); \
+	( while true; do \
+	    sleep 60; \
+	    _now=$$(date +%s); \
+	    echo "[build] $$(( (_now - _build_start) / 60 ))m elapsed..."; \
+	  done ) & \
+	_timer_pid=$$!; \
+	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build $(FUSESOC_FLAGS) $(BUILD_CORE_$(TOP)) $(FUSESOC_DEFINES); \
+	kill $$_timer_pid 2>/dev/null; wait $$_timer_pid 2>/dev/null; \
+	_build_end=$$(date +%s); \
+	_elapsed=$$(( _build_end - _build_start )); \
+	echo "Build completed in $$(( _elapsed / 60 ))m $$(( _elapsed % 60 ))s"
 
 # ── Run targets ───────────────────────────────────────────────────────────────
 
-# Generic pattern rule for standard opensoc_top tests
-.PHONY: run-%
-run-%:
-	@test -n "$(ELF_$*)" || \
-	  { echo "Unknown test '$*'. Run 'make help' for available tests."; exit 1; }
+# Standard run targets — static pattern rule so each target is explicit
+# (visible to bash completion) while sharing a single recipe.
+RUN_TESTS := hello uart pio pio-sdk pio-i2c i2c relu vmac sg-dma softmax
+
+.PHONY: $(addprefix run-,$(RUN_TESTS))
+$(addprefix run-,$(RUN_TESTS)): run-%:
 	$(MAKE) -C $(SW_DIR_$*) ARCH=$(SW_ARCH)
-	cd $(SIM_DIR) && \
+	cd $(RUN_SIM_DIR) && \
 	  ./Vopensoc_top_wrapper --meminit=ram,$(CURDIR)/$(ELF_$*) $(SIM_TRACE_FLAGS)
 	@echo "--- Program output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
+	@cat $(RUN_SIM_DIR)/opensoc_top.log
+	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
 
 # Explicit overrides for tests that need non-default run flags
+.PHONY: run-aes
+run-aes:
+	$(MAKE) -C $(SW_TEST_DIR)/aes_test ARCH=$(SW_ARCH)
+	cd $(RUN_SIM_DIR) && \
+	  ./Vopensoc_top_wrapper \
+	    --meminit=ram,$(CURDIR)/$(ELF_aes) \
+	    $(SIM_TRACE_FLAGS)
+	@echo "--- AES output ---"
+	@cat $(RUN_SIM_DIR)/opensoc_top.log
+	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
+
 .PHONY: run-i2c-loopback
 run-i2c-loopback:
 	$(MAKE) -C $(SW_TEST_DIR)/i2c_loopback_test ARCH=$(SW_ARCH)
-	cd $(SIM_DIR) && \
+	cd $(RUN_SIM_DIR) && \
 	  ./Vopensoc_top_wrapper \
-	    --meminit=ram,$(CURDIR)/$(SW_TEST_DIR)/i2c_loopback_test/i2c_loopback_test.elf \
+	    --meminit=ram,$(CURDIR)/$(ELF_i2c-loopback) \
 	    -c 500000 \
 	    $(SIM_TRACE_FLAGS)
 	@echo "--- I2C Loopback output ---"
-	@cat $(SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst &,)
+	@cat $(RUN_SIM_DIR)/opensoc_top.log
+	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst &,)
 
 # ── Synthesis ─────────────────────────────────────────────────────────────────
 
@@ -267,7 +324,8 @@ synth-setup-arty:
 	  if [ -d "$(SYNTH_SRC_DIR_ARTY)" ]; then \
 	    echo "synth-setup-arty: completed by another process, skipping"; \
 	  else \
-	    $(FUSESOC) $(CORES_ROOT) run --target=synth --setup opensoc:fpga:arty_a7; \
+	    $(FUSESOC) $(CORES_ROOT) run --target=synth --setup opensoc:fpga:arty_a7 \
+	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableCrypto 1; \
 	  fi; \
 	  exec 9>&-; \
 	fi

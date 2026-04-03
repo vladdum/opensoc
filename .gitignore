@@ -1,6 +1,9 @@
 # FuseSoC build output
 build/
 
+# Git worktrees
+.worktrees/
+
 # Claude Code
 .claude/
 
@@ -8,6 +11,8 @@ build/
 .vscode/
 docs/plans/
 docs/brainstorms/
+docs/superpowers/
+docs/debugging/
 *.o
 *.d
 *.elf

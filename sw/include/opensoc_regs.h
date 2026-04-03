@@ -12,19 +12,19 @@
 // ---------------------------------------------------------------------------
 // Memory Map — Base Addresses
 // ---------------------------------------------------------------------------
-// SIM_CTRL_BASE (0x20000) and TIMER_BASE (0x30000) are defined in
-// simple_system_regs.h (included via simple_system_common.h).
-#define UART_BASE       0x40000
-#define I2C_BASE        0x60000
-#define RELU_BASE       0x70000
-#define VMAC_BASE       0x80000
-#define SGDMA_BASE      0x90000
-#define SMAX_BASE       0xA0000
-#define CRYPTO_BASE     0xB0000
-#define RAM_BASE        0x100000
+// SIM_CTRL_BASE (0x40000000) and TIMER_BASE (0x40010000) are defined in
+// sw/common/simple_system_regs.h, which shadows the ibex version.
+#define RAM_BASE        0x20000000UL
+#define UART_BASE       0x40020000UL
+#define PIO_BASE        0x40030000UL
+#define I2C_BASE        0x40040000UL
+#define RELU_BASE       0x40050000UL
+#define VMAC_BASE       0x40060000UL
+#define SGDMA_BASE      0x40070000UL
+#define SMAX_BASE       0x40080000UL
+#define CRYPTO_BASE     0x400A0000UL
 
-// Sim Control (0x20000) and Timer (0x30000) registers are in
-// simple_system_regs.h — not duplicated here.
+// SIM_CTRL_BASE and TIMER_BASE are defined in sw/common/simple_system_regs.h.
 
 // ---------------------------------------------------------------------------
 // UART (0x40000)
@@ -39,10 +39,8 @@
 #define UART_LSR_RX_READY  (1 << 1)
 
 // ---------------------------------------------------------------------------
-// PIO (0x50000) — Programmable I/O block (replaces GPIO)
+// PIO (0x40030000) — Programmable I/O block (replaces GPIO)
 // ---------------------------------------------------------------------------
-#define PIO_BASE        0x50000
-
 #define PIO_CTRL        (PIO_BASE + 0x000)  // SM enable[3:0], restart[7:4], clkdiv_restart[11:8]
 #define PIO_FSTAT       (PIO_BASE + 0x004)  // FIFO status (TX empty/full, RX empty/full)
 #define PIO_TXF0        (PIO_BASE + 0x010)  // TX FIFO SM0 (write)
@@ -226,7 +224,7 @@
 #define SMAX_STATUS_DONE  0x2
 
 // ---------------------------------------------------------------------------
-// AES / Crypto Cluster (0xB0000) — OpenTitan AES register map
+// AES / Crypto Cluster (0x400A0000) — OpenTitan AES register map
 // ---------------------------------------------------------------------------
 #define AES_KEY_SHARE0(n)   (CRYPTO_BASE + 0x04 + (n)*4)  // n=0..7
 #define AES_KEY_SHARE1(n)   (CRYPTO_BASE + 0x24 + (n)*4)  // n=0..7
