@@ -52,6 +52,9 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/sg_dma.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/softmax.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/softmax_core.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/exp_lut.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/conv1d.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/conv1d_pe.sv"
+lint_off -rule UNUSEDSIGNAL  -file "*/rtl/shift_reg.sv"
 
 // Sim wrapper: only gpio_oe[1:0] are used for I2C loopback; upper bits are outputs
 lint_off -rule UNUSEDSIGNAL  -file "*/dv/rtl/opensoc_top_wrapper.sv"
@@ -64,8 +67,8 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_dual_uart.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_i2c_loopback.sv"
 
 // Crypto cluster: unused TL-UL opcode params, NumAlerts hides upper scope
-lint_off -rule UNUSEDPARAM   -file "*/top/crypto_cluster.sv"
-lint_off -rule VARHIDDEN     -file "*/top/crypto_cluster.sv"
+lint_off -rule UNUSEDPARAM   -file "*/opentitan_aes/crypto_cluster.sv"
+lint_off -rule VARHIDDEN     -file "*/opentitan_aes/crypto_cluster.sv"
 
 // OpenTitan AES IP: third-party code, waive all lint warnings
 lint_off -rule WIDTHTRUNC    -file "*/opensoc_ip_opentitan_aes_0/*"
