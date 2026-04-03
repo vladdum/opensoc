@@ -55,10 +55,17 @@ package opensoc_config_pkg;
   // Memory
   // -------------------------------------------------------------------------
   localparam              SRAMInitFile     = "";
-  // 512 KB: fits XC7A100T (607 KB total BRAM).
-  // Increase to 262144 for 1 MB (Nexys Video / pure ASIC; ASIC tools are
-  // indifferent to depth).
-  localparam int unsigned RamDepth         = 131072;  // 512 KB (131072 × 32-bit words)
+  // RamDepth is flow-specific:
+  //   FPGA (Vivado):    131072 × 32 = 512 KB (fits XC7A100T 607 KB BRAM)
+  //   ASIC (Sky130):     16384 × 32 =  64 KB (sky130_sram_1rw_32x16384 stub)
+  //   Simulation:       131072 × 32 = 512 KB
+`ifdef FPGA_XILINX
+  localparam int unsigned RamDepth         = 131072;  // 512 KB
+`elsif SYNTHESIS
+  localparam int unsigned RamDepth         = 16384;   //  64 KB
+`else
+  localparam int unsigned RamDepth         = 131072;  // 512 KB (sim)
+`endif
 
   // -------------------------------------------------------------------------
   // Accelerator / IP enables

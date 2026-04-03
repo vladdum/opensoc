@@ -17,7 +17,8 @@ CORES_ROOT_BASE := --cores-root=. \
                    --cores-root=hw/ip/pulp_axi \
                    --cores-root=hw/ip/pio \
                    --cores-root=hw/ip/i2c_controller \
-                   --cores-root=hw/ip/uart
+                   --cores-root=hw/ip/uart \
+                   --cores-root=hw/ip/ram
 CORES_ROOT_ACCELS := --cores-root=hw/ip/relu_accel \
                      --cores-root=hw/ip/vec_mac \
                      --cores-root=hw/ip/sg_dma \
