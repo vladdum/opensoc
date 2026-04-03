@@ -137,7 +137,8 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
   - `packages/` — Stub packages for OpenTitan peripherals not in OpenSoC (lc_ctrl, edn, keymgr, csrng, entropy_src, top_pkg)
   - `opentitan_aes.core` — FuseSoC core; depends on Ibex's lowrisc prim cores for shared modules
   - `lc_ctrl_pkg.core` — Stub `lowrisc:ip:lc_ctrl_pkg` satisfying transitive deps
-- `hw/rtl/crypto_cluster.sv` — Wraps AES with OpenSoC's mem interface (req/addr/we/be/wdata → TL-UL)
+  - `crypto_cluster.sv` — Wraps AES with OpenSoC's mem interface (req/addr/we/be/wdata → TL-UL)
+  - `axi_lite_to_tlul.sv` — AXI4-Lite to TL-UL bridge (single-outstanding, used by crypto cluster)
 - `dv/` — Design verification (Verilator testbench)
 - `sw/lib/` — Pico SDK-compatible PIO library (header-only)
   - `hardware/pio.h` — Main API (PIO type, SM config, FIFO, program loading)

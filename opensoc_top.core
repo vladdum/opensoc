@@ -44,7 +44,13 @@ filesets:
     depend:
       - "opensoc:ip:opentitan_aes"
     files:
-      - hw/top/crypto_cluster.sv
+      - hw/ip/opentitan_aes/crypto_cluster.sv
+      - hw/ip/opentitan_aes/axi_lite_to_tlul.sv
+    file_type: systemVerilogSource
+
+  files_conv1d:
+    depend:
+      - "opensoc:ip:conv1d"
     file_type: systemVerilogSource
 
   files_lint_verilator:
@@ -127,6 +133,12 @@ parameters:
     paramtype: vlogdefine
     description: "Enable crypto cluster / OpenTitan AES (0=off, 1=on)"
 
+  EnableConv1d:
+    datatype: int
+    default: 0
+    paramtype: vlogdefine
+    description: "Enable 1D convolution engine (0=off, 1=on)"
+
 targets:
   default: &default_target
     filesets:
@@ -136,6 +148,7 @@ targets:
       - enable_sgdma ? (files_sgdma)
       - enable_softmax ? (files_softmax)
       - enable_crypto ? (files_crypto)
+      - enable_conv1d ? (files_conv1d)
       - tool_verilator ? (files_lint_verilator)
     toplevel: opensoc_top
     parameters:
@@ -148,6 +161,7 @@ targets:
       - EnableSgDma
       - EnableSoftmax
       - EnableCrypto
+      - EnableConv1d
 
   lint:
     <<: *default_target
@@ -170,6 +184,7 @@ targets:
       - enable_sgdma ? (files_sgdma)
       - enable_softmax ? (files_softmax)
       - enable_crypto ? (files_crypto)
+      - enable_conv1d ? (files_conv1d)
       - files_lint_verilator
       - files_sim_sv
       - files_verilator_sim
@@ -185,6 +200,7 @@ targets:
       - EnableSgDma
       - EnableSoftmax
       - EnableCrypto
+      - EnableConv1d
     default_tool: verilator
     tools:
       verilator:
