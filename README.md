@@ -10,7 +10,7 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── axi_from_mem ×N     — OBI-to-AXI bridges (CPU instr/data + PIO DMA + accel DMAs)
 ├── axi_xbar            — AXI4 crossbar (parameterized masters × slaves)
 ├── axi_to_mem ×M       — AXI-to-memory bridges
-├── ram_1p              — 512 KB SRAM (FPGA/ASIC)
+├── ram_1p              — 1 MB SRAM (sim) / 512 KB block RAM (FPGA)
 ├── simulator_ctrl      — ASCII output and simulation halt
 ├── timer               — Timer with interrupt
 ├── uart                — UART with TX/RX FIFOs
@@ -282,7 +282,7 @@ To add a new testbench, place the SV file in `dv/sv/` and register it in `dv/sim
 hw/top/              — OpenSoC RTL (top-level, config pkgs)
   opensoc_config_pkg.sv            — Unified config: ASIC + FPGA (512 KB, all accels)
   opensoc_derived_config_pkg.sv    — Derived values: crossbar dims, AXI types, addr map
-hw/opensoc_top.core  — FuseSoC core file (dependencies & build targets)
+opensoc_top.core     — FuseSoC core file (dependencies & build targets, repo root)
 hw/lint/             — Verilator waiver files
 hw/ip/ibex/          — Ibex submodule (CPU core + shared sim RTL)
 hw/ip/pulp_axi/      — PULP AXI submodule (crossbar, bridges)
@@ -298,12 +298,14 @@ hw/ip/opentitan_aes/ — OpenTitan AES block (direct RTL, not a submodule)
 hw/fpga/arty_a7/     — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth.tcl
 hw/asic/             — ASIC synthesis (sv2v + Yosys, OpenLane 2 flow)
 hw/synth/            — Shared source file list (sources.f) for non-Vivado flows
+dv/verilator/        — Verilator SoC-level simulation testbench
+dv/rtl/              — RTL simulation wrapper (opensoc_top_wrapper.sv)
 dv/sv/               — Module-level SystemVerilog testbenches
 dv/sim/              — Makefile for building/running module testbenches
-dv/verilator/        — Verilator SoC-level simulation testbench
+sw/common/           — Shared SW support files (link.ld, simple_system_regs.h, crt0.S)
 sw/lib/              — Pico SDK-compatible PIO library (header-only)
 sw/include/          — Shared headers (opensoc_regs.h)
-sw/tests/            — Test software (incl. aes_test)
+sw/tests/            — Test software (hello, uart, i2c, pio, pio_sdk, pio_i2c, relu, vmac, sg_dma, softmax, aes, conv1d)
 ```
 
 ## License
