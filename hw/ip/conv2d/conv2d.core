@@ -1,0 +1,19 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:conv2d"
+description: "2D Convolution Engine with DMA (INT8 input, INT32 output, 3x3 kernel)"
+filesets:
+  rtl:
+    files:
+      - rtl/line_buffer.sv
+      - rtl/conv2d_pe.sv
+      - rtl/addr_gen.sv
+      - rtl/conv2d.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - rtl
