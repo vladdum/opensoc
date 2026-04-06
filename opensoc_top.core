@@ -177,6 +177,28 @@ targets:
       - EnableConv1d
       - EnableConv2d
 
+  synth:
+    filesets:
+      - files_rtl_base
+      - enable_relu ? (files_relu)
+      - enable_vmac ? (files_vmac)
+      - enable_sgdma ? (files_sgdma)
+      - enable_softmax ? (files_softmax)
+      - enable_conv1d ? (files_conv1d)
+      - enable_conv2d ? (files_conv2d)
+    toplevel: opensoc_top
+    default_tool: verilator
+    parameters:
+      - EnableReLU
+      - EnableVMAC
+      - EnableSgDma
+      - EnableSoftmax
+      - EnableConv1d
+      - EnableConv2d
+    tools:
+      verilator:
+        mode: lint-only
+
   lint:
     <<: *default_target
     default_tool: verilator

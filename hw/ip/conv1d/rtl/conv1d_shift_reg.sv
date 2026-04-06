@@ -12,7 +12,7 @@
  *
  * Synchronous clear (clr_i) zeroes all stages in one cycle (used by SOFT_RESET).
  */
-module shift_reg #(
+module conv1d_shift_reg #(
   parameter int unsigned DEPTH = 16,
   parameter int unsigned WIDTH = 8
 ) (

@@ -9,6 +9,7 @@ WAVES  ?=
 FLOW   ?= fpga-arty
 VIVADO ?= vivado
 TOP    ?= opensoc_top_lean
+JOBS   ?= $(shell nproc)
 
 CORES_ROOT_BASE := --cores-root=. \
                    --cores-root=hw/ip/ibex \
@@ -78,6 +79,7 @@ SIM_DIR        := build/opensoc_soc_$(TOP)_0/sim-verilator
 RUN_SIM_DIR    := build/opensoc_soc_opensoc_top_0/sim-verilator
 
 SYNTH_SRC_DIR_ARTY := build/opensoc_fpga_arty_a7_0/synth-vivado/src
+SYNTH_SRC_DIR_ASIC := build/opensoc_soc_opensoc_top_0/synth-verilator/src
 
 # ── Per-test registry ─────────────────────────────────────────────────────────
 
@@ -213,8 +215,8 @@ REGTEST_DIR := $(SIM_DIR)/regression
 # Top-level regression: build sim if needed, build all SW in parallel, run all sims in parallel
 .PHONY: regression
 regression: $(SIM_DIR)/Vopensoc_top_wrapper
-	$(MAKE) $(addprefix _reg-sw-,$(REGRESSION_TESTS))
-	$(MAKE) -j -k $(addprefix _reg-run-,$(REGRESSION_TESTS)); true
+	$(MAKE) -j$(JOBS) $(addprefix _reg-sw-,$(REGRESSION_TESTS))
+	$(MAKE) -j$(JOBS) -k $(addprefix _reg-run-,$(REGRESSION_TESTS)); true
 	@echo ""
 	@echo "=== Regression Summary ==="
 	@pass=0; fail=0; \
@@ -274,7 +276,7 @@ build:
 	    echo "[build] $$(( (_now - _build_start) / 60 ))m elapsed..."; \
 	  done ) & \
 	_timer_pid=$$!; \
-	$(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build $(FUSESOC_FLAGS) $(BUILD_CORE_$(TOP)) $(FUSESOC_DEFINES); \
+	MAKEFLAGS="-j$(JOBS)" $(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build $(FUSESOC_FLAGS) $(BUILD_CORE_$(TOP)) $(FUSESOC_DEFINES); \
 	kill $$_timer_pid 2>/dev/null; wait $$_timer_pid 2>/dev/null; \
 	_build_end=$$(date +%s); \
 	_elapsed=$$(( _build_end - _build_start )); \
@@ -330,19 +332,41 @@ run-conv2d:
 
 # ── Synthesis ─────────────────────────────────────────────────────────────────
 
-.PHONY: synth synth-setup-arty
+.PHONY: synth synth-setup-arty synth-setup-asic
 synth:
 ifeq ($(FLOW),fpga-arty)
 	$(MAKE) synth-setup-arty
 	$(VIVADO) -mode batch -source hw/fpga/arty_a7/synth.tcl
 else ifeq ($(FLOW),yosys)
+	$(MAKE) synth-setup-asic
 	bash hw/asic/synth.sh
 else ifeq ($(FLOW),ol2)
-	$(MAKE) synth-setup-arty
+	$(MAKE) synth-setup-asic
 	bash hw/asic/openlane2/run.sh
 else
 	$(error Unknown FLOW=$(FLOW). Use: fpga-arty, ol2, or yosys)
 endif
+
+synth-setup-asic:
+	@if [ -d "$(SYNTH_SRC_DIR_ASIC)" ]; then \
+	  echo "synth-setup-asic: $(SYNTH_SRC_DIR_ASIC) exists, skipping (use 'make clean' to force)"; \
+	else \
+	  LOCK=build/.synth-setup-asic.lock; \
+	  mkdir -p build; \
+	  exec 9>"$$LOCK"; \
+	  flock 9; \
+	  if [ -d "$(SYNTH_SRC_DIR_ASIC)" ]; then \
+	    echo "synth-setup-asic: completed by another process, skipping"; \
+	  else \
+	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup \
+	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
+	      --flag enable_conv1d --flag enable_conv2d \
+	      opensoc:soc:opensoc_top \
+	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
+	      --EnableConv1d 1 --EnableConv2d 1; \
+	  fi; \
+	  exec 9>&-; \
+	fi
 
 synth-setup-arty:
 	@if [ -d "$(SYNTH_SRC_DIR_ARTY)" ]; then \
@@ -355,9 +379,11 @@ synth-setup-arty:
 	  if [ -d "$(SYNTH_SRC_DIR_ARTY)" ]; then \
 	    echo "synth-setup-arty: completed by another process, skipping"; \
 	  else \
-	    $(FUSESOC) $(CORES_ROOT) run --target=synth --setup opensoc:fpga:arty_a7 \
+	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup opensoc:fpga:arty_a7 \
+	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
+	      --flag enable_conv1d --flag enable_conv2d \
 	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	      --EnableCrypto 1 --EnableConv1d 1; \
+	      --EnableConv1d 1 --EnableConv2d 1; \
 	  fi; \
 	  exec 9>&-; \
 	fi

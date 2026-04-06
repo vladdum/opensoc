@@ -138,7 +138,7 @@ module conv1d (
   // shift_clr:  assert on SOFT_RESET
   assign shift_clr  = soft_reset;
 
-  shift_reg #(
+  conv1d_shift_reg #(
     .DEPTH ( MAX_KERNEL ),
     .WIDTH ( 8          )
   ) u_shift_reg (

@@ -14,6 +14,7 @@ filesets:
       - "opensoc:ip:pio"
       - "opensoc:ip:i2c_controller"
       - "opensoc:ip:uart"
+      - "opensoc:ip:ram"
     files:
       - hw/top/opensoc_config_pkg.sv
       - hw/top/opensoc_derived_config_pkg.sv

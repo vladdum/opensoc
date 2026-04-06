@@ -84,6 +84,13 @@ opensoc_ip_relu_accel_0/rtl/*.sv
 opensoc_ip_sg_dma_0/rtl/*.sv
 opensoc_ip_softmax_0/rtl/*.sv
 opensoc_ip_vec_mac_0/rtl/*.sv
+opensoc_ip_conv1d_0/rtl/conv1d_shift_reg.sv
+opensoc_ip_conv1d_0/rtl/conv1d_pe.sv
+opensoc_ip_conv1d_0/rtl/conv1d.sv
+opensoc_ip_conv2d_0/rtl/line_buffer.sv
+opensoc_ip_conv2d_0/rtl/conv2d_pe.sv
+opensoc_ip_conv2d_0/rtl/addr_gen.sv
+opensoc_ip_conv2d_0/rtl/conv2d.sv
 opensoc_ip_ram_0/rtl/opensoc_ram.sv
 opensoc_soc_opensoc_top_0/hw/top/opensoc_top.sv
 opensoc_ip_uart_0/rtl/uart.sv
