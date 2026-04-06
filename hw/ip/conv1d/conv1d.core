@@ -7,7 +7,7 @@ description: "1D Convolution Engine with DMA (INT8 input, INT32 output)"
 filesets:
   rtl:
     files:
-      - rtl/shift_reg.sv
+      - rtl/conv1d_shift_reg.sv
       - rtl/conv1d_pe.sv
       - rtl/conv1d.sv
     file_type: systemVerilogSource

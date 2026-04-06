@@ -12,14 +12,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SRC_DIR="$REPO_ROOT/build/opensoc_fpga_arty_a7_0/synth-vivado/src"
+SRC_DIR="$REPO_ROOT/build/opensoc_soc_opensoc_top_0/synth-verilator/src"
 OUT_DIR="$REPO_ROOT/build/yosys"
 FILELIST="$REPO_ROOT/hw/synth/sources.f"
 
 mkdir -p "$OUT_DIR"
 
 if [ ! -d "$SRC_DIR" ]; then
-    echo "ERROR: Source directory not found. Run 'make synth-setup-arty' first."
+    echo "ERROR: Source directory not found. Run 'make synth-setup-asic' first."
     exit 1
 fi
 
@@ -62,7 +62,8 @@ DEFINES=(
     -DEnableVMAC=1
     -DEnableSgDma=1
     -DEnableSoftmax=1
-    -DEnableCrypto=1
+    -DEnableConv1d=1
+    -DEnableConv2d=1
 )
 
 # ============================================================================
