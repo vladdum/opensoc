@@ -64,6 +64,7 @@ module opensoc_top
   logic softmax_irq;
   logic conv1d_irq;
   logic conv2d_irq;
+  logic gemm_irq;
   logic [14:0] ibex_irq_fast;
 
   // -------------------------------------------------------------------------
@@ -310,7 +311,7 @@ module opensoc_top
 `endif
     );
 
-    assign ibex_irq_fast = {6'b0, conv2d_irq, conv1d_irq, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
+    assign ibex_irq_fast = {5'b0, gemm_irq, conv2d_irq, conv1d_irq, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
 
   // -------------------------------------------------------------------------
   // AXI bridges: Ibex memory ports → AXI (axi_from_mem)
@@ -1007,6 +1008,65 @@ module opensoc_top
     );
   end else begin : gen_no_conv2d
     assign conv2d_irq = 1'b0;
+  end
+
+  // -------------------------------------------------------------------------
+  // GEMM Accelerator (DMA bridge + instance)
+  // -------------------------------------------------------------------------
+  if (EnableGemm) begin : gen_gemm
+    logic        gemm_dma_req,   gemm_dma_we,   gemm_dma_gnt,  gemm_dma_rvalid, gemm_dma_err;
+    logic [31:0] gemm_dma_addr,  gemm_dma_wdata, gemm_dma_rdata;
+    logic [3:0]  gemm_dma_be;
+
+    axi_from_mem #(
+      .MemAddrWidth ( 32            ),
+      .AxiAddrWidth ( AxiAddrWidth  ),
+      .DataWidth    ( AxiDataWidth  ),
+      .MaxRequests  ( 2             ),
+      .AxiProt      ( 3'b000        ),
+      .axi_req_t    ( axi_in_req_t  ),
+      .axi_rsp_t    ( axi_in_resp_t )
+    ) u_axi_from_mem_gemm_dma (
+      .clk_i           (clk_sys                         ),
+      .rst_ni          (rst_sys_n                       ),
+      .mem_req_i       (gemm_dma_req                    ),
+      .mem_addr_i      (gemm_dma_addr                   ),
+      .mem_we_i        (gemm_dma_we                     ),
+      .mem_wdata_i     (gemm_dma_wdata                  ),
+      .mem_be_i        (gemm_dma_be                     ),
+      .mem_gnt_o       (gemm_dma_gnt                    ),
+      .mem_rsp_valid_o (gemm_dma_rvalid                 ),
+      .mem_rsp_rdata_o (gemm_dma_rdata                  ),
+      .mem_rsp_error_o (gemm_dma_err                    ),
+      .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE       ),
+      .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE       ),
+      .axi_req_o       (xbar_slv_req[GemmDmaMstIdx]     ),
+      .axi_rsp_i       (xbar_slv_resp[GemmDmaMstIdx]    )
+    );
+
+    gemm u_gemm (
+      .clk_i         (clk_sys                 ),
+      .rst_ni        (rst_sys_n               ),
+      .ctrl_req_i    (mem_req[GemmSlvIdx]     ),
+      .ctrl_addr_i   (mem_addr[GemmSlvIdx]    ),
+      .ctrl_we_i     (mem_we[GemmSlvIdx]      ),
+      .ctrl_be_i     (mem_strb[GemmSlvIdx]    ),
+      .ctrl_wdata_i  (mem_wdata[GemmSlvIdx]   ),
+      .ctrl_rvalid_o (mem_rvalid[GemmSlvIdx]  ),
+      .ctrl_rdata_o  (mem_rdata[GemmSlvIdx]   ),
+      .dma_req_o     (gemm_dma_req            ),
+      .dma_addr_o    (gemm_dma_addr           ),
+      .dma_we_o      (gemm_dma_we             ),
+      .dma_wdata_o   (gemm_dma_wdata          ),
+      .dma_be_o      (gemm_dma_be             ),
+      .dma_gnt_i     (gemm_dma_gnt            ),
+      .dma_rvalid_i  (gemm_dma_rvalid         ),
+      .dma_rdata_i   (gemm_dma_rdata          ),
+      .dma_err_i     (gemm_dma_err            ),
+      .irq_o         (gemm_irq                )
+    );
+  end else begin : gen_no_gemm
+    assign gemm_irq = 1'b0;
   end
 
 endmodule

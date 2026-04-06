@@ -21,7 +21,9 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── vec_mac             — INT8 vector MAC accelerator with DMA (hw/ip/vec_mac/) [optional]
 ├── sg_dma              — Scatter-gather DMA engine (hw/ip/sg_dma/) [optional]
 ├── softmax             — Softmax pipeline accelerator with DMA (hw/ip/softmax/) [optional]
-└── conv1d              — 1D convolution engine with DMA (hw/ip/conv1d/) [optional]
+├── conv1d              — 1D convolution engine with DMA (hw/ip/conv1d/) [optional]
+├── conv2d              — 2D convolution engine with DMA (hw/ip/conv2d/) [optional]
+└── gemm                — 8×8 systolic array GEMM accelerator with DMA (hw/ip/gemm/) [optional]
 ```
 
 ### Memory Map
@@ -40,6 +42,8 @@ opensoc_top (hw/top/opensoc_top.sv)
 | Softmax        | `0x40080000`   | 1 kB  | fast[6]    |
 | Conv1d         | `0x40090000`   | 1 kB  | fast[7]    |
 | Crypto (AES)   | `0x400A0000`   | 4 kB  | —          |
+| Conv2d         | `0x400B0000`   | 1 kB  | fast[8]    |
+| GEMM           | `0x400C0000`   | 1 kB  | fast[9]    |
 
 Register definitions for all peripherals: [`sw/include/opensoc_regs.h`](sw/include/opensoc_regs.h)
 
@@ -183,6 +187,8 @@ Available tests:
 | `run-softmax` | Softmax: uniform, one-hot, accuracy vs. C reference |
 | `run-aes` | AES-128 ECB encrypt/decrypt with NIST FIPS-197 test vector |
 | `run-conv1d` | 1D convolution: FIR filter and same-padding mode verify |
+| `run-conv2d` | 2D convolution: 3×3 kernel on 8×8, 16×16, 32×32 images |
+| `run-gemm` | GEMM systolic array: 4×4, 8×8 matmul, identity, zero matrix |
 | `run-dual-uart` | Two-SoC UART handshake and 8-round data exchange |
 | `run-i2c-loopback` | I2C master + PIO slave: write, read, clock stretching |
 
@@ -294,6 +300,8 @@ hw/ip/vec_mac/       — Vector MAC accelerator IP (INT8 dot product)
 hw/ip/sg_dma/        — Scatter-gather DMA engine IP
 hw/ip/softmax/       — Softmax pipeline IP (3-pass, exp LUT)
 hw/ip/conv1d/        — 1D convolution engine IP (shift register + parallel PE)
+hw/ip/conv2d/        — 2D convolution engine IP (line buffer + 3×3 PE + addr gen)
+hw/ip/gemm/          — 8×8 systolic array GEMM IP (pe_cell, data_skew, systolic_array, result_drain)
 hw/ip/ram/           — Technology-dispatch RAM wrapper (XPM/FPGA, sky130 stub/ASIC, ram_1p/sim)
 hw/ip/opentitan_aes/ — OpenTitan AES block (direct RTL, not a submodule)
 hw/fpga/arty_a7/     — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth.tcl
@@ -306,7 +314,7 @@ dv/sim/              — Makefile for building/running module testbenches
 sw/common/           — Shared SW support files (link.ld, simple_system_regs.h, crt0.S)
 sw/lib/              — Pico SDK-compatible PIO library (header-only)
 sw/include/          — Shared headers (opensoc_regs.h)
-sw/tests/            — Test software (hello, uart, i2c, pio, pio_sdk, pio_i2c, relu, vmac, sg_dma, softmax, aes, conv1d)
+sw/tests/            — Test software (hello, uart, i2c, pio, pio_sdk, pio_i2c, relu, vmac, sg_dma, softmax, aes, conv1d, conv2d, gemm)
 ```
 
 ## License

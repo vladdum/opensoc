@@ -92,6 +92,9 @@ package opensoc_config_pkg;
 `ifndef EnableConv2d
   `define EnableConv2d  1'b0
 `endif
+`ifndef EnableGemm
+  `define EnableGemm    1'b0
+`endif
   localparam bit EnableReLU    = `EnableReLU;
   localparam bit EnableVMAC    = `EnableVMAC;
   localparam bit EnableSgDma   = `EnableSgDma;
@@ -99,6 +102,7 @@ package opensoc_config_pkg;
   localparam bit EnableCrypto  = `EnableCrypto;
   localparam bit EnableConv1d  = `EnableConv1d;
   localparam bit EnableConv2d  = `EnableConv2d;
+  localparam bit EnableGemm    = `EnableGemm;
 
   // -------------------------------------------------------------------------
   // AXI crossbar latency mode

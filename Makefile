@@ -26,7 +26,8 @@ CORES_ROOT_ACCELS := --cores-root=hw/ip/relu_accel \
                      --cores-root=hw/ip/softmax \
                      --cores-root=hw/ip/opentitan_aes \
                      --cores-root=hw/ip/conv1d \
-                     --cores-root=hw/ip/conv2d
+                     --cores-root=hw/ip/conv2d \
+                     --cores-root=hw/ip/gemm
 
 ifeq ($(TOP),opensoc_top_lean)
 CORES_ROOT := $(CORES_ROOT_BASE)
@@ -42,6 +43,7 @@ ENABLE_SOFTMAX ?= 0
 ENABLE_CRYPTO  ?= 0
 ENABLE_CONV1D  ?= 0
 ENABLE_CONV2D  ?= 0
+ENABLE_GEMM    ?= 0
 
 ifneq ($(TOP),opensoc_top_lean)
 FUSESOC_FLAGS := \
@@ -51,7 +53,8 @@ FUSESOC_FLAGS := \
   $(if $(filter 1,$(ENABLE_SOFTMAX)),--flag enable_softmax,) \
   $(if $(filter 1,$(ENABLE_CRYPTO)),--flag enable_crypto,) \
   $(if $(filter 1,$(ENABLE_CONV1D)),--flag enable_conv1d,) \
-  $(if $(filter 1,$(ENABLE_CONV2D)),--flag enable_conv2d,)
+  $(if $(filter 1,$(ENABLE_CONV2D)),--flag enable_conv2d,) \
+  $(if $(filter 1,$(ENABLE_GEMM)),--flag enable_gemm,)
 
 FUSESOC_DEFINES := \
   --EnableReLU $(ENABLE_RELU) \
@@ -60,7 +63,8 @@ FUSESOC_DEFINES := \
   --EnableSoftmax $(ENABLE_SOFTMAX) \
   --EnableCrypto $(ENABLE_CRYPTO) \
   --EnableConv1d $(ENABLE_CONV1D) \
-  --EnableConv2d $(ENABLE_CONV2D)
+  --EnableConv2d $(ENABLE_CONV2D) \
+  --EnableGemm $(ENABLE_GEMM)
 endif
 
 SW_ARCH  := rv32imc_zicsr_zifencei
@@ -96,6 +100,7 @@ SW_DIR_softmax     := $(SW_TEST_DIR)/softmax_test
 SW_DIR_aes         := $(SW_TEST_DIR)/aes_test
 SW_DIR_conv1d      := $(SW_TEST_DIR)/conv1d_test
 SW_DIR_conv2d      := $(SW_TEST_DIR)/conv2d_test
+SW_DIR_gemm        := $(SW_TEST_DIR)/gemm_test
 SW_DIR_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test
 
 SW_BUILD_DIR := build/sw
@@ -113,6 +118,7 @@ ELF_softmax      := $(SW_BUILD_DIR)/softmax_test/softmax_test.elf
 ELF_aes          := $(SW_BUILD_DIR)/aes_test/aes_test.elf
 ELF_conv1d       := $(SW_BUILD_DIR)/conv1d_test/conv1d_test.elf
 ELF_conv2d       := $(SW_BUILD_DIR)/conv2d_test/conv2d_test.elf
+ELF_gemm         := $(SW_BUILD_DIR)/gemm_test/gemm_test.elf
 ELF_i2c-loopback := $(SW_BUILD_DIR)/i2c_loopback_test/i2c_loopback_test.elf
 
 # ── Simulator top registry ────────────────────────────────────────────────────
@@ -152,6 +158,7 @@ help:
 	@echo "  run-aes          AES-128 ECB encrypt/decrypt with NIST test vector"
 	@echo "  run-conv1d       1D convolution: FIR filter and same-padding mode verify"
 	@echo "  run-conv2d       2D convolution: 3x3 kernel on 8x8, 16x16, 32x32 images"
+	@echo "  run-gemm         GEMM systolic array: 4x4, 8x8 matmul, identity, saturation"
 	@echo "  run-i2c-loopback I2C master + PIO slave: write, read, clock stretching"
 	@echo ""
 	@echo "Synthesis"
@@ -173,6 +180,7 @@ help:
 	@echo "  ENABLE_CRYPTO=1             Include crypto cluster (OpenTitan AES)"
 	@echo "  ENABLE_CONV1D=1             Include 1D convolution engine"
 	@echo "  ENABLE_CONV2D=1             Include 2D convolution engine"
+	@echo "  ENABLE_GEMM=1               Include GEMM systolic array accelerator"
 	@echo "  TRACE=1                     Enable FST waveform dump"
 	@echo "  WAVES=1                     Enable waveform dump and open GTKWave"
 	@echo "  CXX='ccache g++'            Use ccache (default if ccache installed)"
@@ -197,15 +205,16 @@ REGRESSION_TESTS := $(REGRESSION_BASE) \
                     $(if $(filter 1,$(ENABLE_SOFTMAX)),softmax) \
 
 # Full set — all IPs enabled; used by regression-full and CI
-REGRESSION_FULL_TESTS := $(REGRESSION_BASE) relu vmac sg-dma softmax aes conv1d conv2d
+REGRESSION_FULL_TESTS := $(REGRESSION_BASE) relu vmac sg-dma softmax aes conv1d conv2d gemm
 FULL_FLAGS := TOP=opensoc_top \
               ENABLE_RELU=1 ENABLE_VMAC=1 ENABLE_SGDMA=1 ENABLE_SOFTMAX=1 ENABLE_CRYPTO=1 \
-              ENABLE_CONV1D=1 ENABLE_CONV2D=1
+              ENABLE_CONV1D=1 ENABLE_CONV2D=1 ENABLE_GEMM=1
 
 # Per-IP regression entries (conditioned on ENABLE_* flags)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CRYPTO)),aes)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV1D)),conv1d)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV2D)),conv2d)
+REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_GEMM)),gemm)
 
 # Per-test extra simulator flags (empty unless overridden)
 SIM_FLAGS_i2c-loopback := -c 500000
@@ -258,10 +267,10 @@ _reg-run-%: FORCE
 lint:
 	$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=lint \
 	    --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
-	    --flag enable_crypto --flag enable_conv1d --flag enable_conv2d \
+	    --flag enable_crypto --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
 	    opensoc:soc:opensoc_top \
 	    --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	    --EnableCrypto 1 --EnableConv1d 1 --EnableConv2d 1
+	    --EnableCrypto 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1
 
 # ── Simulator build ───────────────────────────────────────────────────────────
 
@@ -330,6 +339,15 @@ run-conv2d:
 	@cat $(RUN_SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
 
+.PHONY: run-gemm
+run-gemm:
+	$(MAKE) -C $(SW_DIR_gemm) ARCH=$(SW_ARCH)
+	cd $(RUN_SIM_DIR) && \
+	  ./Vopensoc_top_wrapper --meminit=ram,$(CURDIR)/$(ELF_gemm) $(SIM_TRACE_FLAGS)
+	@echo "--- GEMM output ---"
+	@cat $(RUN_SIM_DIR)/opensoc_top.log
+	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
+
 # ── Synthesis ─────────────────────────────────────────────────────────────────
 
 .PHONY: synth synth-setup-arty synth-setup-asic
@@ -360,10 +378,10 @@ synth-setup-asic:
 	  else \
 	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup \
 	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
-	      --flag enable_conv1d --flag enable_conv2d \
+	      --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
 	      opensoc:soc:opensoc_top \
 	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	      --EnableConv1d 1 --EnableConv2d 1; \
+	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1; \
 	  fi; \
 	  exec 9>&-; \
 	fi
@@ -381,9 +399,9 @@ synth-setup-arty:
 	  else \
 	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup opensoc:fpga:arty_a7 \
 	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
-	      --flag enable_conv1d --flag enable_conv2d \
+	      --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
 	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	      --EnableConv1d 1 --EnableConv2d 1; \
+	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1; \
 	  fi; \
 	  exec 9>&-; \
 	fi

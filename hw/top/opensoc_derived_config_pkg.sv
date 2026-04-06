@@ -57,6 +57,7 @@ package opensoc_derived_config_pkg;
   localparam bit            EnableCrypto     = opensoc_config_pkg::EnableCrypto;
   localparam bit            EnableConv1d     = opensoc_config_pkg::EnableConv1d;
   localparam bit            EnableConv2d     = opensoc_config_pkg::EnableConv2d;
+  localparam bit            EnableGemm       = opensoc_config_pkg::EnableGemm;
   localparam xbar_latency_e XbarLatencyMode  = opensoc_config_pkg::XbarLatencyMode;
 
   // -------------------------------------------------------------------------
@@ -77,7 +78,8 @@ package opensoc_derived_config_pkg;
   // -------------------------------------------------------------------------
   localparam int unsigned NumAccel   = 32'(EnableReLU) + 32'(EnableVMAC)
                                      + 32'(EnableSgDma) + 32'(EnableSoftmax)
-                                     + 32'(EnableConv1d) + 32'(EnableConv2d);
+                                     + 32'(EnableConv1d) + 32'(EnableConv2d)
+                                     + 32'(EnableGemm);
   localparam int unsigned NumMasters = 3 + NumAccel;  // instr + data + PIO DMA + accel DMAs
   // RAM + SimCtrl + Timer + UART + PIO + I2C + [Crypto] + accel ctrls
   localparam int unsigned NumSlaves  = 6 + 32'(EnableCrypto) + NumAccel;
@@ -96,6 +98,9 @@ package opensoc_derived_config_pkg;
   localparam int unsigned Conv2dDmaMstIdx  = 2 + 32'(EnableReLU) + 32'(EnableVMAC)
                                            + 32'(EnableSgDma) + 32'(EnableSoftmax)
                                            + 32'(EnableConv1d);
+  localparam int unsigned GemmDmaMstIdx   = 2 + 32'(EnableReLU) + 32'(EnableVMAC)
+                                           + 32'(EnableSgDma) + 32'(EnableSoftmax)
+                                           + 32'(EnableConv1d) + 32'(EnableConv2d);
 
   // -------------------------------------------------------------------------
   // Slave port indices: 0=RAM, 1=SimCtrl, 2=Timer, 3=UART, 4=PIO, 5=I2C,
@@ -112,6 +117,10 @@ package opensoc_derived_config_pkg;
   localparam int unsigned Conv2dSlvIdx     = 6 + 32'(EnableCrypto) + 32'(EnableReLU)
                                            + 32'(EnableVMAC) + 32'(EnableSgDma)
                                            + 32'(EnableSoftmax) + 32'(EnableConv1d);
+  localparam int unsigned GemmSlvIdx      = 6 + 32'(EnableCrypto) + 32'(EnableReLU)
+                                           + 32'(EnableVMAC) + 32'(EnableSgDma)
+                                           + 32'(EnableSoftmax) + 32'(EnableConv1d)
+                                           + 32'(EnableConv2d);
 
   // -------------------------------------------------------------------------
   // AXI bus widths
@@ -181,6 +190,7 @@ package opensoc_derived_config_pkg;
     if (EnableSoftmax) begin map[r] = '{ idx: r, start_addr: 32'h4008_0000, end_addr: 32'h4008_0400 }; r = r + 1; end
     if (EnableConv1d)  begin map[r] = '{ idx: r, start_addr: 32'h4009_0000, end_addr: 32'h4009_0400 }; r = r + 1; end
     if (EnableConv2d)  begin map[r] = '{ idx: r, start_addr: 32'h400B_0000, end_addr: 32'h400B_0400 }; r = r + 1; end
+    if (EnableGemm)    begin map[r] = '{ idx: r, start_addr: 32'h400C_0000, end_addr: 32'h400C_0400 }; r = r + 1; end
     return map;
   endfunction
 
