@@ -15,6 +15,7 @@ The accelerator reads the input signal from DRAM via a DMA master port, passes e
 - **Two padding modes** — valid-only (output shorter than input) and zero-pad/same (output same length as input)
 - **INT8 inputs, INT32 outputs** — each output element is the sum of up to 16 signed 16-bit products
 - **DMA master port** — reads input samples and writes output elements via AXI crossbar
+- **AXI-Stream output port** — in stream mode, results are forwarded directly to a downstream accelerator without a DRAM round-trip
 
 Base address: `0x40090000` (1 kB window). IRQ: `irq_fast_i[7]`.
 
@@ -101,6 +102,25 @@ IDLE ─────────────────► RD_REQ
            RD_REQ           IDLE (DONE)
 ```
 
+**Stream mode** (`CTRL[2]=1`): the `WR_REQ`/`WR_WAIT` states are bypassed. After each PE result is captured the FSM enters `STREAM_OUT`, drives the AXI-Stream output, and waits for `m_axis_tready` before advancing to the next read or returning to IDLE.
+
+```
+              GO (stream mode)
+IDLE ──────────────────► RD_REQ
+                            │
+                          gnt
+                            ▼
+                         RD_WAIT
+                            │ rvalid + kernel full
+                            ▼
+                        STREAM_OUT  ◄── holds until m_axis_tready
+                            │
+                  last element?
+                    ┌──yes──┴──no──┐
+                    ▼              ▼
+                   IDLE          RD_REQ
+```
+
 **Causal zero-pad mode (same):** before the first real read, `KERNEL_SIZE-1` virtual-zero samples are pre-counted in the fill counter, so the first output is produced immediately after the first real read. The pre-fill does not generate DMA reads. The output formula is:
 
 ```
@@ -148,6 +168,7 @@ Base address: `0x40090000`.
 |-----|------|-------------|
 | 0 | GO | Start convolution. Sampled on the rising edge; ignored if BUSY. |
 | 1 | SOFT_RESET | Clears BUSY and DONE, resets shift register and FSM to IDLE. |
+| 2 | STREAM_MODE | When set, results are emitted via AXI-Stream output instead of being written back to DRAM. DST_ADDR is unused. |
 
 GO is not self-clearing in hardware — software must not hold it asserted across multiple operations.
 
@@ -199,6 +220,58 @@ irq_o = done & ier
 ```
 
 Level-sensitive. DONE persists until the next GO or SOFT_RESET. Clear DONE implicitly by writing GO for the next operation.
+
+## Stream Mode
+
+Conv1D can forward its results directly to a downstream accelerator over a hardwired AXI-Stream connection, eliminating the DRAM write/read round-trip between stages.
+
+### AXI-Stream Output Port
+
+| Signal | Direction | Description |
+|--------|-----------|-------------|
+| `m_axis_tvalid_o` | Output | High when a result beat is available (FSM in `STREAM_OUT`). |
+| `m_axis_tready_i` | Input | Asserted by the downstream consumer to accept the beat. |
+| `m_axis_tdata_o` | Output | INT32 convolution result (same value that would be written to DRAM in DMA mode). |
+| `m_axis_tlast_o` | Output | High on the last beat of the sequence. |
+
+### Wiring in `opensoc_top.sv`
+
+The `conv1d_to_relu_*` signals connect Conv1D's stream output to ReLU's stream input (Config 1 pipeline):
+
+```systemverilog
+// Config 1: Conv1D → ReLU
+conv1d_to_relu_tvalid  ←  u_conv1d.m_axis_tvalid_o
+conv1d_to_relu_tready  →  u_conv1d.m_axis_tready_i
+conv1d_to_relu_tdata   ←  u_conv1d.m_axis_tdata_o
+conv1d_to_relu_tlast   ←  u_conv1d.m_axis_tlast_o
+```
+
+### Software Sequence (Config 1: Conv1D → ReLU)
+
+```c
+// 1. Configure Conv1D in stream mode
+for (int i = 0; i < ksize; i++)
+    DEV_WRITE(CONV1D_KERNEL_W(i), weights[i]);
+DEV_WRITE(CONV1D_KERNEL_SIZE,  ksize);
+DEV_WRITE(CONV1D_PADDING_MODE, CONV1D_PAD_VALID);
+DEV_WRITE(CONV1D_SRC_ADDR,     (uint32_t)input);
+DEV_WRITE(CONV1D_LENGTH,       in_len);
+// DST_ADDR unused in stream mode
+
+// 2. Configure ReLU in stream mode
+DEV_WRITE(RELU_DST_ADDR, (uint32_t)output);
+DEV_WRITE(RELU_LEN,      out_len);   // LENGTH - KERNEL_SIZE + 1
+
+// 3. GO: ReLU first (waits for stream), then Conv1D
+DEV_WRITE(RELU_CTRL,   RELU_CTRL_GO | RELU_CTRL_STREAM_MODE);
+DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_GO | CONV1D_CTRL_STREAM_MODE);
+
+// 4. Poll ReLU DONE
+while (!(DEV_READ(RELU_STATUS, 0) & RELU_STATUS_DONE))
+    ;
+```
+
+ReLU must receive GO before Conv1D starts producing beats, so that its `STREAM_IN` state is ready to accept the first valid beat without stalling.
 
 ## Programming Guide
 
@@ -272,6 +345,7 @@ From `sw/include/opensoc_regs.h`:
 
 #define CONV1D_CTRL_GO           0x1
 #define CONV1D_CTRL_SOFT_RESET   0x2
+#define CONV1D_CTRL_STREAM_MODE  0x4
 
 #define CONV1D_STATUS_BUSY       0x1
 #define CONV1D_STATUS_DONE       0x2

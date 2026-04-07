@@ -100,11 +100,11 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── uart                   — UART TX/RX with 8-deep FIFOs (0x40020000)
 ├── pio                    — Programmable I/O: 4 state machines, 32-instr shared memory, GPIO compat (0x40030000)
 ├── i2c_controller         — I2C master controller (0x40040000)
-├── relu_accel             — ReLU accelerator with DMA (0x40050000) [optional]
+├── relu_accel             — ReLU accelerator with DMA + AXI-Stream input (0x40050000) [optional]
 ├── vec_mac                — INT8 vector MAC accelerator with DMA (0x40060000) [optional]
 ├── sg_dma                 — Scatter-gather DMA engine (0x40070000) [optional]
 ├── softmax                — Softmax pipeline with DMA (0x40080000) [optional]
-├── conv1d                 — 1D convolution engine with DMA (0x40090000) [optional]
+├── conv1d                 — 1D convolution engine with DMA + AXI-Stream output (0x40090000) [optional]
 ├── conv2d                 — 2D convolution engine with DMA (0x400A0000) [optional]
 ├── gemm                   — 8×8 systolic array GEMM accelerator with DMA (0x400B0000) [optional]
 └── crypto_cluster         — AES-128/192/256 crypto accelerator via OpenTitan AES (0x40100000)
@@ -131,11 +131,11 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
 - `hw/ip/common_cells/` — PULP common_cells submodule (required by pulp_axi)
 - `hw/ip/pulp_obi/` — PULP OBI submodule (for future use)
 - `hw/ip/pio/` — Programmable I/O block (4 SMs, GPIO compat, DMA)
-- `hw/ip/relu_accel/` — ReLU accelerator IP
+- `hw/ip/relu_accel/` — ReLU accelerator IP (dma_accel_core framework: DMA + AXI-Stream input)
 - `hw/ip/vec_mac/` — Vector MAC accelerator IP
 - `hw/ip/sg_dma/` — Scatter-gather DMA engine IP
 - `hw/ip/softmax/` — Softmax pipeline IP
-- `hw/ip/conv1d/` — 1D convolution engine IP (shift register + PE)
+- `hw/ip/conv1d/` — 1D convolution engine IP (shift register + PE + AXI-Stream output)
 - `hw/ip/conv2d/` — 2D convolution engine IP (line buffer + 3×3 PE + addr gen)
 - `hw/ip/gemm/` — 8×8 systolic array GEMM IP (pe_cell, data_skew, systolic_array, result_drain)
 - `hw/ip/ram/` — Technology-dispatch RAM wrapper (`opensoc_ram.sv`)
@@ -160,7 +160,7 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
   - `hardware_pio_compat.h` — OpenSoC-specific glue (`hw_set_bits`, `clock_get_hz`, GPIO stubs)
   - `pio_programs/i2c.pio.h` — PIO I2C TX program (pioasm-format header with init/write helpers)
 - `sw/common/` — Shared SW support files (`link.ld`, `simple_system_regs.h`, `common.mk`, `crt0.S`)
-- `sw/tests/` — Test software (hello, uart, i2c, pio, pio_sdk, pio_i2c, i2c_loopback, relu, vmac, sg_dma, softmax, aes, conv1d, conv2d, gemm)
+- `sw/tests/` — Test software (hello, uart, i2c, pio, pio_sdk, pio_i2c, i2c_loopback, relu, vmac, sg_dma, softmax, aes, conv1d, conv1d_relu_stream, conv2d, gemm)
 
 ## FuseSoC Core Dependencies
 
