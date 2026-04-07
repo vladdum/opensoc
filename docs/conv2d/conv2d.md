@@ -17,7 +17,7 @@ The accelerator reads the input image from DRAM row by row via a DMA master port
 - **DMA master port** — reads input pixels and writes output pixels via AXI crossbar
 - **Maximum image size** — 64×64 pixels (configurable at synthesis via `MAX_IMG_WIDTH`)
 
-Base address: `0x400B0000` (1 kB window). IRQ: `irq_fast_i[8]`.
+Base address: `0x400A0000` (1 kB window). IRQ: `irq_fast_i[8]`.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ conv2d.sv (control registers + DMA FSM)
 
 ### SoC Integration
 
-- **Slave port**: crossbar slave index `Conv2dSlvIdx` (with all accelerators enabled), address `0x400B0000`
+- **Slave port**: crossbar slave index `Conv2dSlvIdx` (with all accelerators enabled), address `0x400A0000`
 - **Master port**: crossbar master index `Conv2dDmaMstIdx` (before PIO DMA), via `axi_from_mem` bridge
 - **IRQ**: `irq_fast_i[8]`, level-sensitive (`done & ier`)
 
@@ -148,7 +148,7 @@ IDLE ──────────────────► FILL_RD_REQ
 
 ## Register Map
 
-Base address: `0x400B0000`.
+Base address: `0x400A0000`.
 
 | Offset | Name | Access | Description |
 |--------|------|--------|-------------|
@@ -295,7 +295,7 @@ DEV_WRITE(CONV2D_CTRL, CONV2D_CTRL_SOFT_RESET);
 From `sw/include/opensoc_regs.h`:
 
 ```c
-#define CONV2D_BASE          0x400B0000UL
+#define CONV2D_BASE          0x400A0000UL
 
 #define CONV2D_CTRL          (CONV2D_BASE + 0x00)
 #define CONV2D_STATUS        (CONV2D_BASE + 0x04)

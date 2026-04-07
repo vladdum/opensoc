@@ -100,21 +100,21 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── uart                   — UART TX/RX with 8-deep FIFOs (0x40020000)
 ├── pio                    — Programmable I/O: 4 state machines, 32-instr shared memory, GPIO compat (0x40030000)
 ├── i2c_controller         — I2C master controller (0x40040000)
-├── crypto_cluster         — AES-128/192/256 crypto accelerator via OpenTitan AES (0x400A0000)
 ├── relu_accel             — ReLU accelerator with DMA (0x40050000) [optional]
 ├── vec_mac                — INT8 vector MAC accelerator with DMA (0x40060000) [optional]
 ├── sg_dma                 — Scatter-gather DMA engine (0x40070000) [optional]
 ├── softmax                — Softmax pipeline with DMA (0x40080000) [optional]
 ├── conv1d                 — 1D convolution engine with DMA (0x40090000) [optional]
-├── conv2d                 — 2D convolution engine with DMA (0x400B0000) [optional]
-└── gemm                   — 8×8 systolic array GEMM accelerator with DMA (0x400C0000) [optional]
+├── conv2d                 — 2D convolution engine with DMA (0x400A0000) [optional]
+├── gemm                   — 8×8 systolic array GEMM accelerator with DMA (0x400B0000) [optional]
+└── crypto_cluster         — AES-128/192/256 crypto accelerator via OpenTitan AES (0x40100000)
 ```
 
 `opensoc_top` has **no module parameters** — all configuration comes from `opensoc_derived_config_pkg` (imported via wildcard). `opensoc_config_pkg` is the single unified config (512 KB RAM, all 7 accels + crypto, `CUT_ALL_PORTS`) used for both ASIC and FPGA targets.
 
 Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`, `EnableConv1d`, `EnableConv2d`, `EnableGemm`, `EnableCrypto`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
 
-Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x40000000, Timer at 0x40010000, UART at 0x40020000, PIO at 0x40030000, I2C at 0x40040000, ReLU at 0x40050000, VMAC at 0x40060000, SG DMA at 0x40070000, Softmax at 0x40080000, Conv1d at 0x40090000, Crypto (AES) at 0x400A0000, Conv2d at 0x400B0000, GEMM at 0x400C0000. Boot address is 0x20000080.
+Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x40000000, Timer at 0x40010000, UART at 0x40020000, PIO at 0x40030000, I2C at 0x40040000, ReLU at 0x40050000, VMAC at 0x40060000, SG DMA at 0x40070000, Softmax at 0x40080000, Conv1d at 0x40090000, Conv2d at 0x400A0000, GEMM at 0x400B0000, Crypto (AES) at 0x40100000. Boot address is 0x20000080.
 
 ## Repository Structure
 
