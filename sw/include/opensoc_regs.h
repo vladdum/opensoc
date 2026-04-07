@@ -170,9 +170,10 @@
 #define RELU_STATUS     (RELU_BASE + 0x10)
 #define RELU_IER        (RELU_BASE + 0x14)
 
-#define RELU_CTRL_GO        0x1
-#define RELU_STATUS_BUSY    0x1
-#define RELU_STATUS_DONE    0x2
+#define RELU_CTRL_GO          0x1
+#define RELU_CTRL_STREAM_MODE 0x4
+#define RELU_STATUS_BUSY      0x1
+#define RELU_STATUS_DONE      0x2
 
 // ---------------------------------------------------------------------------
 // Vector MAC Accelerator (0x80000)
@@ -239,8 +240,9 @@
 #define CONV1D_PADDING_MODE (CONV1D_BASE + 0x1C)
 #define CONV1D_KERNEL_W(n)  (CONV1D_BASE + 0x20 + (n) * 4)
 
-#define CONV1D_CTRL_GO          0x1
-#define CONV1D_CTRL_SOFT_RESET  0x2
+#define CONV1D_CTRL_GO           0x1
+#define CONV1D_CTRL_SOFT_RESET   0x2
+#define CONV1D_CTRL_STREAM_MODE  0x4
 
 #define CONV1D_STATUS_BUSY  0x1
 #define CONV1D_STATUS_DONE  0x2

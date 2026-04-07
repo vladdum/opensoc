@@ -15,15 +15,22 @@
  * combinational processing function between proc_data_o and proc_result_i.
  *
  * Control registers (offset from base):
- *   0x00  SRC_ADDR  - Source address in RAM (R/W)
+ *   0x00  SRC_ADDR  - Source address in RAM (R/W, DMA mode only)
  *   0x04  DST_ADDR  - Destination address in RAM (R/W)
  *   0x08  LEN       - Number of 32-bit words to process (R/W)
  *   0x0C  CTRL      - [0] GO: write 1 to start (W, ignored if busy)
+ *                     [2] STREAM_MODE: 1=accept input from AXI-Stream
  *   0x10  STATUS    - [0] BUSY, [1] DONE (R)
  *   0x14  IER       - [0] Done interrupt enable (R/W)
  *
  * DMA interface uses the same memory-port protocol as Ibex (req/gnt/rvalid),
  * bridged to AXI via axi_from_mem in the top level.
+ *
+ * Stream mode (CTRL[2]=1):
+ *   Skips the DMA read phase. Instead, waits for data on s_axis_* and applies
+ *   the processing function to each incoming beat, writing results to DST_ADDR
+ *   via DMA as normal. LEN must match the number of beats the upstream producer
+ *   will send.
  */
 module dma_accel_core (
   input  logic        clk_i,
@@ -49,8 +56,14 @@ module dma_accel_core (
   input  logic [31:0] dma_rdata_i,
   input  logic        dma_err_i,
 
+  // AXI-Stream input (stream mode only, ignored in DMA mode)
+  input  logic        s_axis_tvalid_i,
+  output logic        s_axis_tready_o,
+  input  logic [31:0] s_axis_tdata_i,
+  input  logic        s_axis_tlast_i,
+
   // Processing interface (combinational)
-  output logic [31:0] proc_data_o,    // data read from memory
+  output logic [31:0] proc_data_o,    // data read from memory or stream
   input  logic [31:0] proc_result_i,  // processed result to write back
 
   // Interrupt
@@ -72,6 +85,7 @@ module dma_accel_core (
   // ---------------------------------------------------------------------------
   logic [31:0] src_addr_q, dst_addr_q, len_q;
   logic        ier_done_q;
+  logic        mode_q;   // 0=DMA, 1=Stream
 
   // ---------------------------------------------------------------------------
   // Status flags
@@ -91,6 +105,7 @@ module dma_accel_core (
     IDLE,
     RD_REQ,
     RD_WAIT,
+    STREAM_IN,
     WR_REQ,
     WR_WAIT
   } state_e;
@@ -108,8 +123,11 @@ module dma_accel_core (
   // DMA byte enables: always full-word
   assign dma_be_o = 4'b1111;
 
-  // Processing interface: expose read data for external function
-  assign proc_data_o = dma_rdata_i;
+  // Stream ready: accept beats only when waiting in STREAM_IN
+  assign s_axis_tready_o = (state_q == STREAM_IN);
+
+  // Processing interface: data comes from DMA read or stream beat
+  assign proc_data_o = (state_q == STREAM_IN) ? s_axis_tdata_i : dma_rdata_i;
 
   // ---------------------------------------------------------------------------
   // Control register read path
@@ -126,7 +144,7 @@ module dma_accel_core (
           REG_SRC_ADDR: ctrl_rdata_o <= src_addr_q;
           REG_DST_ADDR: ctrl_rdata_o <= dst_addr_q;
           REG_LEN:      ctrl_rdata_o <= len_q;
-          REG_CTRL:     ctrl_rdata_o <= 32'd0;
+          REG_CTRL:     ctrl_rdata_o <= {29'd0, mode_q, 2'b00};
           REG_STATUS:   ctrl_rdata_o <= {30'd0, done_q, busy_q};
           REG_IER:      ctrl_rdata_o <= {31'd0, ier_done_q};
           default:      ctrl_rdata_o <= 32'd0;
@@ -144,11 +162,13 @@ module dma_accel_core (
       dst_addr_q <= 32'd0;
       len_q      <= 32'd0;
       ier_done_q <= 1'b0;
+      mode_q     <= 1'b0;
     end else if (ctrl_req_i && ctrl_we_i) begin
       case (ctrl_addr_i[9:0])
         REG_SRC_ADDR: src_addr_q <= ctrl_wdata_i;
         REG_DST_ADDR: dst_addr_q <= ctrl_wdata_i;
         REG_LEN:      len_q      <= ctrl_wdata_i;
+        REG_CTRL:     mode_q     <= ctrl_wdata_i[2];
         REG_IER:      ier_done_q <= ctrl_wdata_i[0];
         default: ;
       endcase
@@ -167,7 +187,10 @@ module dma_accel_core (
 
     case (state_q)
       IDLE: begin
-        if (go && len_q != 32'd0) state_d = RD_REQ;
+        if (go && len_q != 32'd0)
+          // Use incoming write data directly: mode_q hasn't clocked in yet
+          // when go fires (both come from the same register write).
+          state_d = ctrl_wdata_i[2] ? STREAM_IN : RD_REQ;
       end
 
       RD_REQ: begin
@@ -180,6 +203,11 @@ module dma_accel_core (
         if (dma_rvalid_i) state_d = WR_REQ;
       end
 
+      STREAM_IN: begin
+        // Wait for a valid beat from the upstream producer
+        if (s_axis_tvalid_i) state_d = WR_REQ;
+      end
+
       WR_REQ: begin
         dma_req_o   = 1'b1;
         dma_addr_o  = cur_dst_q;
@@ -190,7 +218,8 @@ module dma_accel_core (
 
       WR_WAIT: begin
         if (dma_rvalid_i) begin
-          state_d = (remaining_q == 32'd1) ? IDLE : RD_REQ;
+          state_d = (remaining_q == 32'd1) ? IDLE
+                  : (mode_q ? STREAM_IN : RD_REQ);
         end
       end
 
@@ -222,13 +251,18 @@ module dma_accel_core (
             cur_dst_q   <= dst_addr_q;
             remaining_q <= len_q;
           end else if (go) begin
-            // len == 0: immediately done, no DMA
             done_q <= 1'b1;
           end
         end
 
         RD_WAIT: begin
           if (dma_rvalid_i) begin
+            proc_result_q <= proc_result_i;
+          end
+        end
+
+        STREAM_IN: begin
+          if (s_axis_tvalid_i) begin
             proc_result_q <= proc_result_i;
           end
         end

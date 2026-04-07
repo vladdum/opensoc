@@ -75,7 +75,6 @@ SIM_TRACE_FLAGS := $(if $(or $(TRACE),$(WAVES)),--trace,)
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 SW_DIR         := hw/ip/ibex/examples/sw/simple_system
-SW_TEST_DIR    := sw/tests
 
 SIM_DIR        := build/opensoc_soc_$(TOP)_0/sim-verilator
 
@@ -85,41 +84,12 @@ RUN_SIM_DIR    := build/opensoc_soc_opensoc_top_0/sim-verilator
 SYNTH_SRC_DIR_ARTY := build/opensoc_fpga_arty_a7_0/synth-vivado/src
 SYNTH_SRC_DIR_ASIC := build/opensoc_soc_opensoc_top_0/synth-verilator/src
 
-# ── Per-test registry ─────────────────────────────────────────────────────────
+# ── Per-test registry (sw/tests/tests.mk) ────────────────────────────────────
+# Single source of truth for all SW test metadata (SW_TEST_DIR, SW_BUILD_DIR,
+# SW_DIR_*, ELF_*, SIM_FLAGS_*, REGRESSION_TESTS, RUN_TESTS). Edit that file
+# to add or remove tests.
 
-SW_DIR_hello   := $(SW_TEST_DIR)/hello_test
-SW_DIR_uart    := $(SW_TEST_DIR)/uart_test
-SW_DIR_pio     := $(SW_TEST_DIR)/pio_test
-SW_DIR_pio-sdk := $(SW_TEST_DIR)/pio_sdk_test
-SW_DIR_pio-i2c := $(SW_TEST_DIR)/pio_i2c_test
-SW_DIR_i2c     := $(SW_TEST_DIR)/i2c_test
-SW_DIR_relu    := $(SW_TEST_DIR)/relu_test
-SW_DIR_vmac    := $(SW_TEST_DIR)/vmac_test
-SW_DIR_sg-dma      := $(SW_TEST_DIR)/sg_dma_test
-SW_DIR_softmax     := $(SW_TEST_DIR)/softmax_test
-SW_DIR_aes         := $(SW_TEST_DIR)/aes_test
-SW_DIR_conv1d      := $(SW_TEST_DIR)/conv1d_test
-SW_DIR_conv2d      := $(SW_TEST_DIR)/conv2d_test
-SW_DIR_gemm        := $(SW_TEST_DIR)/gemm_test
-SW_DIR_i2c-loopback := $(SW_TEST_DIR)/i2c_loopback_test
-
-SW_BUILD_DIR := build/sw
-
-ELF_hello        := $(SW_BUILD_DIR)/hello_test/hello_test.elf
-ELF_uart         := $(SW_BUILD_DIR)/uart_test/uart_test.elf
-ELF_pio          := $(SW_BUILD_DIR)/pio_test/pio_test.elf
-ELF_pio-sdk      := $(SW_BUILD_DIR)/pio_sdk_test/pio_sdk_test.elf
-ELF_pio-i2c      := $(SW_BUILD_DIR)/pio_i2c_test/pio_i2c_test.elf
-ELF_i2c          := $(SW_BUILD_DIR)/i2c_test/i2c_test.elf
-ELF_relu         := $(SW_BUILD_DIR)/relu_test/relu_test.elf
-ELF_vmac         := $(SW_BUILD_DIR)/vmac_test/vmac_test.elf
-ELF_sg-dma       := $(SW_BUILD_DIR)/sg_dma_test/sg_dma_test.elf
-ELF_softmax      := $(SW_BUILD_DIR)/softmax_test/softmax_test.elf
-ELF_aes          := $(SW_BUILD_DIR)/aes_test/aes_test.elf
-ELF_conv1d       := $(SW_BUILD_DIR)/conv1d_test/conv1d_test.elf
-ELF_conv2d       := $(SW_BUILD_DIR)/conv2d_test/conv2d_test.elf
-ELF_gemm         := $(SW_BUILD_DIR)/gemm_test/gemm_test.elf
-ELF_i2c-loopback := $(SW_BUILD_DIR)/i2c_loopback_test/i2c_loopback_test.elf
+include sw/tests/tests.mk
 
 # ── Simulator top registry ────────────────────────────────────────────────────
 
@@ -157,6 +127,7 @@ help:
 	@echo "  run-softmax      Softmax: uniform, one-hot, accuracy vs. C reference"
 	@echo "  run-aes          AES-128 ECB encrypt/decrypt with NIST test vector"
 	@echo "  run-conv1d       1D convolution: FIR filter and same-padding mode verify"
+	@echo "  run-conv1d-relu-stream  Conv1D→ReLU stream pipeline: end-to-end and throughput"
 	@echo "  run-conv2d       2D convolution: 3x3 kernel on 8x8, 16x16, 32x32 images"
 	@echo "  run-gemm         GEMM systolic array: 4x4, 8x8 matmul, identity, saturation"
 	@echo "  run-i2c-loopback I2C master + PIO slave: write, read, clock stretching"
@@ -192,32 +163,12 @@ clean:
 	rm -rf build
 
 # ── Regression ────────────────────────────────────────────────────────────────
+# REGRESSION_TESTS, REGRESSION_FULL_TESTS, and RUN_TESTS are defined in
+# sw/tests/tests.mk (included above).
 
-# Base tests always run regardless of which IPs are enabled
-REGRESSION_BASE := hello uart pio pio-sdk pio-i2c i2c
-
-# IP tests: included when the corresponding ENABLE_* flag is set
-# i2c-loopback excluded pending fix — see issue #14
-REGRESSION_TESTS := $(REGRESSION_BASE) \
-                    $(if $(filter 1,$(ENABLE_RELU)),relu) \
-                    $(if $(filter 1,$(ENABLE_VMAC)),vmac) \
-                    $(if $(filter 1,$(ENABLE_SGDMA)),sg-dma) \
-                    $(if $(filter 1,$(ENABLE_SOFTMAX)),softmax) \
-
-# Full set — all IPs enabled; used by regression-full and CI
-REGRESSION_FULL_TESTS := $(REGRESSION_BASE) relu vmac sg-dma softmax aes conv1d conv2d gemm
 FULL_FLAGS := TOP=opensoc_top \
               ENABLE_RELU=1 ENABLE_VMAC=1 ENABLE_SGDMA=1 ENABLE_SOFTMAX=1 ENABLE_CRYPTO=1 \
               ENABLE_CONV1D=1 ENABLE_CONV2D=1 ENABLE_GEMM=1
-
-# Per-IP regression entries (conditioned on ENABLE_* flags)
-REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CRYPTO)),aes)
-REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV1D)),conv1d)
-REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV2D)),conv2d)
-REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_GEMM)),gemm)
-
-# Per-test extra simulator flags (empty unless overridden)
-SIM_FLAGS_i2c-loopback := -c 500000
 
 REGTEST_DIR := $(SIM_DIR)/regression
 
@@ -295,56 +246,14 @@ build:
 
 # Standard run targets — static pattern rule so each target is explicit
 # (visible to bash completion) while sharing a single recipe.
-RUN_TESTS := hello uart pio pio-sdk pio-i2c i2c relu vmac sg-dma softmax conv1d
+# RUN_TESTS is defined in sw/tests/tests.mk.
 
 .PHONY: $(addprefix run-,$(RUN_TESTS))
 $(addprefix run-,$(RUN_TESTS)): run-%:
 	$(MAKE) -C $(SW_DIR_$*) ARCH=$(SW_ARCH)
 	cd $(RUN_SIM_DIR) && \
-	  ./Vopensoc_top_wrapper --meminit=ram,$(CURDIR)/$(ELF_$*) $(SIM_TRACE_FLAGS)
+	  ./Vopensoc_top_wrapper --meminit=ram,$(CURDIR)/$(ELF_$*) $(SIM_FLAGS_$*) $(SIM_TRACE_FLAGS)
 	@echo "--- Program output ---"
-	@cat $(RUN_SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-# Explicit overrides for tests that need non-default run flags
-.PHONY: run-aes
-run-aes:
-	$(MAKE) -C $(SW_TEST_DIR)/aes_test ARCH=$(SW_ARCH)
-	cd $(RUN_SIM_DIR) && \
-	  ./Vopensoc_top_wrapper \
-	    --meminit=ram,$(CURDIR)/$(ELF_aes) \
-	    $(SIM_TRACE_FLAGS)
-	@echo "--- AES output ---"
-	@cat $(RUN_SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: run-i2c-loopback
-run-i2c-loopback:
-	$(MAKE) -C $(SW_TEST_DIR)/i2c_loopback_test ARCH=$(SW_ARCH)
-	cd $(RUN_SIM_DIR) && \
-	  ./Vopensoc_top_wrapper \
-	    --meminit=ram,$(CURDIR)/$(ELF_i2c-loopback) \
-	    -c 500000 \
-	    $(SIM_TRACE_FLAGS)
-	@echo "--- I2C Loopback output ---"
-	@cat $(RUN_SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst &,)
-
-.PHONY: run-conv2d
-run-conv2d:
-	$(MAKE) -C $(SW_DIR_conv2d) ARCH=$(SW_ARCH)
-	cd $(RUN_SIM_DIR) && \
-	  ./Vopensoc_top_wrapper --meminit=ram,$(CURDIR)/$(ELF_conv2d) $(SIM_TRACE_FLAGS)
-	@echo "--- Conv2D output ---"
-	@cat $(RUN_SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
-
-.PHONY: run-gemm
-run-gemm:
-	$(MAKE) -C $(SW_DIR_gemm) ARCH=$(SW_ARCH)
-	cd $(RUN_SIM_DIR) && \
-	  ./Vopensoc_top_wrapper --meminit=ram,$(CURDIR)/$(ELF_gemm) $(SIM_TRACE_FLAGS)
-	@echo "--- GEMM output ---"
 	@cat $(RUN_SIM_DIR)/opensoc_top.log
 	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
 

@@ -17,11 +17,11 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── pio                 — Programmable I/O: 4 state machines, GPIO compat, DMA (hw/ip/pio/)
 ├── i2c_controller      — I2C master controller
 ├── crypto_cluster      — AES-128/192/256 crypto accelerator (OpenTitan AES, hw/ip/opentitan_aes/)
-├── relu_accel          — ReLU accelerator with DMA (hw/ip/relu_accel/) [optional]
+├── relu_accel          — ReLU accelerator with DMA + AXI-Stream input (hw/ip/relu_accel/) [optional]
 ├── vec_mac             — INT8 vector MAC accelerator with DMA (hw/ip/vec_mac/) [optional]
 ├── sg_dma              — Scatter-gather DMA engine (hw/ip/sg_dma/) [optional]
 ├── softmax             — Softmax pipeline accelerator with DMA (hw/ip/softmax/) [optional]
-├── conv1d              — 1D convolution engine with DMA (hw/ip/conv1d/) [optional]
+├── conv1d              — 1D convolution engine with DMA + AXI-Stream output (hw/ip/conv1d/) [optional]
 ├── conv2d              — 2D convolution engine with DMA (hw/ip/conv2d/) [optional]
 └── gemm                — 8×8 systolic array GEMM accelerator with DMA (hw/ip/gemm/) [optional]
 ```
@@ -187,6 +187,7 @@ Available tests:
 | `run-softmax` | Softmax: uniform, one-hot, accuracy vs. C reference |
 | `run-aes` | AES-128 ECB encrypt/decrypt with NIST FIPS-197 test vector |
 | `run-conv1d` | 1D convolution: 3/5/7-tap FIR, causal same-pad, identity, throughput |
+| `run-conv1d-relu-stream` | Conv1D→ReLU AXI-Stream pipeline: end-to-end correctness and throughput vs two-pass DMA |
 | `run-conv2d` | 2D convolution: 3×3 on 8×8/16×16/32×32, valid/same modes, throughput |
 | `run-gemm` | GEMM systolic array: 4×4, 8×8, non-square, im2col+GEMM, utilization |
 | `run-dual-uart` | Two-SoC UART handshake and 8-round data exchange |
@@ -314,7 +315,7 @@ dv/sim/              — Makefile for building/running module testbenches
 sw/common/           — Shared SW support files (link.ld, simple_system_regs.h, crt0.S)
 sw/lib/              — Pico SDK-compatible PIO library (header-only)
 sw/include/          — Shared headers (opensoc_regs.h)
-sw/tests/            — Test software (hello, uart, i2c, pio, pio_sdk, pio_i2c, relu, vmac, sg_dma, softmax, aes, conv1d, conv2d, gemm)
+sw/tests/            — Test software (hello, uart, i2c, pio, pio_sdk, pio_i2c, relu, vmac, sg_dma, softmax, aes, conv1d, conv1d_relu_stream, conv2d, gemm)
 ```
 
 ## License

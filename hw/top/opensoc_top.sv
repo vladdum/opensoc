@@ -68,6 +68,14 @@ module opensoc_top
   logic [14:0] ibex_irq_fast;
 
   // -------------------------------------------------------------------------
+  // Config 1 stream interconnect: Conv1D → ReLU
+  // -------------------------------------------------------------------------
+  logic        conv1d_to_relu_tvalid;
+  logic        conv1d_to_relu_tready;
+  logic [31:0] conv1d_to_relu_tdata;
+  logic        conv1d_to_relu_tlast;
+
+  // -------------------------------------------------------------------------
   // Ibex instruction-fetch signals
   // -------------------------------------------------------------------------
   logic        instr_req;
@@ -708,11 +716,16 @@ module opensoc_top
       .dma_gnt_i     (relu_dma_gnt          ),
       .dma_rvalid_i  (relu_dma_rvalid       ),
       .dma_rdata_i   (relu_dma_rdata        ),
-      .dma_err_i     (relu_dma_err          ),
-      .irq_o         (relu_irq              )
+      .dma_err_i       (relu_dma_err              ),
+      .s_axis_tvalid_i (conv1d_to_relu_tvalid    ),
+      .s_axis_tready_o (conv1d_to_relu_tready    ),
+      .s_axis_tdata_i  (conv1d_to_relu_tdata     ),
+      .s_axis_tlast_i  (conv1d_to_relu_tlast     ),
+      .irq_o           (relu_irq                 )
     );
   end else begin : gen_no_relu
-    assign relu_irq = 1'b0;
+    assign relu_irq              = 1'b0;
+    assign conv1d_to_relu_tready = 1'b0;
   end
 
   // -------------------------------------------------------------------------
@@ -944,11 +957,18 @@ module opensoc_top
       .dma_gnt_i     (conv1d_dma_gnt           ),
       .dma_rvalid_i  (conv1d_dma_rvalid        ),
       .dma_rdata_i   (conv1d_dma_rdata         ),
-      .dma_err_i     (conv1d_dma_err           ),
-      .irq_o         (conv1d_irq               )
+      .dma_err_i       (conv1d_dma_err              ),
+      .m_axis_tvalid_o (conv1d_to_relu_tvalid      ),
+      .m_axis_tready_i (conv1d_to_relu_tready      ),
+      .m_axis_tdata_o  (conv1d_to_relu_tdata       ),
+      .m_axis_tlast_o  (conv1d_to_relu_tlast       ),
+      .irq_o           (conv1d_irq                 )
     );
   end else begin : gen_no_conv1d
-    assign conv1d_irq = 1'b0;
+    assign conv1d_irq             = 1'b0;
+    assign conv1d_to_relu_tvalid  = 1'b0;
+    assign conv1d_to_relu_tdata   = 32'd0;
+    assign conv1d_to_relu_tlast   = 1'b0;
   end
 
   // -------------------------------------------------------------------------
