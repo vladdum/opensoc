@@ -16,10 +16,10 @@
  * Memory: each INT8 pixel in one 32-bit word (bits [7:0]); outputs are INT32.
  *
  * Register map (offsets from base):
- *   0x00 CTRL         W    [0]=GO, [1]=SOFT_RESET
+ *   0x00 CTRL         W    [0]=GO, [1]=SOFT_RESET, [2]=STREAM_MODE
  *   0x04 STATUS       R    [0]=BUSY, [1]=DONE
  *   0x08 SRC_ADDR    R/W
- *   0x0C DST_ADDR    R/W
+ *   0x0C DST_ADDR    R/W   (unused in stream mode)
  *   0x10 (reserved)
  *   0x14 IER         R/W   [0] IRQ enable
  *   0x18 IMG_WIDTH   R/W   ≤ 64
@@ -27,6 +27,10 @@
  *   0x20 KERNEL_SIZE R/W   always 3 in practice
  *   0x24 PADDING_MODE R/W  [0] zero-pad enable
  *   0x28–0x48 KERNEL_W[0..8] R/W  INT8 weights, row-major top-left→bottom-right
+ *
+ * Stream mode (CTRL[2]=1):
+ *   Reads input from DMA as normal, but instead of writing results back to
+ *   DRAM, outputs each result via AXI-Stream (m_axis_*). DST_ADDR is unused.
  */
 module conv2d (
   input  logic        clk_i,
@@ -51,6 +55,12 @@ module conv2d (
   input  logic        dma_rvalid_i,
   input  logic [31:0] dma_rdata_i,
   input  logic        dma_err_i,
+
+  // AXI-Stream output (stream mode only, idle in DMA mode)
+  output logic        m_axis_tvalid_o,
+  input  logic        m_axis_tready_i,
+  output logic [31:0] m_axis_tdata_o,
+  output logic        m_axis_tlast_o,
 
   // Interrupt
   output logic        irq_o
@@ -77,6 +87,7 @@ module conv2d (
   // -------------------------------------------------------------------------
   logic [31:0]       src_addr_q, dst_addr_q;
   logic              ier_done_q;
+  logic              stream_mode_q;  // 0=DMA write, 1=AXI-Stream output
   logic [31:0]       img_width_q, img_height_q;
   logic [31:0]       kernel_size_q;
   logic              zero_pad_q;
@@ -97,7 +108,8 @@ module conv2d (
     SLIDE_RD_REQ,
     SLIDE_RD_WAIT,
     SLIDE_WR_REQ,
-    SLIDE_WR_WAIT
+    SLIDE_WR_WAIT,
+    STREAM_OUT
   } state_e;
   state_e state_q, state_d;
 
@@ -125,6 +137,11 @@ module conv2d (
 
   assign irq_o  = done_q & ier_done_q;
   assign dma_be_o = 4'b1111;
+
+  // AXI-Stream output: driven from STREAM_OUT state
+  assign m_axis_tvalid_o = (state_q == STREAM_OUT);
+  assign m_axis_tdata_o  = pe_result_q;
+  assign m_axis_tlast_o  = (state_q == STREAM_OUT) & (wr_remaining_q == 32'd1);
 
   // -------------------------------------------------------------------------
   // At-GO combinational: derived counts
@@ -276,6 +293,7 @@ module conv2d (
       src_addr_q    <= 32'd0;
       dst_addr_q    <= 32'd0;
       ier_done_q    <= 1'b0;
+      stream_mode_q <= 1'b0;
       img_width_q   <= 32'd8;
       img_height_q  <= 32'd8;
       kernel_size_q <= 32'd3;
@@ -286,6 +304,7 @@ module conv2d (
         REG_SRC_ADDR:   src_addr_q    <= ctrl_wdata_i;
         REG_DST_ADDR:   dst_addr_q    <= ctrl_wdata_i;
         REG_IER:        ier_done_q    <= ctrl_wdata_i[0];
+        REG_CTRL:       stream_mode_q <= ctrl_wdata_i[2];
         REG_IMG_WIDTH:  img_width_q   <= ctrl_wdata_i;
         REG_IMG_HEIGHT: img_height_q  <= ctrl_wdata_i;
         REG_KERNEL_SIZE: kernel_size_q <= ctrl_wdata_i;
@@ -386,11 +405,16 @@ module conv2d (
       end
 
       SLIDE_WR_REQ: begin
-        dma_req_o   = 1'b1;
-        dma_addr_o  = cur_dst_q;
-        dma_we_o    = 1'b1;
-        dma_wdata_o = pe_result_q;
-        if (dma_gnt_i) state_d = SLIDE_WR_WAIT;
+        if (stream_mode_q) begin
+          // In stream mode go directly to STREAM_OUT (skip DMA write)
+          state_d = STREAM_OUT;
+        end else begin
+          dma_req_o   = 1'b1;
+          dma_addr_o  = cur_dst_q;
+          dma_we_o    = 1'b1;
+          dma_wdata_o = pe_result_q;
+          if (dma_gnt_i) state_d = SLIDE_WR_WAIT;
+        end
       end
 
       SLIDE_WR_WAIT: begin
@@ -401,6 +425,21 @@ module conv2d (
             state_d = SLIDE_RD_REQ;
           end else if (cur_row_q < row_end_q) begin
             state_d = SLIDE_RD_REQ;  // sequential block handles row advance
+          end else begin
+            state_d = IDLE;
+          end
+        end
+      end
+
+      STREAM_OUT: begin
+        // Wait for downstream consumer to accept the beat
+        if (m_axis_tready_i) begin
+          if (wr_remaining_q == 32'd1) begin
+            state_d = IDLE;
+          end else if (cur_col_q < col_end_q) begin
+            state_d = SLIDE_RD_REQ;
+          end else if (cur_row_q < row_end_q) begin
+            state_d = SLIDE_RD_REQ;
           end else begin
             state_d = IDLE;
           end
@@ -512,6 +551,25 @@ module conv2d (
               end
             end else begin
               // Last write: go IDLE
+              busy_q <= 1'b0;
+              done_q <= 1'b1;
+            end
+          end
+        end
+
+        STREAM_OUT: begin
+          if (m_axis_tready_i) begin
+            wr_remaining_q <= wr_remaining_q - 32'd1;
+            if (wr_remaining_q != 32'd1) begin
+              if (cur_col_q < col_end_q) begin
+                cur_col_q  <= cur_col_q + 32'd1;
+                skip_dma_q <= zero_pad_q & (cur_col_q + 32'd1 >= img_width_q);
+              end else begin
+                cur_col_q  <= 32'd0;
+                cur_row_q  <= cur_row_q + 32'd1;
+                skip_dma_q <= 1'b0;
+              end
+            end else begin
               busy_q <= 1'b0;
               done_q <= 1'b1;
             end

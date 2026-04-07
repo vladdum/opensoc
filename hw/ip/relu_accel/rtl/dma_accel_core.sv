@@ -19,18 +19,23 @@
  *   0x04  DST_ADDR  - Destination address in RAM (R/W)
  *   0x08  LEN       - Number of 32-bit words to process (R/W)
  *   0x0C  CTRL      - [0] GO: write 1 to start (W, ignored if busy)
- *                     [2] STREAM_MODE: 1=accept input from AXI-Stream
+ *                     [2] STREAM_IN:  1=accept input from AXI-Stream slave
+ *                     [3] STREAM_OUT: 1=emit output to AXI-Stream master
  *   0x10  STATUS    - [0] BUSY, [1] DONE (R)
  *   0x14  IER       - [0] Done interrupt enable (R/W)
  *
  * DMA interface uses the same memory-port protocol as Ibex (req/gnt/rvalid),
  * bridged to AXI via axi_from_mem in the top level.
  *
- * Stream mode (CTRL[2]=1):
+ * Stream input mode (CTRL[2]=1):
  *   Skips the DMA read phase. Instead, waits for data on s_axis_* and applies
  *   the processing function to each incoming beat, writing results to DST_ADDR
  *   via DMA as normal. LEN must match the number of beats the upstream producer
  *   will send.
+ *
+ * Stream output mode (CTRL[3]=1):
+ *   Skips the DMA write phase. Instead, emits processed results on m_axis_*.
+ *   Can be combined with CTRL[2]=1 for full-stream (no DMA at all).
  */
 module dma_accel_core (
   input  logic        clk_i,
@@ -62,6 +67,12 @@ module dma_accel_core (
   input  logic [31:0] s_axis_tdata_i,
   input  logic        s_axis_tlast_i,
 
+  // AXI-Stream master output (stream output mode only, idle otherwise)
+  output logic        m_axis_tvalid_o,
+  input  logic        m_axis_tready_i,
+  output logic [31:0] m_axis_tdata_o,
+  output logic        m_axis_tlast_o,
+
   // Processing interface (combinational)
   output logic [31:0] proc_data_o,    // data read from memory or stream
   input  logic [31:0] proc_result_i,  // processed result to write back
@@ -85,7 +96,8 @@ module dma_accel_core (
   // ---------------------------------------------------------------------------
   logic [31:0] src_addr_q, dst_addr_q, len_q;
   logic        ier_done_q;
-  logic        mode_q;   // 0=DMA, 1=Stream
+  logic        mode_q;      // 0=DMA in, 1=Stream in
+  logic        mode_out_q;  // 0=DMA out, 1=Stream out
 
   // ---------------------------------------------------------------------------
   // Status flags
@@ -107,7 +119,8 @@ module dma_accel_core (
     RD_WAIT,
     STREAM_IN,
     WR_REQ,
-    WR_WAIT
+    WR_WAIT,
+    MAXIS_OUT
   } state_e;
 
   state_e state_q, state_d;
@@ -125,6 +138,11 @@ module dma_accel_core (
 
   // Stream ready: accept beats only when waiting in STREAM_IN
   assign s_axis_tready_o = (state_q == STREAM_IN);
+
+  // AXI-Stream master output: driven from MAXIS_OUT state
+  assign m_axis_tvalid_o = (state_q == MAXIS_OUT);
+  assign m_axis_tdata_o  = proc_result_q;
+  assign m_axis_tlast_o  = (state_q == MAXIS_OUT) & (remaining_q == 32'd1);
 
   // Processing interface: data comes from DMA read or stream beat
   assign proc_data_o = (state_q == STREAM_IN) ? s_axis_tdata_i : dma_rdata_i;
@@ -144,7 +162,7 @@ module dma_accel_core (
           REG_SRC_ADDR: ctrl_rdata_o <= src_addr_q;
           REG_DST_ADDR: ctrl_rdata_o <= dst_addr_q;
           REG_LEN:      ctrl_rdata_o <= len_q;
-          REG_CTRL:     ctrl_rdata_o <= {29'd0, mode_q, 2'b00};
+          REG_CTRL:     ctrl_rdata_o <= {28'd0, mode_out_q, mode_q, 2'b00};
           REG_STATUS:   ctrl_rdata_o <= {30'd0, done_q, busy_q};
           REG_IER:      ctrl_rdata_o <= {31'd0, ier_done_q};
           default:      ctrl_rdata_o <= 32'd0;
@@ -163,12 +181,16 @@ module dma_accel_core (
       len_q      <= 32'd0;
       ier_done_q <= 1'b0;
       mode_q     <= 1'b0;
+      mode_out_q <= 1'b0;
     end else if (ctrl_req_i && ctrl_we_i) begin
       case (ctrl_addr_i[9:0])
         REG_SRC_ADDR: src_addr_q <= ctrl_wdata_i;
         REG_DST_ADDR: dst_addr_q <= ctrl_wdata_i;
         REG_LEN:      len_q      <= ctrl_wdata_i;
-        REG_CTRL:     mode_q     <= ctrl_wdata_i[2];
+        REG_CTRL:     begin
+          mode_q     <= ctrl_wdata_i[2];
+          mode_out_q <= ctrl_wdata_i[3];
+        end
         REG_IER:      ier_done_q <= ctrl_wdata_i[0];
         default: ;
       endcase
@@ -200,12 +222,12 @@ module dma_accel_core (
       end
 
       RD_WAIT: begin
-        if (dma_rvalid_i) state_d = WR_REQ;
+        if (dma_rvalid_i) state_d = mode_out_q ? MAXIS_OUT : WR_REQ;
       end
 
       STREAM_IN: begin
         // Wait for a valid beat from the upstream producer
-        if (s_axis_tvalid_i) state_d = WR_REQ;
+        if (s_axis_tvalid_i) state_d = mode_out_q ? MAXIS_OUT : WR_REQ;
       end
 
       WR_REQ: begin
@@ -218,6 +240,14 @@ module dma_accel_core (
 
       WR_WAIT: begin
         if (dma_rvalid_i) begin
+          state_d = (remaining_q == 32'd1) ? IDLE
+                  : (mode_q ? STREAM_IN : RD_REQ);
+        end
+      end
+
+      MAXIS_OUT: begin
+        // Emit processed result on AXI-Stream master; hold until accepted
+        if (m_axis_tready_i) begin
           state_d = (remaining_q == 32'd1) ? IDLE
                   : (mode_q ? STREAM_IN : RD_REQ);
         end
@@ -271,6 +301,17 @@ module dma_accel_core (
           if (dma_rvalid_i) begin
             cur_src_q   <= cur_src_q + 32'd4;
             cur_dst_q   <= cur_dst_q + 32'd4;
+            remaining_q <= remaining_q - 32'd1;
+            if (remaining_q == 32'd1) begin
+              busy_q <= 1'b0;
+              done_q <= 1'b1;
+            end
+          end
+        end
+
+        MAXIS_OUT: begin
+          if (m_axis_tready_i) begin
+            cur_src_q   <= cur_src_q + 32'd4;
             remaining_q <= remaining_q - 32'd1;
             if (remaining_q == 32'd1) begin
               busy_q <= 1'b0;

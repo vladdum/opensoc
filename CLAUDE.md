@@ -18,11 +18,24 @@ git worktree remove .claude/worktrees/<name>
 
 If the worktree has changes that should be discarded, use `--force`.
 
+## SW Tests
+
+When creating a new SW test under `sw/tests/`, always update `sw/tests/tests.mk`:
+1. Add `SW_DIR_<slug>` and `ELF_<slug>` entries.
+2. Add the slug to `REGRESSION_TESTS` (with appropriate `ENABLE_*` guards).
+3. Add the slug to `REGRESSION_FULL_TESTS` and `RUN_TESTS`.
+
+Slug convention: underscores in directory names become hyphens (e.g. `conv2d_relu_softmax_stream_test` → `conv2d-relu-softmax-stream`).
+
 ## Git Commits
 
 Do not include `Co-Authored-By` trailers in commit messages.
 
 ## Pull Requests
+
+Do not include any reference to Claude or AI tools in PR titles, bodies, or descriptions (no `🤖 Generated with Claude Code`, no `Co-Authored-By`, no similar footers).
+
+
 
 Before creating any PR:
 
