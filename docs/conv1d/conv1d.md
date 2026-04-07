@@ -137,7 +137,7 @@ Base address: `0x40090000`.
 
 | Offset | Name | Access | Description |
 |--------|------|--------|-------------|
-| 0x00 | CTRL | W | [0] GO, [1] SOFT_RESET |
+| 0x00 | CTRL | W | [0] GO, [1] SOFT_RESET, [2] STREAM_MODE |
 | 0x04 | STATUS | R | [0] BUSY, [1] DONE |
 | 0x08 | SRC_ADDR | R/W | Input signal base address (word-aligned) |
 | 0x0C | DST_ADDR | R/W | Output buffer base address (word-aligned) |

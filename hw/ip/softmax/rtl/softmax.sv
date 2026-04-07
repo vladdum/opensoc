@@ -16,9 +16,9 @@
  *          normalize each element, pack 4 UINT8 results per word, DMA write.
  *
  * Control registers (offset from base):
- *   0x00  CTRL       - [0] GO (W)
+ *   0x00  CTRL       - [0] GO (W), [1] STREAM_IN: 1=accept input from AXI-Stream
  *   0x04  STATUS     - [0] BUSY, [1] DONE (R)
- *   0x08  SRC_ADDR   - Input vector base address (R/W)
+ *   0x08  SRC_ADDR   - Input vector base address (R/W, unused in stream mode)
  *   0x0C  DST_ADDR   - Output vector base address (R/W)
  *   0x10  VEC_LEN    - Number of INT8 elements, 1-256, multiple of 4 (R/W)
  *   0x14  IER        - [0] Done interrupt enable (R/W)
@@ -27,6 +27,10 @@
  *
  * GO while BUSY is silently ignored.
  * VEC_LEN must be a multiple of 4. VEC_LEN=0 produces immediate DONE.
+ *
+ * Stream input mode (CTRL[1]=1):
+ *   Replaces Phase 1 DMA reads with AXI-Stream. Each 32-bit beat carries one
+ *   INT8 element in bits [7:0]. VEC_LEN beats are consumed. SRC_ADDR unused.
  */
 module softmax #(
   parameter int unsigned MaxVecLen = 256
@@ -54,6 +58,12 @@ module softmax #(
   input  logic [31:0] dma_rdata_i,
   input  logic        dma_err_i,
 
+  // AXI-Stream input (stream mode only, ignored in DMA mode)
+  input  logic        s_axis_tvalid_i,
+  output logic        s_axis_tready_o,
+  input  logic [31:0] s_axis_tdata_i,
+  input  logic        s_axis_tlast_i,
+
   // Interrupt
   output logic        irq_o
 );
@@ -76,6 +86,8 @@ module softmax #(
   logic [31:0] src_addr_q, dst_addr_q;
   logic [31:0] vec_len_q;
   logic        ier_done_q;
+  logic        stream_mode_q;    // 0=DMA input, 1=AXI-Stream input
+  logic [31:0] p1_stream_idx_q;  // element index for stream Phase 1
 
   // ---------------------------------------------------------------------------
   // Status flags
@@ -94,6 +106,7 @@ module softmax #(
     IDLE,
     P1_RD_REQ,
     P1_RD_WAIT,
+    P1_STREAM,
     P2_COMPUTE,
     P2_RECIP,
     P3_NORM,
@@ -115,6 +128,9 @@ module softmax #(
   // DMA byte enables: always full-word
   assign dma_be_o = 4'b1111;
 
+  // AXI-Stream slave: accept beats only during P1_STREAM
+  assign s_axis_tready_o = (state_q == P1_STREAM);
+
   // ---------------------------------------------------------------------------
   // Phase 1 working registers
   // ---------------------------------------------------------------------------
@@ -122,7 +138,7 @@ module softmax #(
   logic [31:0] p1_elem_base_q;    // element index base for buffer writes
   logic signed [7:0] max_val_q;   // running max (signed INT8)
 
-  // Phase 1 max update (combinational)
+  // Phase 1 max update (combinational) — DMA path: 4 elements per word
   logic signed [7:0] p1_new_max;
   always_comb begin
     p1_new_max = max_val_q;
@@ -131,6 +147,11 @@ module softmax #(
     if ($signed(dma_rdata_i[23:16]) > p1_new_max) p1_new_max = $signed(dma_rdata_i[23:16]);
     if ($signed(dma_rdata_i[31:24]) > p1_new_max) p1_new_max = $signed(dma_rdata_i[31:24]);
   end
+
+  // Phase 1 max update — stream path: 1 element per beat (bits [7:0])
+  logic signed [7:0] p1_stream_new_max;
+  assign p1_stream_new_max = ($signed(s_axis_tdata_i[7:0]) > $signed(max_val_q))
+                             ? $signed(s_axis_tdata_i[7:0]) : max_val_q;
 
   // ---------------------------------------------------------------------------
   // Phase 2 working registers
@@ -163,6 +184,17 @@ module softmax #(
   // Divisor for comparison (sum, max 65280 = 16 bits)
   logic [16:0] div_sum_ext;
   assign div_sum_ext = {1'b0, sum_q[15:0]};
+
+  // Registered decode of P2_COMPUTE — avoids high-fanout net from state logic
+  // gate to all buffer write-enables. p2_compute_q is in phase with state_q
+  // (both register state_d at the same clock edge) but is driven from a FF Q
+  // output instead of a small AND gate, eliminating the ~42 ns fanout delay.
+  logic p2_compute_q;
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) p2_compute_q <= 1'b0;
+    else         p2_compute_q <= (state_d == P2_COMPUTE);
+  end
 
   // ---------------------------------------------------------------------------
   // Phase 3 working registers
@@ -217,10 +249,10 @@ module softmax #(
   // ---------------------------------------------------------------------------
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      src_addr_q <= 32'd0;
-      dst_addr_q <= 32'd0;
-      vec_len_q  <= 32'd0;
-      ier_done_q <= 1'b0;
+      src_addr_q    <= 32'd0;
+      dst_addr_q    <= 32'd0;
+      vec_len_q     <= 32'd0;
+      ier_done_q    <= 1'b0;
     end else if (ctrl_req_i && ctrl_we_i) begin
       case (ctrl_addr_i[9:0])
         REG_SRC_ADDR: src_addr_q <= ctrl_wdata_i;
@@ -230,6 +262,7 @@ module softmax #(
         default: ;
       endcase
     end
+    // stream_mode_q latched in the IDLE sequential block when GO fires
   end
 
   // ---------------------------------------------------------------------------
@@ -245,9 +278,16 @@ module softmax #(
     case (state_q)
       IDLE: begin
         if (go && vec_len_q != 32'd0) begin
-          state_d = P1_RD_REQ;
+          state_d = ctrl_wdata_i[1] ? P1_STREAM : P1_RD_REQ;
         end
         // VEC_LEN=0: done_q set in sequential block, stay IDLE
+      end
+
+      // -- Phase 1: Stream Read + Max Find (one element per beat) --
+      P1_STREAM: begin
+        if (s_axis_tvalid_i && (p1_stream_idx_q + 32'd1 >= vec_len_q))
+          state_d = P2_COMPUTE;
+        // else: stay in P1_STREAM
       end
 
       // -- Phase 1: DMA Read + Max Find --
@@ -318,6 +358,7 @@ module softmax #(
       done_q         <= 1'b0;
       p1_offset_q    <= 32'd0;
       p1_elem_base_q <= 32'd0;
+      p1_stream_idx_q <= 32'd0;
       max_val_q      <= -8'sd128;
       p2_idx_q       <= 32'd0;
       sum_q          <= 24'd0;
@@ -328,6 +369,7 @@ module softmax #(
       p3_pack_q      <= 2'd0;
       p3_word_q      <= 32'd0;
       p3_offset_q    <= 32'd0;
+      stream_mode_q  <= 1'b0;
     end else begin
       state_q <= state_d;
 
@@ -337,20 +379,33 @@ module softmax #(
           if (go) begin
             done_q <= 1'b0;
             if (vec_len_q != 32'd0) begin
-              busy_q         <= 1'b1;
-              p1_offset_q    <= 32'd0;
-              p1_elem_base_q <= 32'd0;
-              max_val_q      <= -8'sd128;
-              p2_idx_q       <= 32'd0;
-              sum_q          <= 24'd0;
-              p3_idx_q       <= 32'd0;
-              p3_pack_q      <= 2'd0;
-              p3_word_q      <= 32'd0;
-              p3_offset_q    <= 32'd0;
+              busy_q           <= 1'b1;
+              stream_mode_q    <= ctrl_wdata_i[1];
+              p1_offset_q      <= 32'd0;
+              p1_elem_base_q   <= 32'd0;
+              p1_stream_idx_q  <= 32'd0;
+              max_val_q        <= -8'sd128;
+              p2_idx_q         <= 32'd0;
+              sum_q            <= 24'd0;
+              p3_idx_q         <= 32'd0;
+              p3_pack_q        <= 2'd0;
+              p3_word_q        <= 32'd0;
+              p3_offset_q      <= 32'd0;
             end else begin
               // VEC_LEN=0: immediate done
               done_q <= 1'b1;
             end
+          end
+        end
+
+        // ---------------------------------------------------------------
+        // Phase 1 Stream: accept one INT8 element per beat from s_axis
+        // ---------------------------------------------------------------
+        P1_STREAM: begin
+          if (s_axis_tvalid_i) begin
+            buffer[p1_stream_idx_q[$clog2(MaxVecLen)-1:0]] <= s_axis_tdata_i[7:0];
+            max_val_q       <= p1_stream_new_max;
+            p1_stream_idx_q <= p1_stream_idx_q + 32'd1;
           end
         end
 
@@ -374,20 +429,10 @@ module softmax #(
 
         // ---------------------------------------------------------------
         // Phase 2: Exp + Sum (1 element per cycle, internal)
+        // Buffer writes and counter updates are outside the case block,
+        // guarded by p2_compute_q, to avoid the high-fanout state decode.
         // ---------------------------------------------------------------
-        P2_COMPUTE: begin
-          // Read buffer[idx], compute exp(max - val), write back, accumulate
-          buffer[p2_idx_q[$clog2(MaxVecLen)-1:0]] <= core_exp_val;
-          sum_q    <= sum_q + {16'd0, core_exp_val};
-          p2_idx_q <= p2_idx_q + 32'd1;
-
-          // Initialize divider on last element
-          if (p2_idx_q >= vec_len_q - 32'd1) begin
-            div_rem_q  <= 17'd0;
-            div_quot_q <= 17'd0;
-            div_bit_q  <= 5'd16;
-          end
-        end
+        P2_COMPUTE: ; // intentionally empty — see p2_compute_q block below
 
         // ---------------------------------------------------------------
         // Phase 2→3: Sequential restoring divider
@@ -435,6 +480,23 @@ module softmax #(
 
         default: ;
       endcase
+
+      // ---------------------------------------------------------------
+      // Phase 2 buffer writes — guarded by registered state decode
+      // (p2_compute_q) instead of a decoded combinational gate, breaking
+      // the high-fanout path from state_q to all buffer write-enables.
+      // ---------------------------------------------------------------
+      if (p2_compute_q) begin
+        buffer[p2_idx_q[$clog2(MaxVecLen)-1:0]] <= core_exp_val;
+        sum_q    <= sum_q + {16'd0, core_exp_val};
+        p2_idx_q <= p2_idx_q + 32'd1;
+
+        if (p2_idx_q >= vec_len_q - 32'd1) begin
+          div_rem_q  <= 17'd0;
+          div_quot_q <= 17'd0;
+          div_bit_q  <= 5'd16;
+        end
+      end
     end
   end
 

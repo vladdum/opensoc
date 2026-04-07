@@ -76,6 +76,35 @@ module opensoc_top
   logic        conv1d_to_relu_tlast;
 
   // -------------------------------------------------------------------------
+  // Config 2 stream interconnect: Conv2D → ReLU → Softmax
+  // -------------------------------------------------------------------------
+  logic        conv2d_to_relu_tvalid;
+  logic        conv2d_to_relu_tready;
+  logic [31:0] conv2d_to_relu_tdata;
+  logic        conv2d_to_relu_tlast;
+
+  logic        relu_to_smax_tvalid;
+  logic        relu_to_smax_tready;
+  logic [31:0] relu_to_smax_tdata;
+  logic        relu_to_smax_tlast;
+
+  // ReLU s_axis input: OR of Conv1D (Config 1) and Conv2D (Config 2).
+  // Only one config runs at a time; inactive upstream will hold tvalid=0.
+  logic        relu_s_axis_tvalid;
+  logic        relu_s_axis_tready;
+  logic [31:0] relu_s_axis_tdata;
+  logic        relu_s_axis_tlast;
+
+  assign relu_s_axis_tvalid = conv1d_to_relu_tvalid | conv2d_to_relu_tvalid;
+  assign relu_s_axis_tdata  = conv1d_to_relu_tvalid ? conv1d_to_relu_tdata
+                                                     : conv2d_to_relu_tdata;
+  assign relu_s_axis_tlast  = conv1d_to_relu_tvalid ? conv1d_to_relu_tlast
+                                                     : conv2d_to_relu_tlast;
+  // Ready fans out to both upstreams; only one will be actively producing.
+  assign conv1d_to_relu_tready = relu_s_axis_tready;
+  assign conv2d_to_relu_tready = relu_s_axis_tready;
+
+  // -------------------------------------------------------------------------
   // Ibex instruction-fetch signals
   // -------------------------------------------------------------------------
   logic        instr_req;
@@ -717,15 +746,22 @@ module opensoc_top
       .dma_rvalid_i  (relu_dma_rvalid       ),
       .dma_rdata_i   (relu_dma_rdata        ),
       .dma_err_i       (relu_dma_err              ),
-      .s_axis_tvalid_i (conv1d_to_relu_tvalid    ),
-      .s_axis_tready_o (conv1d_to_relu_tready    ),
-      .s_axis_tdata_i  (conv1d_to_relu_tdata     ),
-      .s_axis_tlast_i  (conv1d_to_relu_tlast     ),
-      .irq_o           (relu_irq                 )
+      .s_axis_tvalid_i (relu_s_axis_tvalid        ),
+      .s_axis_tready_o (relu_s_axis_tready        ),
+      .s_axis_tdata_i  (relu_s_axis_tdata         ),
+      .s_axis_tlast_i  (relu_s_axis_tlast         ),
+      .m_axis_tvalid_o (relu_to_smax_tvalid       ),
+      .m_axis_tready_i (relu_to_smax_tready       ),
+      .m_axis_tdata_o  (relu_to_smax_tdata        ),
+      .m_axis_tlast_o  (relu_to_smax_tlast        ),
+      .irq_o           (relu_irq                  )
     );
   end else begin : gen_no_relu
     assign relu_irq              = 1'b0;
-    assign conv1d_to_relu_tready = 1'b0;
+    assign relu_s_axis_tready   = 1'b0;
+    assign relu_to_smax_tvalid  = 1'b0;
+    assign relu_to_smax_tdata   = 32'd0;
+    assign relu_to_smax_tlast   = 1'b0;
   end
 
   // -------------------------------------------------------------------------
@@ -898,11 +934,16 @@ module opensoc_top
       .dma_gnt_i    (smax_dma_gnt          ),
       .dma_rvalid_i (smax_dma_rvalid       ),
       .dma_rdata_i  (smax_dma_rdata        ),
-      .dma_err_i    (smax_dma_err          ),
-      .irq_o        (softmax_irq           )
+      .dma_err_i       (smax_dma_err            ),
+      .s_axis_tvalid_i (relu_to_smax_tvalid     ),
+      .s_axis_tready_o (relu_to_smax_tready     ),
+      .s_axis_tdata_i  (relu_to_smax_tdata      ),
+      .s_axis_tlast_i  (relu_to_smax_tlast      ),
+      .irq_o           (softmax_irq             )
     );
   end else begin : gen_no_softmax
-    assign softmax_irq = 1'b0;
+    assign softmax_irq        = 1'b0;
+    assign relu_to_smax_tready = 1'b0;
   end
 
   // -------------------------------------------------------------------------
@@ -965,10 +1006,10 @@ module opensoc_top
       .irq_o           (conv1d_irq                 )
     );
   end else begin : gen_no_conv1d
-    assign conv1d_irq             = 1'b0;
-    assign conv1d_to_relu_tvalid  = 1'b0;
-    assign conv1d_to_relu_tdata   = 32'd0;
-    assign conv1d_to_relu_tlast   = 1'b0;
+    assign conv1d_irq            = 1'b0;
+    assign conv1d_to_relu_tvalid = 1'b0;
+    assign conv1d_to_relu_tdata  = 32'd0;
+    assign conv1d_to_relu_tlast  = 1'b0;
   end
 
   // -------------------------------------------------------------------------
@@ -1006,28 +1047,35 @@ module opensoc_top
     );
 
     conv2d u_conv2d (
-      .clk_i         (clk_sys                  ),
-      .rst_ni        (rst_sys_n                ),
-      .ctrl_req_i    (mem_req[Conv2dSlvIdx]    ),
-      .ctrl_addr_i   (mem_addr[Conv2dSlvIdx]   ),
-      .ctrl_we_i     (mem_we[Conv2dSlvIdx]     ),
-      .ctrl_be_i     (mem_strb[Conv2dSlvIdx]   ),
-      .ctrl_wdata_i  (mem_wdata[Conv2dSlvIdx]  ),
-      .ctrl_rvalid_o (mem_rvalid[Conv2dSlvIdx] ),
-      .ctrl_rdata_o  (mem_rdata[Conv2dSlvIdx]  ),
-      .dma_req_o     (conv2d_dma_req           ),
-      .dma_addr_o    (conv2d_dma_addr          ),
-      .dma_we_o      (conv2d_dma_we            ),
-      .dma_wdata_o   (conv2d_dma_wdata         ),
-      .dma_be_o      (conv2d_dma_be            ),
-      .dma_gnt_i     (conv2d_dma_gnt           ),
-      .dma_rvalid_i  (conv2d_dma_rvalid        ),
-      .dma_rdata_i   (conv2d_dma_rdata         ),
-      .dma_err_i     (conv2d_dma_err           ),
-      .irq_o         (conv2d_irq               )
+      .clk_i           (clk_sys                     ),
+      .rst_ni          (rst_sys_n                   ),
+      .ctrl_req_i      (mem_req[Conv2dSlvIdx]       ),
+      .ctrl_addr_i     (mem_addr[Conv2dSlvIdx]      ),
+      .ctrl_we_i       (mem_we[Conv2dSlvIdx]        ),
+      .ctrl_be_i       (mem_strb[Conv2dSlvIdx]      ),
+      .ctrl_wdata_i    (mem_wdata[Conv2dSlvIdx]     ),
+      .ctrl_rvalid_o   (mem_rvalid[Conv2dSlvIdx]    ),
+      .ctrl_rdata_o    (mem_rdata[Conv2dSlvIdx]     ),
+      .dma_req_o       (conv2d_dma_req              ),
+      .dma_addr_o      (conv2d_dma_addr             ),
+      .dma_we_o        (conv2d_dma_we               ),
+      .dma_wdata_o     (conv2d_dma_wdata            ),
+      .dma_be_o        (conv2d_dma_be               ),
+      .dma_gnt_i       (conv2d_dma_gnt              ),
+      .dma_rvalid_i    (conv2d_dma_rvalid           ),
+      .dma_rdata_i     (conv2d_dma_rdata            ),
+      .dma_err_i       (conv2d_dma_err              ),
+      .m_axis_tvalid_o (conv2d_to_relu_tvalid       ),
+      .m_axis_tready_i (conv2d_to_relu_tready       ),
+      .m_axis_tdata_o  (conv2d_to_relu_tdata        ),
+      .m_axis_tlast_o  (conv2d_to_relu_tlast        ),
+      .irq_o           (conv2d_irq                  )
     );
   end else begin : gen_no_conv2d
-    assign conv2d_irq = 1'b0;
+    assign conv2d_irq            = 1'b0;
+    assign conv2d_to_relu_tvalid = 1'b0;
+    assign conv2d_to_relu_tdata  = 32'd0;
+    assign conv2d_to_relu_tlast  = 1'b0;
   end
 
   // -------------------------------------------------------------------------

@@ -170,10 +170,12 @@
 #define RELU_STATUS     (RELU_BASE + 0x10)
 #define RELU_IER        (RELU_BASE + 0x14)
 
-#define RELU_CTRL_GO          0x1
-#define RELU_CTRL_STREAM_MODE 0x4
-#define RELU_STATUS_BUSY      0x1
-#define RELU_STATUS_DONE      0x2
+#define RELU_CTRL_GO           0x1
+#define RELU_CTRL_STREAM_IN    0x4   // CTRL[2]: accept input from AXI-Stream slave
+#define RELU_CTRL_STREAM_OUT   0x8   // CTRL[3]: emit output to AXI-Stream master
+#define RELU_CTRL_STREAM_MODE  RELU_CTRL_STREAM_IN  // legacy alias (Config 1)
+#define RELU_STATUS_BUSY       0x1
+#define RELU_STATUS_DONE       0x2
 
 // ---------------------------------------------------------------------------
 // Vector MAC Accelerator (0x80000)
@@ -223,9 +225,10 @@
 #define SMAX_MAX_VAL   (SMAX_BASE + 0x18)
 #define SMAX_SUM_VAL   (SMAX_BASE + 0x1C)
 
-#define SMAX_CTRL_GO      0x1
-#define SMAX_STATUS_BUSY  0x1
-#define SMAX_STATUS_DONE  0x2
+#define SMAX_CTRL_GO         0x1
+#define SMAX_CTRL_STREAM_IN  0x2   // CTRL[1]: accept input from AXI-Stream slave
+#define SMAX_STATUS_BUSY     0x1
+#define SMAX_STATUS_DONE     0x2
 
 // ---------------------------------------------------------------------------
 // 1D Convolution Engine (0x40090000)
@@ -268,6 +271,7 @@
 
 #define CONV2D_CTRL_GO          0x1
 #define CONV2D_CTRL_SOFT_RESET  0x2
+#define CONV2D_CTRL_STREAM_MODE 0x4
 
 #define CONV2D_STATUS_BUSY  0x1
 #define CONV2D_STATUS_DONE  0x2

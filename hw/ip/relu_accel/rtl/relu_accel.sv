@@ -36,11 +36,17 @@ module relu_accel (
   input  logic [31:0] dma_rdata_i,
   input  logic        dma_err_i,
 
-  // AXI-Stream input (stream mode only, ignored in DMA mode)
+  // AXI-Stream input (stream in mode only, ignored in DMA mode)
   input  logic        s_axis_tvalid_i,
   output logic        s_axis_tready_o,
   input  logic [31:0] s_axis_tdata_i,
   input  logic        s_axis_tlast_i,
+
+  // AXI-Stream output (stream out mode only, idle in DMA mode)
+  output logic        m_axis_tvalid_o,
+  input  logic        m_axis_tready_i,
+  output logic [31:0] m_axis_tdata_o,
+  output logic        m_axis_tlast_o,
 
   // Interrupt
   output logic        irq_o
@@ -84,6 +90,11 @@ module relu_accel (
     .s_axis_tready_o,
     .s_axis_tdata_i,
     .s_axis_tlast_i,
+
+    .m_axis_tvalid_o,
+    .m_axis_tready_i,
+    .m_axis_tdata_o,
+    .m_axis_tlast_o,
 
     .proc_data_o   (proc_data),
     .proc_result_i (proc_result),

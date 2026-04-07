@@ -15,6 +15,7 @@ The accelerator reads the input image from DRAM row by row via a DMA master port
 - **Two padding modes** — valid-only (output smaller than input) and zero-pad/same (output same size as input)
 - **INT8 inputs, INT32 outputs** — each output pixel is the sum of nine signed 16-bit products; no saturation
 - **DMA master port** — reads input pixels and writes output pixels via AXI crossbar
+- **AXI-Stream output port** — in stream mode, output pixels are forwarded directly to a downstream accelerator without a DRAM round-trip
 - **Maximum image size** — 64×64 pixels (configurable at synthesis via `MAX_IMG_WIDTH`)
 
 Base address: `0x400A0000` (1 kB window). IRQ: `irq_fast_i[8]`.
@@ -152,7 +153,7 @@ Base address: `0x400A0000`.
 
 | Offset | Name | Access | Description |
 |--------|------|--------|-------------|
-| 0x00 | CTRL | W | [0] GO, [1] SOFT_RESET |
+| 0x00 | CTRL | W | [0] GO, [1] SOFT_RESET, [2] STREAM_MODE |
 | 0x04 | STATUS | R | [0] BUSY, [1] DONE |
 | 0x08 | SRC_ADDR | R/W | Input image base address (word-aligned) |
 | 0x0C | DST_ADDR | R/W | Output buffer base address (word-aligned) |
@@ -186,6 +187,7 @@ W[6]  W[7]  W[8]
 |-----|------|-------------|
 | 0 | GO | Start convolution. Sampled combinationally; ignored if BUSY. |
 | 1 | SOFT_RESET | Clears BUSY and DONE, clears line buffer, returns FSM to IDLE. |
+| 2 | STREAM_MODE | When set, output pixels are emitted via AXI-Stream instead of being written to DRAM. DST_ADDR is unused. |
 
 GO is not self-clearing in hardware — software must not hold it asserted across multiple operations.
 
@@ -217,6 +219,68 @@ Each register stores one INT8 kernel weight, sign-extended to 32 bits. Only bits
 Input pixels are stored one INT8 per 32-bit word (bits [7:0] used; bits [31:8] ignored). Each pixel occupies one full word in memory. Source and destination buffers must be word-aligned.
 
 Output elements are written as INT32 words (one 32-bit write per output pixel).
+
+## Stream Mode
+
+Conv2D can forward its output pixels directly to a downstream accelerator over a hardwired AXI-Stream connection, eliminating the DRAM write/read round-trip between pipeline stages.
+
+### AXI-Stream Output Port
+
+| Signal | Direction | Description |
+|--------|-----------|-------------|
+| `m_axis_tvalid_o` | Output | High when an output pixel is ready (FSM in `STREAM_OUT`). |
+| `m_axis_tready_i` | Input | Asserted by the downstream consumer to accept the beat. |
+| `m_axis_tdata_o` | Output | INT32 convolution result (same value written to DRAM in DMA mode). |
+| `m_axis_tlast_o` | Output | High on the last pixel of the image. |
+
+One INT32 beat is emitted per output pixel. The FSM holds in `STREAM_OUT` until the downstream asserts `m_axis_tready_i`, then advances to the next read or returns to IDLE after the final pixel.
+
+**FSM change (stream mode):** `SLIDE_WR_REQ` routes to `STREAM_OUT` instead of issuing a DMA write. `STREAM_OUT` waits for `m_axis_tready_i` and advances position exactly as `SLIDE_WR_WAIT` would.
+
+### Wiring in `opensoc_top.sv` (Config 2)
+
+Conv2D's stream output is OR-muxed with Conv1D's into ReLU's stream input, then ReLU's stream output feeds Softmax's stream input:
+
+```
+Conv1D m_axis ─┐
+               ├─(OR mux)─► ReLU s_axis ──► ReLU m_axis ──► Softmax s_axis
+Conv2D m_axis ─┘
+```
+
+Only one config runs at a time; the inactive upstream holds `tvalid = 0`. The mux selects Conv1D's data when Conv1D is active, Conv2D's otherwise.
+
+**Data format note:** Conv2D emits INT32 per beat; ReLU passes INT32 through; Softmax reads `bits[7:0]` of each beat as one INT8 element. Ensure kernel and input values keep conv2d outputs in the range [−127, 127] to avoid truncation.
+
+### Software Sequence (Config 2: Conv2D → ReLU → Softmax)
+
+```c
+// 1. Configure Conv2D in stream mode (DST_ADDR unused)
+for (int i = 0; i < 9; i++)
+    DEV_WRITE(CONV2D_KERNEL_W(i), (uint32_t)(int32_t)kernel[i]);
+DEV_WRITE(CONV2D_IMG_WIDTH,    img_w);
+DEV_WRITE(CONV2D_IMG_HEIGHT,   img_h);
+DEV_WRITE(CONV2D_PADDING_MODE, CONV2D_PAD_VALID);
+DEV_WRITE(CONV2D_SRC_ADDR,     (uint32_t)input);
+
+// 2. Configure ReLU in full-stream mode (stream in + stream out)
+uint32_t n_out = (img_h - 2) * (img_w - 2);   // valid mode
+DEV_WRITE(RELU_LEN, n_out);
+
+// 3. Configure Softmax in stream mode (SRC_ADDR unused)
+DEV_WRITE(SMAX_DST_ADDR, (uint32_t)output);
+DEV_WRITE(SMAX_VEC_LEN,  n_out);   // must be multiple of 4
+
+// 4. GO order: Softmax first (waits for stream), then ReLU, then Conv2D
+DEV_WRITE(SMAX_CTRL,   SMAX_CTRL_GO | SMAX_CTRL_STREAM_IN);
+DEV_WRITE(RELU_CTRL,   RELU_CTRL_GO | RELU_CTRL_STREAM_IN | RELU_CTRL_STREAM_OUT);
+DEV_WRITE(CONV2D_CTRL, CONV2D_CTRL_GO | CONV2D_CTRL_STREAM_MODE);
+
+// 5. Poll Softmax DONE (single barrier for the whole pipeline)
+while (!(DEV_READ(SMAX_STATUS, 0) & SMAX_STATUS_DONE))
+    ;
+```
+
+Each accelerator must receive GO before the upstream starts producing beats. The downstream-first order ensures no beats are dropped.
 
 ## Interrupt
 
@@ -310,6 +374,7 @@ From `sw/include/opensoc_regs.h`:
 
 #define CONV2D_CTRL_GO          0x1
 #define CONV2D_CTRL_SOFT_RESET  0x2
+#define CONV2D_CTRL_STREAM_MODE 0x4
 
 #define CONV2D_STATUS_BUSY      0x1
 #define CONV2D_STATUS_DONE      0x2

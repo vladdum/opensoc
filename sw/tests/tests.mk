@@ -29,8 +29,9 @@ SW_DIR_softmax           := $(SW_TEST_DIR)/softmax_test
 SW_DIR_aes               := $(SW_TEST_DIR)/aes_test
 SW_DIR_conv1d            := $(SW_TEST_DIR)/conv1d_test
 SW_DIR_conv1d-relu-stream:= $(SW_TEST_DIR)/conv1d_relu_stream_test
-SW_DIR_conv2d            := $(SW_TEST_DIR)/conv2d_test
-SW_DIR_gemm              := $(SW_TEST_DIR)/gemm_test
+SW_DIR_conv2d                    := $(SW_TEST_DIR)/conv2d_test
+SW_DIR_conv2d-relu-softmax-stream:= $(SW_TEST_DIR)/conv2d_relu_softmax_stream_test
+SW_DIR_gemm                      := $(SW_TEST_DIR)/gemm_test
 SW_DIR_i2c-loopback      := $(SW_TEST_DIR)/i2c_loopback_test
 
 ELF_hello             := $(SW_BUILD_DIR)/hello_test/hello_test.elf
@@ -46,8 +47,9 @@ ELF_softmax           := $(SW_BUILD_DIR)/softmax_test/softmax_test.elf
 ELF_aes               := $(SW_BUILD_DIR)/aes_test/aes_test.elf
 ELF_conv1d            := $(SW_BUILD_DIR)/conv1d_test/conv1d_test.elf
 ELF_conv1d-relu-stream:= $(SW_BUILD_DIR)/conv1d_relu_stream_test/conv1d_relu_stream_test.elf
-ELF_conv2d            := $(SW_BUILD_DIR)/conv2d_test/conv2d_test.elf
-ELF_gemm              := $(SW_BUILD_DIR)/gemm_test/gemm_test.elf
+ELF_conv2d                    := $(SW_BUILD_DIR)/conv2d_test/conv2d_test.elf
+ELF_conv2d-relu-softmax-stream:= $(SW_BUILD_DIR)/conv2d_relu_softmax_stream_test/conv2d_relu_softmax_stream_test.elf
+ELF_gemm                      := $(SW_BUILD_DIR)/gemm_test/gemm_test.elf
 ELF_i2c-loopback      := $(SW_BUILD_DIR)/i2c_loopback_test/i2c_loopback_test.elf
 
 # ---------------------------------------------------------------------------
@@ -75,18 +77,19 @@ REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CRYPTO)),aes)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV1D)),conv1d)
 REGRESSION_TESTS += $(if $(and $(filter 1,$(ENABLE_CONV1D)),$(filter 1,$(ENABLE_RELU))),conv1d-relu-stream)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV2D)),conv2d)
+REGRESSION_TESTS += $(if $(and $(filter 1,$(ENABLE_CONV2D)),$(filter 1,$(ENABLE_RELU)),$(filter 1,$(ENABLE_SOFTMAX))),conv2d-relu-softmax-stream)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_GEMM)),gemm)
 
 # Full set — all IPs; used by regression-full and CI
 REGRESSION_FULL_TESTS := $(REGRESSION_BASE) \
   relu vmac sg-dma softmax aes \
   conv1d conv1d-relu-stream \
-  conv2d gemm
+  conv2d conv2d-relu-softmax-stream gemm
 
 # run-* targets exposed to the user (bash-completable)
 RUN_TESTS := \
   hello uart pio pio-sdk pio-i2c i2c \
   relu vmac sg-dma softmax aes \
   conv1d conv1d-relu-stream \
-  conv2d gemm \
+  conv2d conv2d-relu-softmax-stream gemm \
   i2c-loopback
