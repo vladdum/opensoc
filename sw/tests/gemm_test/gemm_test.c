@@ -16,13 +16,32 @@
  *           IER; verify ARRAY_SIZE returns 0x0808.
  * Test 2 — SOFT_RESET clears BUSY/DONE.
  * Test 3 — 4×4 multiply: known A and B, verify C against SW reference.
- * Test 4 — 8×8 multiply: full array exercise with ramp inputs.
+ * Test 4 — 8×8 multiply: full array exercise with ramp inputs. Reports
+ *           utilization (cycles computing / total cycles).
  * Test 5 — Identity: A × I = A for a 4×4 case.
  * Test 6 — Zero matrix: A × 0 = 0.
+ * Test 7 — Non-square: 4×8 × 8×4 verify C against SW reference.
+ * Test 8 — im2col + GEMM: 4×4 valid-mode 3×3 convolution mapped to GEMM,
+ *           output matches C reference.
  */
 
 #include "simple_system_common.h"
 #include "opensoc_regs.h"
+
+// ---------------------------------------------------------------------------
+// im2col: flatten K×K sliding windows of an (H×W) image into row vectors.
+// Output col is ((H-K+1)*(W-K+1)) rows × (K*K) cols, stored row-major.
+// ---------------------------------------------------------------------------
+static void im2col(const int8_t *img, int8_t *col,
+                   int H, int W, int KH, int KW) {
+  int out_h = H - KH + 1, out_w = W - KW + 1;
+  for (int oh = 0; oh < out_h; oh++)
+    for (int ow = 0; ow < out_w; ow++)
+      for (int kh = 0; kh < KH; kh++)
+        for (int kw = 0; kw < KW; kw++)
+          col[(oh * out_w + ow) * (KH * KW) + kh * KW + kw] =
+              img[(oh + kh) * W + (ow + kw)];
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -172,10 +191,10 @@ int main(int argc, char **argv) {
   }
 
   // -------------------------------------------------------------------------
-  // Test 4: 8×8 multiply (full array)
-  // A: ramp 0..63; B: all 1s → C[m][n] = sum of A row m = 8*(8m) + 28 = 8m*8+28
+  // Test 4: 8×8 multiply (full array) + utilization measurement
+  // A: ramp 0..63; B: all 1s
   // -------------------------------------------------------------------------
-  puts("--- Test 4: 8x8 multiply (all-ones B) ---\n");
+  puts("--- Test 4: 8x8 multiply (all-ones B) + utilization ---\n");
   {
     int8_t a8[8*8], b8[8*8];
     for (int i = 0; i < 64; i++) { a8[i] = (int8_t)(i & 0x7F); a_buf[i] = (int32_t)a8[i]; }
@@ -185,7 +204,13 @@ int main(int argc, char **argv) {
     ref_gemm(a8, b8, ref_buf, 8, 8, 8);
     gemm_load_weights(b8, 8, 8);
     DEV_WRITE(GEMM_CTRL, GEMM_CTRL_SOFT_RESET);
+
+    pcount_reset();
+    pcount_enable(1);
     gemm_run((uint32_t)a_buf, (uint32_t)c_buf, 8, 8, 8);
+    pcount_enable(0);
+    uint32_t t4_cycles;
+    PCOUNT_READ(mcycle, t4_cycles);
 
     int t4_err = 0;
     for (int i = 0; i < 64; i++) {
@@ -199,6 +224,13 @@ int main(int argc, char **argv) {
     }
     if (t4_err == 0) puts("PASS: 64 outputs correct\n");
     else { puts("FAIL: "); putdec((uint32_t)t4_err); puts(" mismatches\n"); errors += t4_err; }
+
+    // Compute cycles: 8 rows × (8 RD + 8 SKEW + 8 WR) ≈ 192 active compute cycles
+    uint32_t compute_cycles = 8u * (8u + 8u + 8u);
+    puts("  Total cycles:   "); putdec(t4_cycles); putchar('\n');
+    puts("  Compute cycles: "); putdec(compute_cycles); putchar('\n');
+    puts("  Utilization:    ");
+    putdec(compute_cycles * 100u / t4_cycles); puts("%\n");
   }
 
   // -------------------------------------------------------------------------
@@ -258,6 +290,83 @@ int main(int argc, char **argv) {
     }
     if (t6_err == 0) puts("PASS: A x 0 = 0 verified\n");
     else { puts("FAIL: "); putdec((uint32_t)t6_err); puts(" mismatches\n"); errors += t6_err; }
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 7: Non-square 4×8 × 8×4 multiply
+  // A (4×8): row-major ramp 1..32; B (8×4): column ramp 1..32
+  // -------------------------------------------------------------------------
+  puts("--- Test 7: Non-square 4x8 x 8x4 ---\n");
+  {
+    int8_t a7[4*8], b7[8*4];
+    for (int i = 0; i < 32; i++) { a7[i] = (int8_t)(i + 1); a_buf[i] = (int32_t)a7[i]; }
+    for (int i = 0; i < 32; i++) { b7[i] = (int8_t)(i + 1); }
+    for (int i = 0; i < 16; i++) c_buf[i] = 0;
+
+    ref_gemm(a7, b7, ref_buf, 4, 8, 4);
+    gemm_load_weights(b7, 8, 4);
+    DEV_WRITE(GEMM_CTRL, GEMM_CTRL_SOFT_RESET);
+    gemm_run((uint32_t)a_buf, (uint32_t)c_buf, 4, 8, 4);
+
+    int t7_err = 0;
+    for (int i = 0; i < 16; i++) {
+      if (c_buf[i] != ref_buf[i]) {
+        t7_err++;
+        if (t7_err <= 4) {
+          puts("  MISMATCH ["); putdec((uint32_t)i); puts("]: got=");
+          put_i32(c_buf[i]); puts(" exp="); put_i32(ref_buf[i]); putchar('\n');
+        }
+      }
+    }
+    if (t7_err == 0) puts("PASS: 16 outputs correct\n");
+    else { puts("FAIL: "); putdec((uint32_t)t7_err); puts(" mismatches\n"); errors += t7_err; }
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 8: im2col + GEMM — 4×4 image, 3×3 kernel, valid-mode 2×2 output.
+  // im2col reshapes the 4 sliding windows into A (4×9 INT8).
+  // The flattened kernel is B (9×1 INT8).
+  // C (4×1 INT32) must match a direct C-reference convolution.
+  // -------------------------------------------------------------------------
+  puts("--- Test 8: im2col + GEMM (3x3 conv on 4x4 image, valid mode) ---\n");
+  {
+    // 4×4 image (ramp 1..16)
+    int8_t img[4*4];
+    for (int i = 0; i < 16; i++) img[i] = (int8_t)(i + 1);
+
+    // 3×3 kernel: Laplacian-like weights
+    int8_t kern[9] = { 0, -1,  0,
+                      -1,  4, -1,
+                       0, -1,  0 };
+
+    // im2col: output is (out_h*out_w) × (K*K) = 4 × 9
+    int8_t col_buf[4*9];
+    im2col(img, col_buf, 4, 4, 3, 3);
+
+    // Load into a_buf (hardware takes INT8 in 32-bit words)
+    for (int i = 0; i < 4*9; i++) a_buf[i] = (int32_t)col_buf[i];
+
+    // B is kern as a (9×1) matrix
+    for (int i = 0; i < 4; i++) c_buf[i] = 0;
+
+    // Reference: direct C convolution
+    int32_t ref_conv[4];
+    ref_gemm(col_buf, kern, ref_conv, 4, 9, 1);
+
+    gemm_load_weights(kern, 9, 1);
+    DEV_WRITE(GEMM_CTRL, GEMM_CTRL_SOFT_RESET);
+    gemm_run((uint32_t)a_buf, (uint32_t)c_buf, 4, 9, 1);
+
+    int t8_err = 0;
+    for (int i = 0; i < 4; i++) {
+      if (c_buf[i] != ref_conv[i]) {
+        t8_err++;
+        puts("  MISMATCH ["); putdec((uint32_t)i); puts("]: got=");
+        put_i32(c_buf[i]); puts(" exp="); put_i32(ref_conv[i]); putchar('\n');
+      }
+    }
+    if (t8_err == 0) puts("PASS: im2col+GEMM matches direct convolution\n");
+    else { puts("FAIL: "); putdec((uint32_t)t8_err); puts(" mismatches\n"); errors += t8_err; }
   }
 
   // -------------------------------------------------------------------------

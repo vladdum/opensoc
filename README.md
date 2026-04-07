@@ -186,9 +186,9 @@ Available tests:
 | `run-sg-dma` | SG-DMA: chaining, zero-length descriptors, throughput |
 | `run-softmax` | Softmax: uniform, one-hot, accuracy vs. C reference |
 | `run-aes` | AES-128 ECB encrypt/decrypt with NIST FIPS-197 test vector |
-| `run-conv1d` | 1D convolution: FIR filter and same-padding mode verify |
-| `run-conv2d` | 2D convolution: 3×3 kernel on 8×8, 16×16, 32×32 images |
-| `run-gemm` | GEMM systolic array: 4×4, 8×8 matmul, identity, zero matrix |
+| `run-conv1d` | 1D convolution: 3/5/7-tap FIR, causal same-pad, identity, throughput |
+| `run-conv2d` | 2D convolution: 3×3 on 8×8/16×16/32×32, valid/same modes, throughput |
+| `run-gemm` | GEMM systolic array: 4×4, 8×8, non-square, im2col+GEMM, utilization |
 | `run-dual-uart` | Two-SoC UART handshake and 8-round data exchange |
 | `run-i2c-loopback` | I2C master + PIO slave: write, read, clock stretching |
 
