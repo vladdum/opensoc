@@ -1,0 +1,20 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:gemm"
+description: "Weight-stationary 8x8 systolic array GEMM accelerator (INT8 inputs, INT32 outputs)"
+filesets:
+  rtl:
+    files:
+      - rtl/pe_cell.sv
+      - rtl/data_skew.sv
+      - rtl/systolic_array.sv
+      - rtl/result_drain.sv
+      - rtl/gemm.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - rtl

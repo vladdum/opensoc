@@ -91,6 +91,11 @@ opensoc_ip_conv2d_0/rtl/line_buffer.sv
 opensoc_ip_conv2d_0/rtl/conv2d_pe.sv
 opensoc_ip_conv2d_0/rtl/addr_gen.sv
 opensoc_ip_conv2d_0/rtl/conv2d.sv
+opensoc_ip_gemm_0/rtl/pe_cell.sv
+opensoc_ip_gemm_0/rtl/data_skew.sv
+opensoc_ip_gemm_0/rtl/systolic_array.sv
+opensoc_ip_gemm_0/rtl/result_drain.sv
+opensoc_ip_gemm_0/rtl/gemm.sv
 opensoc_ip_ram_0/rtl/opensoc_ram.sv
 opensoc_soc_opensoc_top_0/hw/top/opensoc_top.sv
 opensoc_ip_uart_0/rtl/uart.sv

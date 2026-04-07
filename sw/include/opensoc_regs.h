@@ -24,6 +24,7 @@
 #define SMAX_BASE       0x40080000UL
 #define CONV1D_BASE     0x40090000UL
 #define CONV2D_BASE     0x400B0000UL
+#define GEMM_BASE       0x400C0000UL
 #define CRYPTO_BASE     0x400A0000UL
 
 // SIM_CTRL_BASE and TIMER_BASE are defined in sw/common/simple_system_regs.h.
@@ -275,6 +276,29 @@
 #define CONV2D_PAD_SAME     0x1
 
 // ---------------------------------------------------------------------------
+// GEMM Accelerator (0x400C0000)
+// ---------------------------------------------------------------------------
+#define GEMM_CTRL          (GEMM_BASE + 0x00)
+#define GEMM_STATUS        (GEMM_BASE + 0x04)
+#define GEMM_SRC_ADDR      (GEMM_BASE + 0x08)  // A matrix base address
+#define GEMM_DST_ADDR      (GEMM_BASE + 0x0C)  // C matrix base address
+#define GEMM_IER           (GEMM_BASE + 0x14)
+#define GEMM_MAT_M         (GEMM_BASE + 0x18)  // A rows
+#define GEMM_MAT_K         (GEMM_BASE + 0x1C)  // A cols = B rows
+#define GEMM_MAT_N         (GEMM_BASE + 0x20)  // B cols
+#define GEMM_WEIGHT_ADDR   (GEMM_BASE + 0x24)  // PE select: k[5:3], n[2:0]
+#define GEMM_WEIGHT_DATA   (GEMM_BASE + 0x28)  // INT8 weight value
+#define GEMM_ARRAY_SIZE    (GEMM_BASE + 0x2C)  // R/O: [15:8]=ARRAY_M, [7:0]=ARRAY_N
+
+#define GEMM_CTRL_GO          0x1
+#define GEMM_CTRL_SOFT_RESET  0x2
+
+#define GEMM_STATUS_BUSY  0x1
+#define GEMM_STATUS_DONE  0x2
+
+#define GEMM_IER_DONE     0x1
+
+// ---------------------------------------------------------------------------
 // AES / Crypto Cluster (0x400A0000) — OpenTitan AES register map
 // ---------------------------------------------------------------------------
 #define AES_KEY_SHARE0(n)   (CRYPTO_BASE + 0x04 + (n)*4)  // n=0..7
@@ -324,5 +348,6 @@
 #define IRQ_SMAX    6
 #define IRQ_CONV1D  7
 #define IRQ_CONV2D  8
+#define IRQ_GEMM    9
 
 #endif  // OPENSOC_REGS_H__
