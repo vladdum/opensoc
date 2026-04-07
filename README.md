@@ -41,9 +41,9 @@ opensoc_top (hw/top/opensoc_top.sv)
 | SG DMA         | `0x40070000`   | 1 kB  | fast[5]    |
 | Softmax        | `0x40080000`   | 1 kB  | fast[6]    |
 | Conv1d         | `0x40090000`   | 1 kB  | fast[7]    |
-| Crypto (AES)   | `0x400A0000`   | 4 kB  | —          |
-| Conv2d         | `0x400B0000`   | 1 kB  | fast[8]    |
-| GEMM           | `0x400C0000`   | 1 kB  | fast[9]    |
+| Conv2d         | `0x400A0000`   | 1 kB  | fast[8]    |
+| GEMM           | `0x400B0000`   | 1 kB  | fast[9]    |
+| Crypto (AES)   | `0x40100000`   | 4 kB  | —          |
 
 Register definitions for all peripherals: [`sw/include/opensoc_regs.h`](sw/include/opensoc_regs.h)
 

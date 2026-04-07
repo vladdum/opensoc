@@ -23,9 +23,9 @@
 #define SGDMA_BASE      0x40070000UL
 #define SMAX_BASE       0x40080000UL
 #define CONV1D_BASE     0x40090000UL
-#define CONV2D_BASE     0x400B0000UL
-#define GEMM_BASE       0x400C0000UL
-#define CRYPTO_BASE     0x400A0000UL
+#define CONV2D_BASE     0x400A0000UL
+#define GEMM_BASE       0x400B0000UL
+#define CRYPTO_BASE     0x40100000UL
 
 // SIM_CTRL_BASE and TIMER_BASE are defined in sw/common/simple_system_regs.h.
 

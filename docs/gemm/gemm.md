@@ -16,7 +16,7 @@ where A and B contain INT8 elements and C contains INT32 elements. It implements
 - **Matrix dimensions** — M, K, N configurable from 1 to 8 at runtime; unused PE rows/columns naturally contribute zero
 - **DMA master port** — reads A from `SRC_ADDR` (one INT8 per 32-bit word, row-major) and writes C to `DST_ADDR` (INT32, row-major) via the AXI crossbar
 
-Base address: `0x400C0000` (1 kB window). IRQ: `irq_fast_i[9]`.
+Base address: `0x400B0000` (1 kB window). IRQ: `irq_fast_i[9]`.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ gemm.sv (control registers + DMA FSM)
 
 ### SoC Integration
 
-- **Slave port**: crossbar slave index `GemmSlvIdx` (last optional slave), address `0x400C0000`
+- **Slave port**: crossbar slave index `GemmSlvIdx` (last optional slave), address `0x400B0000`
 - **Master port**: crossbar master index `GemmDmaMstIdx` (before PIO DMA), via `axi_from_mem` bridge
 - **IRQ**: `irq_fast_i[9]`, level-sensitive (`done & ier`)
 
@@ -158,7 +158,7 @@ IDLE ─────────────────► COMPUTE_CLR
 
 ## Register Map
 
-Base address: `0x400C0000`.
+Base address: `0x400B0000`.
 
 | Offset | Name | Access | Description |
 |--------|------|--------|-------------|
@@ -305,7 +305,7 @@ void gemm_isr(void) {
 From `sw/include/opensoc_regs.h`:
 
 ```c
-#define GEMM_BASE         0x400C0000UL
+#define GEMM_BASE         0x400B0000UL
 
 #define GEMM_CTRL         (GEMM_BASE + 0x00)
 #define GEMM_STATUS       (GEMM_BASE + 0x04)

@@ -183,14 +183,14 @@ package opensoc_derived_config_pkg;
     map[5] = '{ idx: 32'd5, start_addr: 32'h4004_0000, end_addr: 32'h4004_0400 }; // I2C      1 kB
     // Optional slaves
     r = 6;
-    if (EnableCrypto)  begin map[r] = '{ idx: r, start_addr: 32'h400A_0000, end_addr: 32'h400A_1000 }; r = r + 1; end
+    if (EnableCrypto)  begin map[r] = '{ idx: r, start_addr: 32'h4010_0000, end_addr: 32'h4010_1000 }; r = r + 1; end
     if (EnableReLU)    begin map[r] = '{ idx: r, start_addr: 32'h4005_0000, end_addr: 32'h4005_0400 }; r = r + 1; end
     if (EnableVMAC)    begin map[r] = '{ idx: r, start_addr: 32'h4006_0000, end_addr: 32'h4006_0400 }; r = r + 1; end
     if (EnableSgDma)   begin map[r] = '{ idx: r, start_addr: 32'h4007_0000, end_addr: 32'h4007_0400 }; r = r + 1; end
     if (EnableSoftmax) begin map[r] = '{ idx: r, start_addr: 32'h4008_0000, end_addr: 32'h4008_0400 }; r = r + 1; end
     if (EnableConv1d)  begin map[r] = '{ idx: r, start_addr: 32'h4009_0000, end_addr: 32'h4009_0400 }; r = r + 1; end
-    if (EnableConv2d)  begin map[r] = '{ idx: r, start_addr: 32'h400B_0000, end_addr: 32'h400B_0400 }; r = r + 1; end
-    if (EnableGemm)    begin map[r] = '{ idx: r, start_addr: 32'h400C_0000, end_addr: 32'h400C_0400 }; r = r + 1; end
+    if (EnableConv2d)  begin map[r] = '{ idx: r, start_addr: 32'h400A_0000, end_addr: 32'h400A_0400 }; r = r + 1; end
+    if (EnableGemm)    begin map[r] = '{ idx: r, start_addr: 32'h400B_0000, end_addr: 32'h400B_0400 }; r = r + 1; end
     return map;
   endfunction
 
