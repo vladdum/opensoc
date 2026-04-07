@@ -237,14 +237,43 @@ int main(int argc, char **argv) {
   }
 
   // =========================================================================
-  // Test 5: Valid mode, smooth kernel, 32×32
+  // Test 5: Valid mode, smooth kernel, 32×32 + throughput measurement
   // =========================================================================
-  puts("--- Test 5: Valid, smooth, 32x32 ---\n");
+  puts("--- Test 5: Valid, smooth, 32x32 + throughput ---\n");
   {
     for (int i = 0; i < 1024; i++) img32[i] = (int32_t)(int8_t)((i * 7 + 2) & 0x3F);
+    // Warm run for correctness (no timing)
     conv2d_run((uint32_t)img32, (uint32_t)out_buf, 32, 32, CONV2D_PAD_VALID, smooth);
     conv2d_ref_valid(img32, 32, 32, smooth, ref_buf);
     errors += check(out_buf, ref_buf, 30*30, "Valid smooth 32x32");
+
+    // Timed run
+    DEV_WRITE(CONV2D_CTRL, CONV2D_CTRL_SOFT_RESET);
+    for (uint32_t i = 0; i < 9; i++)
+      DEV_WRITE(CONV2D_KERNEL_W(i), (uint32_t)(int32_t)smooth[i]);
+    DEV_WRITE(CONV2D_IMG_WIDTH,    32);
+    DEV_WRITE(CONV2D_IMG_HEIGHT,   32);
+    DEV_WRITE(CONV2D_KERNEL_SIZE,   3);
+    DEV_WRITE(CONV2D_PADDING_MODE, CONV2D_PAD_VALID);
+    DEV_WRITE(CONV2D_SRC_ADDR, (uint32_t)img32);
+    DEV_WRITE(CONV2D_DST_ADDR, (uint32_t)out_buf);
+
+    pcount_reset();
+    pcount_enable(1);
+    DEV_WRITE(CONV2D_CTRL, CONV2D_CTRL_GO);
+    while (!(DEV_READ(CONV2D_STATUS, 0) & CONV2D_STATUS_DONE))
+      ;
+    pcount_enable(0);
+    uint32_t cyc;
+    PCOUNT_READ(mcycle, cyc);
+
+    const uint32_t npix = 30u * 30u;  // 900 output pixels
+    puts("  Total cycles:    "); putdec(cyc); putchar('\n');
+    puts("  Output pixels:   "); putdec(npix); putchar('\n');
+    puts("  Cycles/pixel:    ");
+    putdec(cyc / npix); putchar('.');
+    putdec((cyc % npix) * 10u / npix);
+    putchar('\n');
   }
 
   // =========================================================================

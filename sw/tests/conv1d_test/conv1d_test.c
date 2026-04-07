@@ -5,20 +5,24 @@
 /**
  * 1D Convolution Engine Test
  *
- * Exercises the conv1d accelerator with two test cases.
+ * Exercises the conv1d accelerator.
  *
  * Memory layout: each INT8 input sample occupies one full 32-bit word
  * (the hardware reads 32-bit words and uses only bits [7:0]).
  * Output elements are INT32 words.
  *
  * Test 1 — Valid-only mode (3-tap [1, 2, 1] filter):
- *   Input:  16 samples, ramp 0..15 (each in a 32-bit word)
- *   Output: 14 INT32 elements, out[n] = x[n]*1 + x[n+1]*2 + x[n+2]*1
- *
+ *   Input:  16 samples, ramp 0..15; output: 14 INT32 elements vs C reference
  * Test 2 — Causal same-pad mode (3-tap [1, 2, 1]):
- *   Input:  8 samples, alternating +1/-1 (each in a 32-bit word)
- *   Output: 8 INT32 elements: out[n] = x[n]*w[0]+x[n-1]*w[1]+x[n-2]*w[2],
- *           x[negative] = 0  (K-1=2 virtual zeros pre-loaded on the left)
+ *   Input:  8 samples, alternating +1/-1; output: 8 INT32 vs C reference
+ * Test 3 — Valid-only, 5-tap [1, 2, 4, 2, 1] filter:
+ *   Input:  16-sample ramp; output: 12 elements vs C reference
+ * Test 4 — Valid-only, 7-tap [1, 2, 3, 4, 3, 2, 1] filter:
+ *   Input:  16-sample ramp; output: 10 elements vs C reference
+ * Test 5 — Single-element kernel [3] (scale):
+ *   Input:  8-sample ramp; output = 3×input (valid, out_len = in_len)
+ * Test 6 — Throughput (cycles / output element):
+ *   5-tap valid filter on 64-sample ramp; reports cycles/element
  *
  * Also verifies register readback, BUSY/DONE transitions, and SOFT_RESET.
  */
@@ -118,6 +122,12 @@ static int32_t ref_a[IN_LEN]      __attribute__((aligned(4)));
 static int32_t signal_b[IN_LEN_B] __attribute__((aligned(4)));
 static int32_t output_b[IN_LEN_B] __attribute__((aligned(4)));
 static int32_t ref_b[IN_LEN_B]    __attribute__((aligned(4)));
+
+#define IN_LEN_C  64
+
+static int32_t signal_c[IN_LEN_C] __attribute__((aligned(4)));
+static int32_t output_c[IN_LEN_C] __attribute__((aligned(4)));
+static int32_t ref_c[IN_LEN_C]    __attribute__((aligned(4)));
 
 int main(int argc, char **argv) {
   int errors = 0;
@@ -246,6 +256,124 @@ int main(int argc, char **argv) {
   } else {
     puts("FAIL: "); putdec((uint32_t)t2_err); puts(" mismatches\n");
     errors += t2_err;
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 3: Valid-only, 5-tap [1,2,4,2,1] filter, 16-sample ramp
+  // -------------------------------------------------------------------------
+  puts("--- Test 3: valid-only, 5-tap [1,2,4,2,1], 16-sample ramp ---\n");
+  {
+    static const int8_t k5[5] = { 1, 2, 4, 2, 1 };
+    const int olen = IN_LEN - 5 + 1;   // 12
+    for (int i = 0; i < IN_LEN; i++) signal_a[i] = (int32_t)i;
+    for (int i = 0; i < IN_LEN; i++) output_a[i] = 0;
+    ref_conv_valid(signal_a, IN_LEN, k5, 5, ref_a);
+    DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
+    conv1d_run((uint32_t)signal_a, (uint32_t)output_a, IN_LEN, 5, CONV1D_PAD_VALID, k5);
+    int t3_err = 0;
+    for (int n = 0; n < olen; n++) {
+      if (output_a[n] != ref_a[n]) {
+        t3_err++;
+        if (t3_err <= 4) {
+          puts("  MISMATCH ["); putdec((uint32_t)n); puts("]: got=");
+          put_i32(output_a[n]); puts(" exp="); put_i32(ref_a[n]); putchar('\n');
+        }
+      }
+    }
+    if (t3_err == 0) { puts("PASS: "); putdec((uint32_t)olen); puts(" outputs correct\n"); }
+    else { puts("FAIL: "); putdec((uint32_t)t3_err); puts(" mismatches\n"); errors += t3_err; }
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 4: Valid-only, 7-tap [1,2,3,4,3,2,1] filter, 16-sample ramp
+  // -------------------------------------------------------------------------
+  puts("--- Test 4: valid-only, 7-tap [1,2,3,4,3,2,1], 16-sample ramp ---\n");
+  {
+    static const int8_t k7[7] = { 1, 2, 3, 4, 3, 2, 1 };
+    const int olen = IN_LEN - 7 + 1;   // 10
+    for (int i = 0; i < IN_LEN; i++) signal_a[i] = (int32_t)i;
+    for (int i = 0; i < IN_LEN; i++) output_a[i] = 0;
+    ref_conv_valid(signal_a, IN_LEN, k7, 7, ref_a);
+    DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
+    conv1d_run((uint32_t)signal_a, (uint32_t)output_a, IN_LEN, 7, CONV1D_PAD_VALID, k7);
+    int t4_err = 0;
+    for (int n = 0; n < olen; n++) {
+      if (output_a[n] != ref_a[n]) {
+        t4_err++;
+        if (t4_err <= 4) {
+          puts("  MISMATCH ["); putdec((uint32_t)n); puts("]: got=");
+          put_i32(output_a[n]); puts(" exp="); put_i32(ref_a[n]); putchar('\n');
+        }
+      }
+    }
+    if (t4_err == 0) { puts("PASS: "); putdec((uint32_t)olen); puts(" outputs correct\n"); }
+    else { puts("FAIL: "); putdec((uint32_t)t4_err); puts(" mismatches\n"); errors += t4_err; }
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 5: Single-element kernel [3] (scale), 8-sample ramp, valid mode
+  // out_len = 8, out[n] = 3 * x[n]
+  // -------------------------------------------------------------------------
+  puts("--- Test 5: single-element kernel [3], 8-sample ramp, valid ---\n");
+  {
+    static const int8_t k1[1] = { 3 };
+    for (int i = 0; i < IN_LEN_B; i++) signal_b[i] = (int32_t)i;
+    for (int i = 0; i < IN_LEN_B; i++) output_b[i] = 0;
+    ref_conv_valid(signal_b, IN_LEN_B, k1, 1, ref_b);
+    DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
+    conv1d_run((uint32_t)signal_b, (uint32_t)output_b, IN_LEN_B, 1, CONV1D_PAD_VALID, k1);
+    int t5_err = 0;
+    for (int n = 0; n < IN_LEN_B; n++) {
+      if (output_b[n] != ref_b[n]) {
+        t5_err++;
+        if (t5_err <= 4) {
+          puts("  MISMATCH ["); putdec((uint32_t)n); puts("]: got=");
+          put_i32(output_b[n]); puts(" exp="); put_i32(ref_b[n]); putchar('\n');
+        }
+      }
+    }
+    if (t5_err == 0) puts("PASS: 8 outputs correct\n");
+    else { puts("FAIL: "); putdec((uint32_t)t5_err); puts(" mismatches\n"); errors += t5_err; }
+  }
+
+  // -------------------------------------------------------------------------
+  // Test 6: Throughput — 5-tap valid filter on 64-sample ramp
+  // -------------------------------------------------------------------------
+  puts("--- Test 6: throughput, 5-tap valid, 64 samples ---\n");
+  {
+    static const int8_t k5t[5] = { 1, 2, 4, 2, 1 };
+    const int olen = IN_LEN_C - 5 + 1;  // 60
+    for (int i = 0; i < IN_LEN_C; i++) signal_c[i] = (int32_t)(i & 0x7F);
+    for (int i = 0; i < IN_LEN_C; i++) output_c[i] = 0;
+    ref_conv_valid(signal_c, IN_LEN_C, k5t, 5, ref_c);
+    DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
+
+    pcount_reset();
+    pcount_enable(1);
+    conv1d_run((uint32_t)signal_c, (uint32_t)output_c, IN_LEN_C, 5, CONV1D_PAD_VALID, k5t);
+    pcount_enable(0);
+    uint32_t cyc;
+    PCOUNT_READ(mcycle, cyc);
+
+    int t6_err = 0;
+    for (int n = 0; n < olen; n++) {
+      if (output_c[n] != ref_c[n]) {
+        t6_err++;
+        if (t6_err <= 4) {
+          puts("  MISMATCH ["); putdec((uint32_t)n); puts("]: got=");
+          put_i32(output_c[n]); puts(" exp="); put_i32(ref_c[n]); putchar('\n');
+        }
+      }
+    }
+    if (t6_err == 0) puts("PASS: 60 outputs correct\n");
+    else { puts("FAIL: "); putdec((uint32_t)t6_err); puts(" mismatches\n"); errors += t6_err; }
+
+    puts("  Total cycles:     "); putdec(cyc); putchar('\n');
+    puts("  Output elements:  "); putdec((uint32_t)olen); putchar('\n');
+    puts("  Cycles/element:   ");
+    putdec(cyc / (uint32_t)olen); putchar('.');
+    putdec((cyc % (uint32_t)olen) * 10u / (uint32_t)olen);
+    putchar('\n');
   }
 
   // -------------------------------------------------------------------------
