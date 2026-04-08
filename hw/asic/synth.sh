@@ -64,6 +64,7 @@ DEFINES=(
     -DEnableSoftmax=1
     -DEnableConv1d=1
     -DEnableConv2d=1
+    -DEnableGemm=1
 )
 
 # ============================================================================
@@ -134,7 +135,7 @@ echo " Yosys: ASIC synthesis"
 echo "=========================================="
 yosys -q -p "
     read_verilog -sv -defer $OUT_DIR/opensoc_top.v
-    synth -top opensoc_top -flatten
+    synth -top opensoc_top
     stat
     write_verilog $OUT_DIR/opensoc_top_netlist.v
 " -l "$OUT_DIR/yosys.log"
@@ -147,4 +148,4 @@ echo "  Log:     $OUT_DIR/yosys.log"
 echo "  Netlist: $OUT_DIR/opensoc_top_netlist.v"
 echo ""
 echo "  Quick stats:"
-grep -A 20 "Printing statistics" "$OUT_DIR/yosys.log" | head -25
+(set +o pipefail; tac "$OUT_DIR/yosys.log" | grep -m1 -B 30 "Printing statistics" | tac)

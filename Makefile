@@ -263,13 +263,13 @@ $(addprefix run-,$(RUN_TESTS)): run-%:
 synth:
 ifeq ($(FLOW),fpga-arty)
 	$(MAKE) synth-setup-arty
-	$(VIVADO) -mode batch -source hw/fpga/arty_a7/synth.tcl
+	time $(VIVADO) -mode batch -source hw/fpga/arty_a7/synth.tcl
 else ifeq ($(FLOW),yosys)
 	$(MAKE) synth-setup-asic
-	bash hw/asic/synth.sh
+	time bash hw/asic/synth.sh
 else ifeq ($(FLOW),ol2)
 	$(MAKE) synth-setup-asic
-	bash hw/asic/openlane2/run.sh
+	time bash hw/asic/openlane2/run.sh
 else
 	$(error Unknown FLOW=$(FLOW). Use: fpga-arty, ol2, or yosys)
 endif
