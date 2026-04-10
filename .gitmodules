@@ -12,3 +12,6 @@
 	path = hw/ip/common_cells
 	url = https://github.com/vladdum/common_cells.git
 	branch = opensoc-patches
+[submodule "hw/ip/kronos_riscv"]
+	path = hw/ip/kronos_riscv
+	url = https://github.com/vladdum/kronos-riscv.git

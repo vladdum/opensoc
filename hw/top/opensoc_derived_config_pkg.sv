@@ -16,13 +16,16 @@
 `include "axi/typedef.svh"
 
 package opensoc_derived_config_pkg;
+`ifndef USE_KRONOS
   import ibex_pkg::*;
+`endif
   import axi_pkg::*;
 
   // =========================================================================
   // Configurable parameters — forwarded from the active config package.
   // =========================================================================
 
+`ifndef USE_KRONOS
   // -------------------------------------------------------------------------
   // Ibex CPU parameters (identical across all targets)
   // -------------------------------------------------------------------------
@@ -44,11 +47,12 @@ package opensoc_derived_config_pkg;
   localparam bit          DbgTriggerEn     = opensoc_config_pkg::DbgTriggerEn;
   localparam bit          ICacheECC        = opensoc_config_pkg::ICacheECC;
   localparam bit          BranchPredictor  = opensoc_config_pkg::BranchPredictor;
-  localparam              SRAMInitFile     = opensoc_config_pkg::SRAMInitFile;
+`endif  // USE_KRONOS
 
   // -------------------------------------------------------------------------
   // Parameters from the unified config
   // -------------------------------------------------------------------------
+  localparam              SRAMInitFile     = opensoc_config_pkg::SRAMInitFile;
   localparam int unsigned   RamDepth         = opensoc_config_pkg::RamDepth;
   localparam bit            EnableReLU       = opensoc_config_pkg::EnableReLU;
   localparam bit            EnableVMAC       = opensoc_config_pkg::EnableVMAC;
@@ -60,6 +64,7 @@ package opensoc_derived_config_pkg;
   localparam bit            EnableGemm       = opensoc_config_pkg::EnableGemm;
   localparam xbar_latency_e XbarLatencyMode  = opensoc_config_pkg::XbarLatencyMode;
 
+`ifndef USE_KRONOS
   // -------------------------------------------------------------------------
   // Register file: FPGA block-RAM RF on Xilinx targets; FF RF for ASIC/sim
   // -------------------------------------------------------------------------
@@ -68,6 +73,7 @@ package opensoc_derived_config_pkg;
 `else
   localparam regfile_e RegFile = opensoc_config_pkg::RegFile;  // macro → RegFileFF
 `endif
+`endif  // USE_KRONOS
 
   // =========================================================================
   // Derived parameters — computed from the config values above

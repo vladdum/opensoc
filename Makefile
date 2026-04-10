@@ -10,6 +10,7 @@ FLOW   ?= fpga-arty
 VIVADO ?= vivado
 TOP    ?= opensoc_top_lean
 JOBS   ?= $(shell nproc)
+CPU    ?= ibex
 
 CORES_ROOT_BASE := --cores-root=. \
                    --cores-root=hw/ip/ibex \
@@ -20,6 +21,19 @@ CORES_ROOT_BASE := --cores-root=. \
                    --cores-root=hw/ip/i2c_controller \
                    --cores-root=hw/ip/uart \
                    --cores-root=hw/ip/ram
+
+ifeq ($(CPU),kronos)
+CORES_ROOT_BASE += --cores-root=hw/ip/kronos_riscv
+LINT_TARGET     := lint-kronos
+SIM_TARGET      := sim-kronos
+SYNTH_TARGET    := synth-kronos
+KRONOS_DEFINES  := --USE_KRONOS 1
+else
+LINT_TARGET     := lint
+SIM_TARGET      := sim
+SYNTH_TARGET    := synth
+KRONOS_DEFINES  :=
+endif
 CORES_ROOT_ACCELS := --cores-root=hw/ip/relu_accel \
                      --cores-root=hw/ip/vec_mac \
                      --cores-root=hw/ip/sg_dma \
@@ -142,6 +156,8 @@ help:
 	@echo "  clean                       Remove build directory"
 	@echo ""
 	@echo "Options"
+	@echo "  CPU=ibex                    Use Ibex CPU (default)"
+	@echo "  CPU=kronos                  Use Kronos single-cycle CPU (Stage 0)"
 	@echo "  TOP=opensoc_top_lean        Build lean core (default, no IPs)"
 	@echo "  TOP=opensoc_top             Build full core (use with ENABLE_* flags)"
 	@echo "  ENABLE_RELU=1               Include ReLU accelerator"
@@ -216,12 +232,13 @@ _reg-run-%: FORCE
 
 .PHONY: lint
 lint:
-	$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=lint \
+	$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=$(LINT_TARGET) \
 	    --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
 	    --flag enable_crypto --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
 	    opensoc:soc:opensoc_top \
 	    --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	    --EnableCrypto 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1
+	    --EnableCrypto 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 \
+	    $(KRONOS_DEFINES)
 
 # ── Simulator build ───────────────────────────────────────────────────────────
 
@@ -236,7 +253,7 @@ build:
 	    echo "[build] $$(( (_now - _build_start) / 60 ))m elapsed..."; \
 	  done ) & \
 	_timer_pid=$$!; \
-	MAKEFLAGS="-j$(JOBS)" $(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build $(FUSESOC_FLAGS) $(BUILD_CORE_$(TOP)) $(FUSESOC_DEFINES); \
+	MAKEFLAGS="-j$(JOBS)" $(FUSESOC) $(CORES_ROOT) run --target=$(SIM_TARGET) --setup --build $(FUSESOC_FLAGS) $(BUILD_CORE_$(TOP)) $(FUSESOC_DEFINES) $(KRONOS_DEFINES); \
 	kill $$_timer_pid 2>/dev/null; wait $$_timer_pid 2>/dev/null; \
 	_build_end=$$(date +%s); \
 	_elapsed=$$(( _build_end - _build_start )); \
@@ -285,12 +302,12 @@ synth-setup-asic:
 	  if [ -d "$(SYNTH_SRC_DIR_ASIC)" ]; then \
 	    echo "synth-setup-asic: completed by another process, skipping"; \
 	  else \
-	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup \
+	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=$(SYNTH_TARGET) --setup \
 	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
 	      --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
 	      opensoc:soc:opensoc_top \
 	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1; \
+	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 $(KRONOS_DEFINES); \
 	  fi; \
 	  exec 9>&-; \
 	fi

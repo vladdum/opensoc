@@ -6,7 +6,9 @@
 #include <iostream>
 
 #include "Vopensoc_top_wrapper__Syms.h"
+#ifndef USE_KRONOS
 #include "ibex_pcounts.h"
+#endif
 #include "opensoc_top_sim.h"
 #include "verilated_toplevel.h"
 #include "verilator_memutil.h"
@@ -62,6 +64,7 @@ bool OpenSocSim::Finish() {
     return false;
   }
 
+#ifndef USE_KRONOS
   // Set the scope to the root scope, the ibex_pcount_string function otherwise
   // doesn't know the scope itself. Could be moved to ibex_pcount_string, but
   // would require a way to set the scope name from here, similar to MemUtil.
@@ -73,6 +76,7 @@ bool OpenSocSim::Finish() {
 
   std::ofstream pcount_csv("opensoc_top_pcount.csv");
   pcount_csv << ibex_pcount_string(true);
+#endif
 
   return true;
 }
