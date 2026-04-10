@@ -6,8 +6,9 @@
 #include <iostream>
 
 #include "Vopensoc_top_wrapper__Syms.h"
-#ifndef USE_KRONOS
+#if __has_include("ibex_pcounts.h")
 #include "ibex_pcounts.h"
+#define HAVE_IBEX_PCOUNTS 1
 #endif
 #include "opensoc_top_sim.h"
 #include "verilated_toplevel.h"
@@ -64,7 +65,7 @@ bool OpenSocSim::Finish() {
     return false;
   }
 
-#ifndef USE_KRONOS
+#ifdef HAVE_IBEX_PCOUNTS
   // Set the scope to the root scope, the ibex_pcount_string function otherwise
   // doesn't know the scope itself. Could be moved to ibex_pcount_string, but
   // would require a way to set the scope name from here, similar to MemUtil.

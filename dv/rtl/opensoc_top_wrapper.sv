@@ -55,6 +55,7 @@ module opensoc_top_wrapper
   );
 
 `ifdef RVFI
+`ifndef USE_KRONOS
   ibex_tracer u_ibex_tracer (
     .clk_i                       (u_opensoc_top.clk_sys                        ),
     .rst_ni                      (u_opensoc_top.rst_sys_n                       ),
@@ -85,7 +86,8 @@ module opensoc_top_wrapper
     .rvfi_ext_expanded_insn_valid(u_opensoc_top.rvfi_ext_expanded_insn_valid    ),
     .rvfi_ext_expanded_insn      (u_opensoc_top.rvfi_ext_expanded_insn          )
   );
-`endif
+`endif  // USE_KRONOS
+`endif  // RVFI
 
 `ifndef USE_KRONOS
   export "DPI-C" function mhpmcounter_num;
