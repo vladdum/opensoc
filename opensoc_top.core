@@ -3,12 +3,10 @@ CAPI=2:
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 name: "opensoc:soc:opensoc_top"
-description: "OpenSoC top-level based on ibex_simple_system"
+description: "OpenSoC top-level — Ibex (default) or Kronos CPU"
 filesets:
   files_rtl_base:
     depend:
-      - lowrisc:ibex:ibex_top
-      - lowrisc:prim_generic:all
       - lowrisc:ibex:sim_shared
       - "pulp-platform.org::axi"
       - "opensoc:ip:pio"
@@ -19,6 +17,18 @@ filesets:
       - hw/top/opensoc_config_pkg.sv
       - hw/top/opensoc_derived_config_pkg.sv
       - hw/top/opensoc_top.sv
+    file_type: systemVerilogSource
+
+  # CPU filesets — include exactly one per build
+  files_ibex_cpu:
+    depend:
+      - lowrisc:ibex:ibex_top
+      - lowrisc:prim_generic:all
+    file_type: systemVerilogSource
+
+  files_kronos_cpu:
+    depend:
+      - "opensoc:ip:kronos_riscv"
     file_type: systemVerilogSource
 
   files_relu:
@@ -68,6 +78,7 @@ filesets:
     files:
       - hw/lint/verilator_waiver.vlt: {file_type: vlt}
 
+  # Simulation wrappers — Ibex variant includes ibex_tracer (for RVFI)
   files_sim_sv:
     depend:
       - lowrisc:ibex:ibex_tracer
@@ -75,6 +86,12 @@ filesets:
       - dv/rtl/opensoc_top_wrapper.sv
     file_type: systemVerilogSource
 
+  files_sim_sv_kronos:
+    files:
+      - dv/rtl/opensoc_top_wrapper.sv
+    file_type: systemVerilogSource
+
+  # C++ sim driver — Ibex variant includes ibex_pcounts
   files_verilator_sim:
     depend:
       - lowrisc:dv_verilator:memutil_verilator
@@ -85,10 +102,24 @@ filesets:
       - dv/verilator/opensoc_top_sim.h: {file_type: cppSource, is_include_file: true}
       - dv/verilator/opensoc_top_main.cc: {file_type: cppSource}
 
+  files_verilator_sim_kronos:
+    depend:
+      - lowrisc:dv_verilator:memutil_verilator
+      - lowrisc:dv_verilator:simutil_verilator
+    files:
+      - dv/verilator/opensoc_top_sim.cc: {file_type: cppSource}
+      - dv/verilator/opensoc_top_sim.h: {file_type: cppSource, is_include_file: true}
+      - dv/verilator/opensoc_top_main.cc: {file_type: cppSource}
+
 parameters:
   RVFI:
     datatype: bool
     paramtype: vlogdefine
+
+  USE_KRONOS:
+    datatype: bool
+    paramtype: vlogdefine
+    description: "Select Kronos CPU instead of Ibex (0=Ibex default, 1=Kronos)"
 
   RV32M:
     datatype: str
@@ -166,6 +197,7 @@ targets:
   default: &default_target
     filesets:
       - files_rtl_base
+      - files_ibex_cpu
       - enable_relu ? (files_relu)
       - enable_vmac ? (files_vmac)
       - enable_sgdma ? (files_sgdma)
@@ -193,6 +225,7 @@ targets:
   synth:
     filesets:
       - files_rtl_base
+      - files_ibex_cpu
       - enable_relu ? (files_relu)
       - enable_vmac ? (files_vmac)
       - enable_sgdma ? (files_sgdma)
@@ -203,6 +236,32 @@ targets:
     toplevel: opensoc_top
     default_tool: verilator
     parameters:
+      - EnableReLU
+      - EnableVMAC
+      - EnableSgDma
+      - EnableSoftmax
+      - EnableConv1d
+      - EnableConv2d
+      - EnableGemm
+    tools:
+      verilator:
+        mode: lint-only
+
+  synth-kronos:
+    filesets:
+      - files_rtl_base
+      - files_kronos_cpu
+      - enable_relu ? (files_relu)
+      - enable_vmac ? (files_vmac)
+      - enable_sgdma ? (files_sgdma)
+      - enable_softmax ? (files_softmax)
+      - enable_conv1d ? (files_conv1d)
+      - enable_conv2d ? (files_conv2d)
+      - enable_gemm ? (files_gemm)
+    toplevel: opensoc_top
+    default_tool: verilator
+    parameters:
+      - USE_KRONOS=true
       - EnableReLU
       - EnableVMAC
       - EnableSgDma
@@ -227,9 +286,45 @@ targets:
           - "-Wno-UNOPTFLAT"
           - "--unroll-count 72"
 
+  lint-kronos:
+    filesets:
+      - files_rtl_base
+      - files_kronos_cpu
+      - enable_relu ? (files_relu)
+      - enable_vmac ? (files_vmac)
+      - enable_sgdma ? (files_sgdma)
+      - enable_softmax ? (files_softmax)
+      - enable_crypto ? (files_crypto)
+      - enable_conv1d ? (files_conv1d)
+      - enable_conv2d ? (files_conv2d)
+      - enable_gemm ? (files_gemm)
+      - files_lint_verilator
+    toplevel: opensoc_top
+    parameters:
+      - USE_KRONOS=true
+      - EnableReLU
+      - EnableVMAC
+      - EnableSgDma
+      - EnableSoftmax
+      - EnableCrypto
+      - EnableConv1d
+      - EnableConv2d
+      - EnableGemm
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: lint-only
+        verilator_options:
+          - "-Wall"
+          - "-Wno-REDEFMACRO"
+          - "-Wno-SYNCASYNCNET"
+          - "-Wno-UNOPTFLAT"
+          - "--unroll-count 72"
+
   sim:
     filesets:
       - files_rtl_base
+      - files_ibex_cpu
       - enable_relu ? (files_relu)
       - enable_vmac ? (files_vmac)
       - enable_sgdma ? (files_sgdma)
@@ -271,4 +366,47 @@ targets:
           - "--output-split 20000"
           - "--build-jobs 0"
           - '-CFLAGS "-std=c++17 -O1 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=opensoc_top_wrapper"'
+          - '-LDFLAGS "-pthread -lutil -lelf"'
+
+  sim-kronos:
+    filesets:
+      - files_rtl_base
+      - files_kronos_cpu
+      - enable_relu ? (files_relu)
+      - enable_vmac ? (files_vmac)
+      - enable_sgdma ? (files_sgdma)
+      - enable_softmax ? (files_softmax)
+      - enable_crypto ? (files_crypto)
+      - enable_conv1d ? (files_conv1d)
+      - enable_conv2d ? (files_conv2d)
+      - enable_gemm ? (files_gemm)
+      - files_lint_verilator
+      - files_sim_sv_kronos
+      - files_verilator_sim_kronos
+    toplevel: opensoc_top_wrapper
+    parameters:
+      - USE_KRONOS=true
+      - EnableReLU
+      - EnableVMAC
+      - EnableSgDma
+      - EnableSoftmax
+      - EnableCrypto
+      - EnableConv1d
+      - EnableConv2d
+      - EnableGemm
+    default_tool: verilator
+    tools:
+      verilator:
+        mode: cc
+        verilator_options:
+          - "-Wall"
+          - "-Wno-REDEFMACRO"
+          - "-Wno-SYNCASYNCNET"
+          - "-Wno-UNOPTFLAT"
+          - "--unroll-count 72"
+          - "--trace-fst"
+          - "--trace-structs"
+          - "--output-split 20000"
+          - "--build-jobs 0"
+          - '-CFLAGS "-std=c++17 -O1 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=opensoc_top_wrapper -DUSE_KRONOS"'
           - '-LDFLAGS "-pthread -lutil -lelf"'

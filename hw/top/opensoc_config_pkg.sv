@@ -11,6 +11,7 @@
 // sets these via +define+NAME=VALUE (vlogdefine).  The `ifndef guards let the
 // command-line define win; if nothing is set the defaults below are used.
 
+`ifndef USE_KRONOS
 `ifndef RV32M
   `define RV32M ibex_pkg::RV32MFast
 `endif
@@ -23,11 +24,15 @@
 `ifndef RegFile
   `define RegFile ibex_pkg::RegFileFF
 `endif
+`endif  // USE_KRONOS
 
 package opensoc_config_pkg;
+`ifndef USE_KRONOS
   import ibex_pkg::*;
+`endif
   import axi_pkg::*;
 
+`ifndef USE_KRONOS
   // -------------------------------------------------------------------------
   // Ibex CPU
   // -------------------------------------------------------------------------
@@ -50,6 +55,7 @@ package opensoc_config_pkg;
   localparam bit          DbgTriggerEn     = 1'b0;
   localparam bit          ICacheECC        = 1'b0;
   localparam bit          BranchPredictor  = 1'b0;
+`endif  // USE_KRONOS
 
   // -------------------------------------------------------------------------
   // Memory

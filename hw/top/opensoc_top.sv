@@ -127,10 +127,6 @@ module opensoc_top
   logic [31:0] data_rdata;
   logic        data_err;
 
-  // ECC integrity signals
-  logic [6:0] data_rdata_intg;
-  logic [6:0] instr_rdata_intg;
-
   // -------------------------------------------------------------------------
   // AXI signal bundles
   // -------------------------------------------------------------------------
@@ -161,8 +157,45 @@ module opensoc_top
   assign rst_sys_n = IO_RST_N;
 
   // -------------------------------------------------------------------------
-  // ECC integrity (SecureIbex only)
+  // CPU instantiation: Ibex (default) or Kronos (USE_KRONOS)
   // -------------------------------------------------------------------------
+  assign ibex_irq_fast = {5'b0, gemm_irq, conv2d_irq, conv1d_irq, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
+
+`ifdef USE_KRONOS
+  // -------------------------------------------------------------------------
+  // Kronos single-cycle RISC-V core (Stage 0 golden model)
+  // -------------------------------------------------------------------------
+  kronos_top u_top (
+    .clk_i          (clk_sys),
+    .rst_ni         (rst_sys_n),
+    .instr_req_o    (instr_req),
+    .instr_gnt_i    (instr_gnt),
+    .instr_rvalid_i (instr_rvalid),
+    .instr_addr_o   (instr_addr),
+    .instr_rdata_i  (instr_rdata),
+    .instr_err_i    (instr_err),
+    .data_req_o     (data_req),
+    .data_gnt_i     (data_gnt),
+    .data_rvalid_i  (data_rvalid),
+    .data_we_o      (data_we),
+    .data_be_o      (data_be),
+    .data_addr_o    (data_addr),
+    .data_wdata_o   (data_wdata),
+    .data_rdata_i   (data_rdata),
+    .data_err_i     (data_err),
+    .irq_timer_i    (timer_irq),
+    .irq_fast_i     (ibex_irq_fast),
+    .boot_addr_i    (32'h20000000)
+  );
+
+`else
+  // -------------------------------------------------------------------------
+  // Ibex CPU (default)
+  // -------------------------------------------------------------------------
+  // ECC integrity signals (Ibex only)
+  logic [6:0] data_rdata_intg;
+  logic [6:0] instr_rdata_intg;
+
   if (SecureIbex) begin : g_mem_rdata_ecc
     logic [31:0] unused_data_rdata;
     logic [31:0] unused_instr_rdata;
@@ -181,9 +214,6 @@ module opensoc_top
     assign instr_rdata_intg = '0;
   end
 
-  // -------------------------------------------------------------------------
-  // Ibex CPU
-  // -------------------------------------------------------------------------
   // RVFI signals: declared here so opensoc_top_sim can connect ibex_tracer via
   // hierarchical reference without polluting the module's port list.
 `ifdef RVFI
@@ -347,8 +377,7 @@ module opensoc_top
       .rvfi_ext_expanded_insn_last()
 `endif
     );
-
-    assign ibex_irq_fast = {5'b0, gemm_irq, conv2d_irq, conv1d_irq, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
+`endif  // USE_KRONOS
 
   // -------------------------------------------------------------------------
   // AXI bridges: Ibex memory ports → AXI (axi_from_mem)

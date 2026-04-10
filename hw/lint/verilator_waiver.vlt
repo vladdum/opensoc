@@ -84,6 +84,14 @@ lint_off -rule DECLFILENAME  -file "*/opensoc_ip_opentitan_aes_0/*"
 lint_off -rule UNUSEDPARAM   -file "*/opensoc_ip_opentitan_aes_0/*"
 lint_off -rule UNUSEDSIGNAL  -file "*/opensoc_ip_opentitan_aes_0/*"
 
+// Kronos RTL: unused signals expected in Stage 0 single-cycle implementation
+// (instr_gnt/err not needed in single-cycle, 64-bit regfile upper bits unused for RV32I)
+lint_off -rule UNUSEDSIGNAL  -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
+
+// Third-party lowRISC prim/sim-shared packages (ibex ecosystem, transitive via opentitan_aes)
+lint_off -rule UNUSEDSIGNAL  -file "*/lowrisc_prim_*"
+lint_off -rule UNUSEDSIGNAL  -file "*/lowrisc_ibex_sim_shared_*"
+
 // Third-party IP: PULP AXI modules — waive all lint rules
 lint_off -rule WIDTH          -file "*/pulp-platform.org*axi*"
 lint_off -rule UNUSED         -file "*/pulp-platform.org*axi*"

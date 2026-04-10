@@ -87,6 +87,7 @@ module opensoc_top_wrapper
   );
 `endif
 
+`ifndef USE_KRONOS
   export "DPI-C" function mhpmcounter_num;
 
   function automatic int unsigned mhpmcounter_num();
@@ -98,5 +99,6 @@ module opensoc_top_wrapper
   function automatic longint unsigned mhpmcounter_get(int index);
     return u_opensoc_top.u_top.u_ibex_core.cs_registers_i.mhpmcounter[index];
   endfunction
+`endif  // USE_KRONOS
 
 endmodule
