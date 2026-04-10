@@ -225,7 +225,8 @@ targets:
   synth:
     filesets:
       - files_rtl_base
-      - files_ibex_cpu
+      - "!use_kronos ? (files_ibex_cpu)"
+      - use_kronos ? (files_kronos_cpu)
       - enable_relu ? (files_relu)
       - enable_vmac ? (files_vmac)
       - enable_sgdma ? (files_sgdma)
@@ -236,6 +237,7 @@ targets:
     toplevel: opensoc_top
     default_tool: verilator
     parameters:
+      - USE_KRONOS
       - EnableReLU
       - EnableVMAC
       - EnableSgDma
@@ -274,7 +276,34 @@ targets:
         mode: lint-only
 
   lint:
-    <<: *default_target
+    filesets:
+      - files_rtl_base
+      - "!use_kronos ? (files_ibex_cpu)"
+      - use_kronos ? (files_kronos_cpu)
+      - enable_relu ? (files_relu)
+      - enable_vmac ? (files_vmac)
+      - enable_sgdma ? (files_sgdma)
+      - enable_softmax ? (files_softmax)
+      - enable_crypto ? (files_crypto)
+      - enable_conv1d ? (files_conv1d)
+      - enable_conv2d ? (files_conv2d)
+      - enable_gemm ? (files_gemm)
+      - tool_verilator ? (files_lint_verilator)
+    toplevel: opensoc_top
+    parameters:
+      - USE_KRONOS
+      - RV32M
+      - RV32B
+      - RV32ZC
+      - RegFile
+      - EnableReLU
+      - EnableVMAC
+      - EnableSgDma
+      - EnableSoftmax
+      - EnableCrypto
+      - EnableConv1d
+      - EnableConv2d
+      - EnableGemm
     default_tool: verilator
     tools:
       verilator:
@@ -324,7 +353,8 @@ targets:
   sim:
     filesets:
       - files_rtl_base
-      - files_ibex_cpu
+      - "!use_kronos ? (files_ibex_cpu)"
+      - use_kronos ? (files_kronos_cpu)
       - enable_relu ? (files_relu)
       - enable_vmac ? (files_vmac)
       - enable_sgdma ? (files_sgdma)
@@ -334,11 +364,14 @@ targets:
       - enable_conv2d ? (files_conv2d)
       - enable_gemm ? (files_gemm)
       - files_lint_verilator
-      - files_sim_sv
-      - files_verilator_sim
+      - "!use_kronos ? (files_sim_sv)"
+      - use_kronos ? (files_sim_sv_kronos)
+      - "!use_kronos ? (files_verilator_sim)"
+      - use_kronos ? (files_verilator_sim_kronos)
     toplevel: opensoc_top_wrapper
     parameters:
       - RVFI=true
+      - USE_KRONOS
       - RV32M
       - RV32B
       - RV32ZC
