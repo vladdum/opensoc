@@ -46,6 +46,12 @@ Before creating any PR:
 git pull --rebase --autostash origin main
 ```
 
+When merging, delete the branch:
+
+```bash
+gh pr merge --delete-branch
+```
+
 ## Project Overview
 
 OpenSoC is a RISC-V SoC built on the lowRISC **Ibex** CPU core. The top-level module (`opensoc_top`) uses an AXI4 crossbar (`axi_xbar` from PULP) to connect the Ibex CPU to 1 MB SRAM and a set of peripherals: simulator control, timer, UART, PIO, I2C, AES crypto cluster, and seven optional accelerators (ReLU, vector MAC, scatter-gather DMA, Softmax, Conv1D, Conv2D, GEMM).

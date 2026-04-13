@@ -8,7 +8,6 @@ TRACE  ?=
 WAVES  ?=
 FLOW   ?= fpga-arty
 VIVADO ?= vivado
-TOP    ?= opensoc_top_lean
 JOBS   ?= $(shell nproc)
 CPU    ?= kronos
 
@@ -40,23 +39,16 @@ CORES_ROOT_ACCELS := --cores-root=hw/ip/relu_accel \
                      --cores-root=hw/ip/conv2d \
                      --cores-root=hw/ip/gemm
 
-ifeq ($(TOP),opensoc_top_lean)
-CORES_ROOT := $(CORES_ROOT_BASE)
-else
-CORES_ROOT := $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS)
-endif
-
 # ── IP enable flags (sim/lint only; FPGA/ASIC use config_pkg defaults) ────────
-ENABLE_RELU    ?= 0
-ENABLE_VMAC    ?= 0
-ENABLE_SGDMA   ?= 0
-ENABLE_SOFTMAX ?= 0
-ENABLE_CRYPTO  ?= 0
-ENABLE_CONV1D  ?= 0
-ENABLE_CONV2D  ?= 0
-ENABLE_GEMM    ?= 0
+ENABLE_RELU    ?= 1
+ENABLE_VMAC    ?= 1
+ENABLE_SGDMA   ?= 1
+ENABLE_SOFTMAX ?= 1
+ENABLE_CRYPTO  ?= 1
+ENABLE_CONV1D  ?= 1
+ENABLE_CONV2D  ?= 1
+ENABLE_GEMM    ?= 1
 
-ifneq ($(TOP),opensoc_top_lean)
 FUSESOC_FLAGS := \
   $(if $(filter 1,$(ENABLE_RELU)),--flag enable_relu,) \
   $(if $(filter 1,$(ENABLE_VMAC)),--flag enable_vmac,) \
@@ -76,7 +68,6 @@ FUSESOC_DEFINES := \
   --EnableConv1d $(ENABLE_CONV1D) \
   --EnableConv2d $(ENABLE_CONV2D) \
   --EnableGemm $(ENABLE_GEMM)
-endif
 
 ifeq ($(CPU),kronos)
 SW_ARCH  := rv32im_zicsr
@@ -89,12 +80,7 @@ SIM_TRACE_FLAGS := $(if $(or $(TRACE),$(WAVES)),--trace,)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
-SW_DIR         := hw/ip/ibex/examples/sw/simple_system
-
-SIM_DIR        := build/opensoc_soc_$(TOP)_0/sim-verilator
-
-# run-* targets always use the full simulator (built by build-full)
-RUN_SIM_DIR    := build/opensoc_soc_opensoc_top_0/sim-verilator
+SIM_DIR        := build/opensoc_soc_opensoc_top_0/sim-verilator
 
 SYNTH_SRC_DIR_ARTY := build/opensoc_fpga_arty_a7_0/synth-vivado/src
 SYNTH_SRC_DIR_ASIC := build/opensoc_soc_opensoc_top_0/synth-verilator/src
@@ -106,11 +92,6 @@ SYNTH_SRC_DIR_ASIC := build/opensoc_soc_opensoc_top_0/synth-verilator/src
 
 include sw/tests/tests.mk
 
-# ── Simulator top registry ────────────────────────────────────────────────────
-
-BUILD_CORE_opensoc_top      := opensoc:soc:opensoc_top
-BUILD_CORE_opensoc_top_lean := opensoc:soc:opensoc_top_lean
-
 # ── Help ──────────────────────────────────────────────────────────────────────
 
 .PHONY: help
@@ -118,16 +99,14 @@ help:
 	@echo "Usage: make <target> [OPTIONS]"
 	@echo ""
 	@echo "Lint"
-	@echo "  lint                        Run Verilator lint (lean by default)"
+	@echo "  lint                        Run Verilator lint (all IPs, both CPUs)"
 	@echo ""
 	@echo "Simulator build"
-	@echo "  build                       Build lean simulator (no IPs, fast)"
-	@echo "  build TOP=opensoc_top       Build full simulator with enabled IPs"
-	@echo "  build-full                  Build full simulator (all IPs)"
+	@echo "  build                       Build simulator (all IPs by default)"
+	@echo "  build ENABLE_RELU=0 ...     Build simulator with selected IPs disabled"
 	@echo ""
 	@echo "Regression"
 	@echo "  regression                  Run tests for currently enabled IPs"
-	@echo "  regression-full             Build full sim + run all tests (CI)"
 	@echo ""
 	@echo "Run (builds SW then runs simulation)"
 	@echo "  run-hello        Print hex values and test timer interrupts"
@@ -159,8 +138,6 @@ help:
 	@echo "Options"
 	@echo "  CPU=kronos                  Use Kronos CPU (default)"
 	@echo "  CPU=ibex                    Use Ibex CPU"
-	@echo "  TOP=opensoc_top_lean        Build lean core (default, no IPs)"
-	@echo "  TOP=opensoc_top             Build full core (use with ENABLE_* flags)"
 	@echo "  ENABLE_RELU=1               Include ReLU accelerator"
 	@echo "  ENABLE_VMAC=1               Include vector MAC accelerator"
 	@echo "  ENABLE_SGDMA=1              Include scatter-gather DMA"
@@ -180,12 +157,7 @@ clean:
 	rm -rf build
 
 # ── Regression ────────────────────────────────────────────────────────────────
-# REGRESSION_TESTS, REGRESSION_FULL_TESTS, and RUN_TESTS are defined in
-# sw/tests/tests.mk (included above).
-
-FULL_FLAGS := TOP=opensoc_top \
-              ENABLE_RELU=1 ENABLE_VMAC=1 ENABLE_SGDMA=1 ENABLE_SOFTMAX=1 ENABLE_CRYPTO=1 \
-              ENABLE_CONV1D=1 ENABLE_CONV2D=1 ENABLE_GEMM=1
+# REGRESSION_TESTS and RUN_TESTS are defined in sw/tests/tests.mk (included above).
 
 REGTEST_DIR := $(SIM_DIR)/regression
 
@@ -207,18 +179,9 @@ regression: $(SIM_DIR)/Vopensoc_top_wrapper
 	echo ""; echo "  $$pass passed, $$fail failed"; \
 	[ $$fail -eq 0 ]
 
-# Full build + regression (all IPs) — used by CI
-.PHONY: build-full
-build-full:
-	$(MAKE) build $(FULL_FLAGS) CPU=$(CPU)
-
-.PHONY: regression-full
-regression-full:
-	$(MAKE) regression $(FULL_FLAGS) CPU=$(CPU)
-
 # Build the simulator binary if it doesn't exist yet
 $(SIM_DIR)/Vopensoc_top_wrapper:
-	$(MAKE) build TOP=$(TOP) CPU=$(CPU)
+	$(MAKE) build CPU=$(CPU)
 
 .PHONY: FORCE
 
@@ -250,8 +213,6 @@ lint:
 
 .PHONY: build
 build:
-	@test -n "$(BUILD_CORE_$(TOP))" || \
-	  { echo "Unknown TOP='$(TOP)'. Valid: opensoc_top"; exit 1; }
 	@_build_start=$$(date +%s); \
 	( while true; do \
 	    sleep 60; \
@@ -259,7 +220,8 @@ build:
 	    echo "[build] $$(( (_now - _build_start) / 60 ))m elapsed..."; \
 	  done ) & \
 	_timer_pid=$$!; \
-	MAKEFLAGS="-j$(JOBS)" $(FUSESOC) $(CORES_ROOT) run --target=sim --setup --build $(CPU_FLAGS) $(FUSESOC_FLAGS) $(BUILD_CORE_$(TOP)) $(FUSESOC_DEFINES) $(CPU_DEFINES); \
+	echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=sim --setup --build $(CPU_FLAGS) $(FUSESOC_FLAGS) opensoc:soc:opensoc_top $(FUSESOC_DEFINES) $(CPU_DEFINES)"; \
+	MAKEFLAGS="-j$(JOBS)" $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=sim --setup --build $(CPU_FLAGS) $(FUSESOC_FLAGS) opensoc:soc:opensoc_top $(FUSESOC_DEFINES) $(CPU_DEFINES); \
 	kill $$_timer_pid 2>/dev/null; wait $$_timer_pid 2>/dev/null; \
 	_build_end=$$(date +%s); \
 	_elapsed=$$(( _build_end - _build_start )); \
@@ -274,11 +236,11 @@ build:
 .PHONY: $(addprefix run-,$(RUN_TESTS))
 $(addprefix run-,$(RUN_TESTS)): run-%:
 	$(MAKE) -C $(SW_DIR_$*) ARCH=$(SW_ARCH)
-	cd $(RUN_SIM_DIR) && \
+	cd $(SIM_DIR) && \
 	  ./Vopensoc_top_wrapper --meminit=ram,$(CURDIR)/$(ELF_$*) $(SIM_FLAGS_$*) $(SIM_TRACE_FLAGS)
 	@echo "--- Program output ---"
-	@cat $(RUN_SIM_DIR)/opensoc_top.log
-	$(if $(WAVES),gtkwave $(RUN_SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
+	@cat $(SIM_DIR)/opensoc_top.log
+	$(if $(WAVES),gtkwave $(SIM_DIR)/sim.fst $(wildcard $(GTKW_DIR)/opensoc_top.gtkw) &,)
 
 # ── Synthesis ─────────────────────────────────────────────────────────────────
 
@@ -309,6 +271,7 @@ synth-setup-asic:
 	  if [ -d "$(SYNTH_SRC_DIR_ASIC)" ]; then \
 	    echo "synth-setup-asic: completed by another process, skipping"; \
 	  else \
+	    echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup $(CPU_FLAGS) --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax --flag enable_conv1d --flag enable_conv2d --flag enable_gemm opensoc:soc:opensoc_top --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 $(CPU_DEFINES)"; \
 	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup \
 	      $(CPU_FLAGS) \
 	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
@@ -331,6 +294,7 @@ synth-setup-arty:
 	  if [ -d "$(SYNTH_SRC_DIR_ARTY)" ]; then \
 	    echo "synth-setup-arty: completed by another process, skipping"; \
 	  else \
+	    echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup $(CPU_FLAGS) --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax --flag enable_conv1d --flag enable_conv2d --flag enable_gemm opensoc:fpga:arty_a7 --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 $(CPU_DEFINES)"; \
 	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup \
 	      $(CPU_FLAGS) \
 	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \

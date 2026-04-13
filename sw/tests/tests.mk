@@ -80,12 +80,6 @@ REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV2D)),conv2d)
 REGRESSION_TESTS += $(if $(and $(filter 1,$(ENABLE_CONV2D)),$(filter 1,$(ENABLE_RELU)),$(filter 1,$(ENABLE_SOFTMAX))),conv2d-relu-softmax-stream)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_GEMM)),gemm)
 
-# Full set — all IPs; used by regression-full and CI
-REGRESSION_FULL_TESTS := $(REGRESSION_BASE) \
-  relu vmac sg-dma softmax aes \
-  conv1d conv1d-relu-stream \
-  conv2d conv2d-relu-softmax-stream gemm
-
 # run-* targets exposed to the user (bash-completable)
 RUN_TESTS := \
   hello uart pio pio-sdk pio-i2c i2c \
