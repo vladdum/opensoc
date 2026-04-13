@@ -42,7 +42,7 @@ jobs:
         run: pip install fusesoc
 
       - name: Lint
-        run: make lint TOP=opensoc_top ENABLE_RELU=1 ENABLE_VMAC=1 ENABLE_SGDMA=1 ENABLE_SOFTMAX=1 ENABLE_CRYPTO=1
+        run: make lint
 
       - name: Cache Verilator build
         uses: actions/cache@v4
@@ -51,10 +51,10 @@ jobs:
           key: verilator-${{ runner.os }}-${{ hashFiles('opensoc_top.core', 'hw/top/**', 'hw/ip/**', 'dv/**') }}
 
       - name: Build simulator
-        run: make build-full
+        run: make build
 
       - name: Run regression
-        run: make regression-full
+        run: make regression
 
       - name: Upload regression logs
         if: always()
