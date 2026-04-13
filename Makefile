@@ -10,7 +10,7 @@ FLOW   ?= fpga-arty
 VIVADO ?= vivado
 TOP    ?= opensoc_top_lean
 JOBS   ?= $(shell nproc)
-CPU    ?= ibex
+CPU    ?= kronos
 
 CORES_ROOT_BASE := --cores-root=. \
                    --cores-root=hw/ip/ibex \
@@ -79,7 +79,7 @@ FUSESOC_DEFINES := \
 endif
 
 ifeq ($(CPU),kronos)
-SW_ARCH  := rv32i_zicsr
+SW_ARCH  := rv32im_zicsr
 else
 SW_ARCH  := rv32imc_zicsr_zifencei
 endif
@@ -157,8 +157,8 @@ help:
 	@echo "  clean                       Remove build directory"
 	@echo ""
 	@echo "Options"
-	@echo "  CPU=ibex                    Use Ibex CPU (default)"
-	@echo "  CPU=kronos                  Use Kronos CPU (adds --flag use_kronos)"
+	@echo "  CPU=kronos                  Use Kronos CPU (default)"
+	@echo "  CPU=ibex                    Use Ibex CPU"
 	@echo "  TOP=opensoc_top_lean        Build lean core (default, no IPs)"
 	@echo "  TOP=opensoc_top             Build full core (use with ENABLE_* flags)"
 	@echo "  ENABLE_RELU=1               Include ReLU accelerator"
@@ -286,7 +286,8 @@ $(addprefix run-,$(RUN_TESTS)): run-%:
 synth:
 ifeq ($(FLOW),fpga-arty)
 	$(MAKE) synth-setup-arty
-	time $(VIVADO) -mode batch -source hw/fpga/arty_a7/synth.tcl
+	time $(VIVADO) -mode batch -source hw/fpga/arty_a7/synth.tcl \
+	  -tclargs USE_KRONOS=$(if $(filter kronos,$(CPU)),1,0)
 else ifeq ($(FLOW),yosys)
 	$(MAKE) synth-setup-asic
 	time bash hw/asic/synth.sh
@@ -330,11 +331,13 @@ synth-setup-arty:
 	  if [ -d "$(SYNTH_SRC_DIR_ARTY)" ]; then \
 	    echo "synth-setup-arty: completed by another process, skipping"; \
 	  else \
-	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup opensoc:fpga:arty_a7 \
+	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup \
+	      $(CPU_FLAGS) \
 	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
 	      --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
+	      opensoc:fpga:arty_a7 \
 	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1; \
+	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 $(CPU_DEFINES); \
 	  fi; \
 	  exec 9>&-; \
 	fi

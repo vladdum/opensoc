@@ -5,10 +5,8 @@ CAPI=2:
 name: "opensoc:soc:opensoc_top_lean"
 description: "OpenSoC top-level — lean build (no accelerators, no crypto)"
 filesets:
-  files_rtl:
+  files_rtl_base:
     depend:
-      - lowrisc:ibex:ibex_top
-      - lowrisc:prim_generic:all
       - lowrisc:ibex:sim_shared
       - "pulp-platform.org::axi"
       - "opensoc:ip:pio"
@@ -21,10 +19,22 @@ filesets:
       - hw/top/opensoc_top.sv
     file_type: systemVerilogSource
 
+  files_ibex_cpu:
+    depend:
+      - lowrisc:ibex:ibex_top
+      - lowrisc:prim_generic:all
+    file_type: systemVerilogSource
+
+  files_kronos_cpu:
+    depend:
+      - "opensoc:ip:kronos_riscv"
+    file_type: systemVerilogSource
+
   files_lint_verilator:
     files:
       - hw/lint/verilator_waiver.vlt: {file_type: vlt}
 
+  # Simulation wrappers — Ibex variant includes ibex_tracer (for RVFI)
   files_sim_sv:
     depend:
       - lowrisc:ibex:ibex_tracer
@@ -32,6 +42,12 @@ filesets:
       - dv/rtl/opensoc_top_wrapper.sv
     file_type: systemVerilogSource
 
+  files_sim_sv_kronos:
+    files:
+      - dv/rtl/opensoc_top_wrapper.sv
+    file_type: systemVerilogSource
+
+  # C++ sim driver — Ibex variant includes ibex_pcounts
   files_verilator_sim:
     depend:
       - lowrisc:dv_verilator:memutil_verilator
@@ -42,10 +58,24 @@ filesets:
       - dv/verilator/opensoc_top_sim.h: {file_type: cppSource, is_include_file: true}
       - dv/verilator/opensoc_top_main.cc: {file_type: cppSource}
 
+  files_verilator_sim_kronos:
+    depend:
+      - lowrisc:dv_verilator:memutil_verilator
+      - lowrisc:dv_verilator:simutil_verilator
+    files:
+      - dv/verilator/opensoc_top_sim.cc: {file_type: cppSource}
+      - dv/verilator/opensoc_top_sim.h: {file_type: cppSource, is_include_file: true}
+      - dv/verilator/opensoc_top_main.cc: {file_type: cppSource}
+
 parameters:
   RVFI:
     datatype: bool
     paramtype: vlogdefine
+
+  USE_KRONOS:
+    datatype: bool
+    paramtype: vlogdefine
+    description: "Select Kronos CPU instead of Ibex (default: Kronos)"
 
   RV32M:
     datatype: str
@@ -70,10 +100,13 @@ parameters:
 targets:
   default: &default_target
     filesets:
-      - files_rtl
+      - files_rtl_base
+      - "!use_kronos ? (files_ibex_cpu)"
+      - use_kronos ? (files_kronos_cpu)
       - tool_verilator ? (files_lint_verilator)
     toplevel: opensoc_top
     parameters:
+      - USE_KRONOS
       - RV32M
       - RV32B
       - RV32ZC
@@ -94,13 +127,18 @@ targets:
 
   sim:
     filesets:
-      - files_rtl
+      - files_rtl_base
+      - "!use_kronos ? (files_ibex_cpu)"
+      - use_kronos ? (files_kronos_cpu)
       - files_lint_verilator
-      - files_sim_sv
-      - files_verilator_sim
+      - "!use_kronos ? (files_sim_sv)"
+      - use_kronos ? (files_sim_sv_kronos)
+      - "!use_kronos ? (files_verilator_sim)"
+      - use_kronos ? (files_verilator_sim_kronos)
     toplevel: opensoc_top_wrapper
     parameters:
       - RVFI=true
+      - USE_KRONOS
       - RV32M
       - RV32B
       - RV32ZC

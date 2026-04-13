@@ -64,6 +64,17 @@ create_project $PROJ_NAME $PROJ_DIR -part $PART -force
 set_property target_language Verilog [current_project]
 
 # ============================================================================
+# CPU selection — default Kronos; pass USE_KRONOS=0 via -tclargs to use Ibex
+#   make synth                  → Kronos (default)
+#   make synth CPU=ibex         → Ibex
+# ============================================================================
+set use_kronos 1
+foreach arg $argv {
+    if {$arg eq "USE_KRONOS=0"} { set use_kronos 0 }
+    if {$arg eq "USE_KRONOS=1"} { set use_kronos 1 }
+}
+
+# ============================================================================
 # Verilog defines
 # Note: FPGA_XILINX enables DSP inference in ibex_counter.
 #       FPGA_BASYS3 is intentionally NOT set — derived config pkg selects
@@ -72,6 +83,7 @@ set_property target_language Verilog [current_project]
 set VLOG_DEFINES "SYNTHESIS=1 FPGA_XILINX=1"
 append VLOG_DEFINES " RegFile=ibex_pkg::RegFileFPGA"
 append VLOG_DEFINES " PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric"
+if {$use_kronos} { append VLOG_DEFINES " USE_KRONOS=1" }
 
 set_property verilog_define $VLOG_DEFINES [current_fileset]
 
@@ -86,12 +98,23 @@ set_property include_dirs $INC_DIRS [current_fileset]
 # ============================================================================
 set PKG_FILES [read_filelist $FILELIST packages $SRC_DIR]
 
+# Kronos package (must precede Kronos RTL in elaboration order)
+if {$use_kronos} {
+    lappend PKG_FILES $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/kronos_pkg.sv
+}
+
 # ============================================================================
 # Source files — RTL (expand globs, add FPGA wrapper)
 # ============================================================================
 set rtl_patterns [read_filelist $FILELIST rtl $SRC_DIR]
 # FPGA-only: add the board wrapper
 lappend rtl_patterns $SRC_DIR/opensoc_fpga_arty_a7_0/hw/fpga/arty_a7/*.sv
+# Kronos RTL (all stages; kronos_pkg.sv is already in PKG_FILES)
+if {$use_kronos} {
+    lappend rtl_patterns $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage0/*.sv
+    lappend rtl_patterns $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage1/*.sv
+    lappend rtl_patterns $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage2/*.sv
+}
 
 set ALL_SV [list]
 foreach pat $rtl_patterns {

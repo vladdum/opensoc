@@ -67,6 +67,16 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/systolic_array.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/dv/rtl/opensoc_top_wrapper.sv"
          -match "*gpio_oe*"
 
+// AXI-Stream inter-accelerator signals: unused in lean build (no accelerators)
+lint_off -rule UNUSEDSIGNAL  -file "*/top/opensoc_top.sv"
+         -match "*relu_s_axis*"
+lint_off -rule UNUSEDSIGNAL  -file "*/top/opensoc_top.sv"
+         -match "*relu_to_smax*"
+lint_off -rule UNUSEDSIGNAL  -file "*/top/opensoc_top.sv"
+         -match "*conv2d_to_relu*"
+lint_off -rule UNUSEDSIGNAL  -file "*/top/opensoc_top.sv"
+         -match "*conv1d_to_relu*"
+
 // Dual-SoC wrapper: unused GPIO/I2C output signals
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_dual_uart.sv"
 
