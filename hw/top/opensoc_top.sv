@@ -163,7 +163,8 @@ module opensoc_top
 
 `ifdef USE_KRONOS
   // -------------------------------------------------------------------------
-  // Kronos single-cycle RISC-V core (Stage 0 golden model)
+  // Kronos RISC-V core (OBI, uses boot_addr_i as direct initial PC)
+  // boot_addr_i = 0x20000080: Ibex adds +0x80 internally; Kronos does not.
   // -------------------------------------------------------------------------
   kronos_top u_top (
     .clk_i          (clk_sys),
@@ -185,7 +186,7 @@ module opensoc_top
     .data_err_i     (data_err),
     .irq_timer_i    (timer_irq),
     .irq_fast_i     (ibex_irq_fast),
-    .boot_addr_i    (32'h20000000)
+    .boot_addr_i    (32'h20000080)
   );
 
 `else
