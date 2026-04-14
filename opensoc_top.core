@@ -3,11 +3,12 @@ CAPI=2:
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 name: "opensoc:soc:opensoc_top"
-description: "OpenSoC top-level — Ibex (default) or Kronos CPU"
+description: "OpenSoC top-level — Kronos RISC-V CPU with AXI4 crossbar"
 filesets:
   files_rtl_base:
     depend:
-      - lowrisc:ibex:sim_shared
+      - "opensoc:ip:sim_shared"
+      - "opensoc:ip:kronos_riscv"
       - "pulp-platform.org::axi"
       - "opensoc:ip:pio"
       - "opensoc:ip:i2c_controller"
@@ -17,18 +18,6 @@ filesets:
       - hw/top/opensoc_config_pkg.sv
       - hw/top/opensoc_derived_config_pkg.sv
       - hw/top/opensoc_top.sv
-    file_type: systemVerilogSource
-
-  # CPU filesets — include exactly one per build
-  files_ibex_cpu:
-    depend:
-      - lowrisc:ibex:ibex_top
-      - lowrisc:prim_generic:all
-    file_type: systemVerilogSource
-
-  files_kronos_cpu:
-    depend:
-      - "opensoc:ip:kronos_riscv"
     file_type: systemVerilogSource
 
   files_relu:
@@ -51,14 +40,6 @@ filesets:
       - "opensoc:ip:softmax"
     file_type: systemVerilogSource
 
-  files_crypto:
-    depend:
-      - "opensoc:ip:opentitan_aes"
-    files:
-      - hw/ip/opentitan_aes/crypto_cluster.sv
-      - hw/ip/opentitan_aes/axi_lite_to_tlul.sv
-    file_type: systemVerilogSource
-
   files_conv1d:
     depend:
       - "opensoc:ip:conv1d"
@@ -78,31 +59,12 @@ filesets:
     files:
       - hw/lint/verilator_waiver.vlt: {file_type: vlt}
 
-  # Simulation wrappers — Ibex variant includes ibex_tracer (for RVFI)
   files_sim_sv:
-    depend:
-      - lowrisc:ibex:ibex_tracer
     files:
       - dv/rtl/opensoc_top_wrapper.sv
     file_type: systemVerilogSource
 
-  files_sim_sv_kronos:
-    files:
-      - dv/rtl/opensoc_top_wrapper.sv
-    file_type: systemVerilogSource
-
-  # C++ sim driver — Ibex variant includes ibex_pcounts
   files_verilator_sim:
-    depend:
-      - lowrisc:dv_verilator:memutil_verilator
-      - lowrisc:dv_verilator:simutil_verilator
-      - lowrisc:dv_verilator:ibex_pcounts
-    files:
-      - dv/verilator/opensoc_top_sim.cc: {file_type: cppSource}
-      - dv/verilator/opensoc_top_sim.h: {file_type: cppSource, is_include_file: true}
-      - dv/verilator/opensoc_top_main.cc: {file_type: cppSource}
-
-  files_verilator_sim_kronos:
     depend:
       - lowrisc:dv_verilator:memutil_verilator
       - lowrisc:dv_verilator:simutil_verilator
@@ -112,39 +74,6 @@ filesets:
       - dv/verilator/opensoc_top_main.cc: {file_type: cppSource}
 
 parameters:
-  RVFI:
-    datatype: bool
-    paramtype: vlogdefine
-
-  USE_KRONOS:
-    datatype: bool
-    paramtype: vlogdefine
-    description: "Select Kronos CPU instead of Ibex (0=Ibex default, 1=Kronos)"
-
-  RV32M:
-    datatype: str
-    default: ibex_pkg::RV32MFast
-    paramtype: vlogdefine
-    description: "RV32M implementation parameter enum"
-
-  RV32B:
-    datatype: str
-    default: ibex_pkg::RV32BNone
-    paramtype: vlogdefine
-    description: "Bitmanip implementation parameter enum"
-
-  RV32ZC:
-    datatype: str
-    default: ibex_pkg::RV32ZcaZcbZcmp
-    paramtype: vlogdefine
-    description: "Compressed instructions parameter enum"
-
-  RegFile:
-    datatype: str
-    default: ibex_pkg::RegFileFF
-    paramtype: vlogdefine
-    description: "Register file implementation parameter enum"
-
   EnableReLU:
     datatype: int
     default: 0
@@ -169,12 +98,6 @@ parameters:
     paramtype: vlogdefine
     description: "Enable softmax accelerator (0=off, 1=on)"
 
-  EnableCrypto:
-    datatype: int
-    default: 0
-    paramtype: vlogdefine
-    description: "Enable crypto cluster / OpenTitan AES (0=off, 1=on)"
-
   EnableConv1d:
     datatype: int
     default: 0
@@ -197,27 +120,20 @@ targets:
   default: &default_target
     filesets:
       - files_rtl_base
-      - files_ibex_cpu
       - enable_relu ? (files_relu)
       - enable_vmac ? (files_vmac)
       - enable_sgdma ? (files_sgdma)
       - enable_softmax ? (files_softmax)
-      - enable_crypto ? (files_crypto)
       - enable_conv1d ? (files_conv1d)
       - enable_conv2d ? (files_conv2d)
       - enable_gemm ? (files_gemm)
       - tool_verilator ? (files_lint_verilator)
     toplevel: opensoc_top
     parameters:
-      - RV32M
-      - RV32B
-      - RV32ZC
-      - RegFile
       - EnableReLU
       - EnableVMAC
       - EnableSgDma
       - EnableSoftmax
-      - EnableCrypto
       - EnableConv1d
       - EnableConv2d
       - EnableGemm
@@ -225,8 +141,6 @@ targets:
   synth:
     filesets:
       - files_rtl_base
-      - "!use_kronos ? (files_ibex_cpu)"
-      - use_kronos ? (files_kronos_cpu)
       - enable_relu ? (files_relu)
       - enable_vmac ? (files_vmac)
       - enable_sgdma ? (files_sgdma)
@@ -237,7 +151,6 @@ targets:
     toplevel: opensoc_top
     default_tool: verilator
     parameters:
-      - USE_KRONOS
       - EnableReLU
       - EnableVMAC
       - EnableSgDma
@@ -252,29 +165,20 @@ targets:
   lint:
     filesets:
       - files_rtl_base
-      - "!use_kronos ? (files_ibex_cpu)"
-      - use_kronos ? (files_kronos_cpu)
       - enable_relu ? (files_relu)
       - enable_vmac ? (files_vmac)
       - enable_sgdma ? (files_sgdma)
       - enable_softmax ? (files_softmax)
-      - enable_crypto ? (files_crypto)
       - enable_conv1d ? (files_conv1d)
       - enable_conv2d ? (files_conv2d)
       - enable_gemm ? (files_gemm)
       - tool_verilator ? (files_lint_verilator)
     toplevel: opensoc_top
     parameters:
-      - USE_KRONOS
-      - RV32M
-      - RV32B
-      - RV32ZC
-      - RegFile
       - EnableReLU
       - EnableVMAC
       - EnableSgDma
       - EnableSoftmax
-      - EnableCrypto
       - EnableConv1d
       - EnableConv2d
       - EnableGemm
@@ -292,34 +196,22 @@ targets:
   sim:
     filesets:
       - files_rtl_base
-      - "!use_kronos ? (files_ibex_cpu)"
-      - use_kronos ? (files_kronos_cpu)
       - enable_relu ? (files_relu)
       - enable_vmac ? (files_vmac)
       - enable_sgdma ? (files_sgdma)
       - enable_softmax ? (files_softmax)
-      - enable_crypto ? (files_crypto)
       - enable_conv1d ? (files_conv1d)
       - enable_conv2d ? (files_conv2d)
       - enable_gemm ? (files_gemm)
       - files_lint_verilator
-      - "!use_kronos ? (files_sim_sv)"
-      - use_kronos ? (files_sim_sv_kronos)
-      - "!use_kronos ? (files_verilator_sim)"
-      - use_kronos ? (files_verilator_sim_kronos)
+      - files_sim_sv
+      - files_verilator_sim
     toplevel: opensoc_top_wrapper
     parameters:
-      - RVFI=true
-      - USE_KRONOS
-      - RV32M
-      - RV32B
-      - RV32ZC
-      - RegFile
       - EnableReLU
       - EnableVMAC
       - EnableSgDma
       - EnableSoftmax
-      - EnableCrypto
       - EnableConv1d
       - EnableConv2d
       - EnableGemm
@@ -339,4 +231,3 @@ targets:
           - "--build-jobs 0"
           - '-CFLAGS "-std=c++17 -O1 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=opensoc_top_wrapper"'
           - '-LDFLAGS "-pthread -lutil -lelf"'
-

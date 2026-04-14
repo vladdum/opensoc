@@ -9,26 +9,18 @@ WAVES  ?=
 FLOW   ?= fpga-arty
 VIVADO ?= vivado
 JOBS   ?= $(shell nproc)
-CPU    ?= kronos
 
 CORES_ROOT_BASE := --cores-root=. \
-                   --cores-root=hw/ip/ibex \
-                   --cores-root=hw/ip/ibex/vendor/lowrisc_ip \
+                   --cores-root=hw/ip/kronos_riscv \
                    --cores-root=hw/ip/common_cells \
                    --cores-root=hw/ip/pulp_axi \
                    --cores-root=hw/ip/pio \
                    --cores-root=hw/ip/i2c_controller \
                    --cores-root=hw/ip/uart \
-                   --cores-root=hw/ip/ram
+                   --cores-root=hw/ip/ram \
+                   --cores-root=hw/ip/sim \
+                   --cores-root=hw/ip/dv_verilator
 
-ifeq ($(CPU),kronos)
-CORES_ROOT_BASE += --cores-root=hw/ip/kronos_riscv
-CPU_FLAGS       := --flag use_kronos
-CPU_DEFINES     := --USE_KRONOS 1
-else
-CPU_FLAGS       :=
-CPU_DEFINES     :=
-endif
 export CXX
 CORES_ROOT_ACCELS := --cores-root=hw/ip/relu_accel \
                      --cores-root=hw/ip/vec_mac \
@@ -44,7 +36,6 @@ ENABLE_RELU    ?= 1
 ENABLE_VMAC    ?= 1
 ENABLE_SGDMA   ?= 1
 ENABLE_SOFTMAX ?= 1
-ENABLE_CRYPTO  ?= 1
 ENABLE_CONV1D  ?= 1
 ENABLE_CONV2D  ?= 1
 ENABLE_GEMM    ?= 1
@@ -54,7 +45,6 @@ FUSESOC_FLAGS := \
   $(if $(filter 1,$(ENABLE_VMAC)),--flag enable_vmac,) \
   $(if $(filter 1,$(ENABLE_SGDMA)),--flag enable_sgdma,) \
   $(if $(filter 1,$(ENABLE_SOFTMAX)),--flag enable_softmax,) \
-  $(if $(filter 1,$(ENABLE_CRYPTO)),--flag enable_crypto,) \
   $(if $(filter 1,$(ENABLE_CONV1D)),--flag enable_conv1d,) \
   $(if $(filter 1,$(ENABLE_CONV2D)),--flag enable_conv2d,) \
   $(if $(filter 1,$(ENABLE_GEMM)),--flag enable_gemm,)
@@ -64,16 +54,11 @@ FUSESOC_DEFINES := \
   --EnableVMAC $(ENABLE_VMAC) \
   --EnableSgDma $(ENABLE_SGDMA) \
   --EnableSoftmax $(ENABLE_SOFTMAX) \
-  --EnableCrypto $(ENABLE_CRYPTO) \
   --EnableConv1d $(ENABLE_CONV1D) \
   --EnableConv2d $(ENABLE_CONV2D) \
   --EnableGemm $(ENABLE_GEMM)
 
-ifeq ($(CPU),kronos)
 SW_ARCH  := rv32im_zicsr
-else
-SW_ARCH  := rv32imc_zicsr_zifencei
-endif
 GTKW_DIR := dv/verilator
 
 SIM_TRACE_FLAGS := $(if $(or $(TRACE),$(WAVES)),--trace,)
@@ -99,7 +84,7 @@ help:
 	@echo "Usage: make <target> [OPTIONS]"
 	@echo ""
 	@echo "Lint"
-	@echo "  lint                        Run Verilator lint (all IPs, both CPUs)"
+	@echo "  lint                        Run Verilator lint (all IPs)"
 	@echo ""
 	@echo "Simulator build"
 	@echo "  build                       Build simulator (all IPs by default)"
@@ -136,8 +121,6 @@ help:
 	@echo "  clean                       Remove build directory"
 	@echo ""
 	@echo "Options"
-	@echo "  CPU=kronos                  Use Kronos CPU (default)"
-	@echo "  CPU=ibex                    Use Ibex CPU"
 	@echo "  ENABLE_RELU=1               Include ReLU accelerator"
 	@echo "  ENABLE_VMAC=1               Include vector MAC accelerator"
 	@echo "  ENABLE_SGDMA=1              Include scatter-gather DMA"
@@ -181,7 +164,7 @@ regression: $(SIM_DIR)/Vopensoc_top_wrapper
 
 # Build the simulator binary if it doesn't exist yet
 $(SIM_DIR)/Vopensoc_top_wrapper:
-	$(MAKE) build CPU=$(CPU)
+	$(MAKE) build
 
 .PHONY: FORCE
 
@@ -201,13 +184,11 @@ _reg-run-%: FORCE
 .PHONY: lint
 lint:
 	$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=lint \
-	    $(CPU_FLAGS) \
 	    --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
-	    --flag enable_crypto --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
+	    --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
 	    opensoc:soc:opensoc_top \
 	    --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	    --EnableCrypto 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 \
-	    $(CPU_DEFINES)
+	    --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1
 
 # ── Simulator build ───────────────────────────────────────────────────────────
 
@@ -220,8 +201,8 @@ build:
 	    echo "[build] $$(( (_now - _build_start) / 60 ))m elapsed..."; \
 	  done ) & \
 	_timer_pid=$$!; \
-	echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=sim --setup --build $(CPU_FLAGS) $(FUSESOC_FLAGS) opensoc:soc:opensoc_top $(FUSESOC_DEFINES) $(CPU_DEFINES)"; \
-	MAKEFLAGS="-j$(JOBS)" $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=sim --setup --build $(CPU_FLAGS) $(FUSESOC_FLAGS) opensoc:soc:opensoc_top $(FUSESOC_DEFINES) $(CPU_DEFINES); \
+	echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=sim --setup --build $(FUSESOC_FLAGS) opensoc:soc:opensoc_top $(FUSESOC_DEFINES)"; \
+	MAKEFLAGS="-j$(JOBS)" $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=sim --setup --build $(FUSESOC_FLAGS) opensoc:soc:opensoc_top $(FUSESOC_DEFINES); \
 	kill $$_timer_pid 2>/dev/null; wait $$_timer_pid 2>/dev/null; \
 	_build_end=$$(date +%s); \
 	_elapsed=$$(( _build_end - _build_start )); \
@@ -248,8 +229,7 @@ $(addprefix run-,$(RUN_TESTS)): run-%:
 synth:
 ifeq ($(FLOW),fpga-arty)
 	$(MAKE) synth-setup-arty
-	time $(VIVADO) -mode batch -source hw/fpga/arty_a7/synth.tcl \
-	  -tclargs USE_KRONOS=$(if $(filter kronos,$(CPU)),1,0)
+	time $(VIVADO) -mode batch -source hw/fpga/arty_a7/synth.tcl
 else ifeq ($(FLOW),yosys)
 	$(MAKE) synth-setup-asic
 	time bash hw/asic/synth.sh
@@ -271,14 +251,13 @@ synth-setup-asic:
 	  if [ -d "$(SYNTH_SRC_DIR_ASIC)" ]; then \
 	    echo "synth-setup-asic: completed by another process, skipping"; \
 	  else \
-	    echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup $(CPU_FLAGS) --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax --flag enable_conv1d --flag enable_conv2d --flag enable_gemm opensoc:soc:opensoc_top --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 $(CPU_DEFINES)"; \
+	    echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax --flag enable_conv1d --flag enable_conv2d --flag enable_gemm opensoc:soc:opensoc_top --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1"; \
 	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup \
-	      $(CPU_FLAGS) \
 	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
 	      --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
 	      opensoc:soc:opensoc_top \
 	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 $(CPU_DEFINES); \
+	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1; \
 	  fi; \
 	  exec 9>&-; \
 	fi
@@ -294,14 +273,13 @@ synth-setup-arty:
 	  if [ -d "$(SYNTH_SRC_DIR_ARTY)" ]; then \
 	    echo "synth-setup-arty: completed by another process, skipping"; \
 	  else \
-	    echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup $(CPU_FLAGS) --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax --flag enable_conv1d --flag enable_conv2d --flag enable_gemm opensoc:fpga:arty_a7 --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 $(CPU_DEFINES)"; \
+	    echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax --flag enable_conv1d --flag enable_conv2d --flag enable_gemm opensoc:fpga:arty_a7 --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1"; \
 	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth --setup \
-	      $(CPU_FLAGS) \
 	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
 	      --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
 	      opensoc:fpga:arty_a7 \
 	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
-	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1 $(CPU_DEFINES); \
+	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1; \
 	  fi; \
 	  exec 9>&-; \
 	fi

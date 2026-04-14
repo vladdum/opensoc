@@ -13,15 +13,6 @@ filesets:
       - hw/fpga/arty_a7/opensoc_fpga_arty_a7_top.sv
     file_type: systemVerilogSource
 
-  # Kronos CPU — added explicitly so the use_kronos flag controls inclusion;
-  # flags do not propagate to dependencies so opensoc:soc:opensoc_top always
-  # brings Ibex along. Both CPUs are present in the Kronos build; USE_KRONOS
-  # selects the right one at elaboration; Vivado discards unreferenced modules.
-  files_kronos_cpu:
-    depend:
-      - "opensoc:ip:kronos_riscv"
-    file_type: systemVerilogSource
-
   files_constraints:
     files:
       - hw/fpga/arty_a7/arty_a7.xdc
@@ -32,7 +23,6 @@ targets:
     default_tool: vivado
     filesets:
       - files_rtl
-      - use_kronos ? (files_kronos_cpu)
       - files_constraints
     toplevel: opensoc_fpga_arty_a7_top
     tools:
@@ -41,26 +31,15 @@ targets:
     parameters:
       - SYNTHESIS=true
       - FPGA_XILINX=true
-      - PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric
-      - USE_KRONOS
 
 parameters:
   SYNTHESIS:
     datatype: bool
     default: true
     paramtype: vlogdefine
-    description: "Defined during FPGA synthesis to select ibex_top (no tracer) and direct clock assignment"
+    description: "Defined during FPGA synthesis to select direct clock assignment"
   FPGA_XILINX:
     datatype: bool
     default: true
     paramtype: vlogdefine
-    description: "Enables Xilinx DSP pragmas for performance counters in ibex; also selects RegFileFPGA in derived config pkg"
-  PRIM_DEFAULT_IMPL:
-    datatype: str
-    paramtype: vlogdefine
-    default: prim_pkg::ImplGeneric
-    description: "Selects primitive implementation (Generic infers BRAM in Vivado)"
-  USE_KRONOS:
-    datatype: bool
-    paramtype: vlogdefine
-    description: "Select Kronos CPU instead of Ibex (default: Kronos)"
+    description: "Enables Xilinx-specific pragmas and block RAM inference"

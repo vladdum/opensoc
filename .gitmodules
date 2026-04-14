@@ -1,13 +1,7 @@
-[submodule "hw/ip/ibex"]
-	path = hw/ip/ibex
-	url = https://github.com/vladdum/ibex.git
 [submodule "hw/ip/pulp_axi"]
 	path = hw/ip/pulp_axi
 	url = https://github.com/vladdum/axi
 	branch = opensoc-patches
-[submodule "hw/ip/pulp_obi"]
-	path = hw/ip/pulp_obi
-	url = https://github.com/pulp-platform/obi
 [submodule "hw/ip/common_cells"]
 	path = hw/ip/common_cells
 	url = https://github.com/vladdum/common_cells.git

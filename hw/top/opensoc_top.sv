@@ -2,33 +2,31 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-// Based on ibex_simple_system from the Ibex project.
+// Originally based on ibex_simple_system from the Ibex project.
 // Copyright lowRISC contributors.
 
 `ifndef INSTR_CYCLE_DELAY
   `define INSTR_CYCLE_DELAY 0
 `endif
 
+`include "axi/assign.svh"
+
 /**
  * OpenSoC Top-Level
  *
- * This is a basic system consisting of an ibex, a 1 MB sram for instruction/data
- * and a small memory mapped control module for outputting ASCII text and
- * controlling/halting the simulation from the software running on the ibex.
+ * RISC-V SoC with the Kronos CPU core (native AXI4), a single-port SRAM,
+ * and memory-mapped peripherals connected via a PULP AXI4 crossbar.
  *
- * It is designed to be used with verilator but should work with other
- * simulators, a small amount of work may be required to support the
- * simulator_ctrl module.
- *
- * The interconnect uses a PULP AXI4 crossbar (axi_xbar) with seven master ports
- * (instruction fetch, data, ReLU DMA, VMAC DMA, SG DMA, Softmax DMA, PIO DMA)
- * bridged via axi_from_mem, and ten slave ports (RAM, SimCtrl, Timer, UART, PIO,
- * I2C, ReLU, VMAC, SG DMA, Softmax) bridged via axi_to_mem.
+ * The CPU instruction and data ports connect directly to the crossbar as
+ * AXI4 masters. Accelerator DMA engines and the PIO DMA use OBI-to-AXI
+ * bridges (axi_from_mem). All peripherals sit behind AXI-to-memory bridges
+ * (axi_to_mem).
  */
 
 module opensoc_top
   import axi_pkg::*;
   import opensoc_derived_config_pkg::*;
+  import kronos_pkg::*;
 (
   input  IO_CLK,
   input  IO_RST_N,
@@ -65,7 +63,7 @@ module opensoc_top
   logic conv1d_irq;
   logic conv2d_irq;
   logic gemm_irq;
-  logic [14:0] ibex_irq_fast;
+  logic [14:0] irq_fast;
 
   // -------------------------------------------------------------------------
   // Config 1 stream interconnect: Conv1D → ReLU
@@ -105,29 +103,6 @@ module opensoc_top
   assign conv2d_to_relu_tready = relu_s_axis_tready;
 
   // -------------------------------------------------------------------------
-  // Ibex instruction-fetch signals
-  // -------------------------------------------------------------------------
-  logic        instr_req;
-  logic        instr_gnt;
-  logic        instr_rvalid;
-  logic [31:0] instr_addr;
-  logic [31:0] instr_rdata;
-  logic        instr_err;
-
-  // -------------------------------------------------------------------------
-  // Ibex data-port signals
-  // -------------------------------------------------------------------------
-  logic        data_req;
-  logic        data_gnt;
-  logic        data_rvalid;
-  logic        data_we;
-  logic [ 3:0] data_be;
-  logic [31:0] data_addr;
-  logic [31:0] data_wdata;
-  logic [31:0] data_rdata;
-  logic        data_err;
-
-  // -------------------------------------------------------------------------
   // AXI signal bundles
   // -------------------------------------------------------------------------
   // From axi_from_mem bridges (xbar slave-port side)
@@ -157,286 +132,33 @@ module opensoc_top
   assign rst_sys_n = IO_RST_N;
 
   // -------------------------------------------------------------------------
-  // CPU instantiation: Ibex (default) or Kronos (USE_KRONOS)
+  // CPU instantiation: Kronos (native AXI4)
   // -------------------------------------------------------------------------
-  assign ibex_irq_fast = {5'b0, gemm_irq, conv2d_irq, conv1d_irq, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
+  assign irq_fast = {5'b0, gemm_irq, conv2d_irq, conv1d_irq, softmax_irq, sg_dma_irq, vmac_irq, relu_irq, i2c_irq, pio_irq, uart_irq};
 
-`ifdef USE_KRONOS
   // -------------------------------------------------------------------------
-  // Kronos RISC-V core (OBI, uses boot_addr_i as direct initial PC)
-  // boot_addr_i = 0x20000080: Ibex adds +0x80 internally; Kronos does not.
+  // Kronos RISC-V CPU (native AXI4 master ports)
   // -------------------------------------------------------------------------
+  kronos_axi_req_t  kronos_instr_axi_req, kronos_data_axi_req;
+  kronos_axi_resp_t kronos_instr_axi_rsp, kronos_data_axi_rsp;
+
   kronos_top u_top (
-    .clk_i          (clk_sys),
-    .rst_ni         (rst_sys_n),
-    .instr_req_o    (instr_req),
-    .instr_gnt_i    (instr_gnt),
-    .instr_rvalid_i (instr_rvalid),
-    .instr_addr_o   (instr_addr),
-    .instr_rdata_i  (instr_rdata),
-    .instr_err_i    (instr_err),
-    .data_req_o     (data_req),
-    .data_gnt_i     (data_gnt),
-    .data_rvalid_i  (data_rvalid),
-    .data_we_o      (data_we),
-    .data_be_o      (data_be),
-    .data_addr_o    (data_addr),
-    .data_wdata_o   (data_wdata),
-    .data_rdata_i   (data_rdata),
-    .data_err_i     (data_err),
-    .irq_timer_i    (timer_irq),
-    .irq_fast_i     (ibex_irq_fast),
-    .boot_addr_i    (32'h20000080)
+    .clk_i           (clk_sys),
+    .rst_ni          (rst_sys_n),
+    .instr_axi_req_o (kronos_instr_axi_req),
+    .instr_axi_rsp_i (kronos_instr_axi_rsp),
+    .data_axi_req_o  (kronos_data_axi_req),
+    .data_axi_rsp_i  (kronos_data_axi_rsp),
+    .irq_timer_i     (timer_irq),
+    .irq_fast_i      (irq_fast),
+    .boot_addr_i     (32'h20000080)
   );
 
-`else
-  // -------------------------------------------------------------------------
-  // Ibex CPU (default)
-  // -------------------------------------------------------------------------
-  // ECC integrity signals (Ibex only)
-  logic [6:0] data_rdata_intg;
-  logic [6:0] instr_rdata_intg;
-
-  if (SecureIbex) begin : g_mem_rdata_ecc
-    logic [31:0] unused_data_rdata;
-    logic [31:0] unused_instr_rdata;
-
-    prim_secded_inv_39_32_enc u_data_rdata_intg_gen (
-      .data_i (data_rdata),
-      .data_o ({data_rdata_intg, unused_data_rdata})
-    );
-
-    prim_secded_inv_39_32_enc u_instr_rdata_intg_gen (
-      .data_i (instr_rdata),
-      .data_o ({instr_rdata_intg, unused_instr_rdata})
-    );
-  end else begin : g_no_mem_rdata_ecc
-    assign data_rdata_intg = '0;
-    assign instr_rdata_intg = '0;
-  end
-
-  // RVFI signals: declared here so opensoc_top_sim can connect ibex_tracer via
-  // hierarchical reference without polluting the module's port list.
-`ifdef RVFI
-  logic        rvfi_valid;
-  logic [63:0] rvfi_order;
-  logic [31:0] rvfi_insn;
-  logic        rvfi_trap;
-  logic        rvfi_halt;
-  logic        rvfi_intr;
-  logic [ 1:0] rvfi_mode;
-  logic [ 1:0] rvfi_ixl;
-  logic [ 4:0] rvfi_rs1_addr;
-  logic [ 4:0] rvfi_rs2_addr;
-  logic [ 4:0] rvfi_rs3_addr;
-  logic [31:0] rvfi_rs1_rdata;
-  logic [31:0] rvfi_rs2_rdata;
-  logic [31:0] rvfi_rs3_rdata;
-  logic [ 4:0] rvfi_rd_addr;
-  logic [31:0] rvfi_rd_wdata;
-  logic [31:0] rvfi_pc_rdata;
-  logic [31:0] rvfi_pc_wdata;
-  logic [31:0] rvfi_mem_addr;
-  logic [ 3:0] rvfi_mem_rmask;
-  logic [ 3:0] rvfi_mem_wmask;
-  logic [31:0] rvfi_mem_rdata;
-  logic [31:0] rvfi_mem_wdata;
-  logic        rvfi_ext_expanded_insn_valid;
-  logic [15:0] rvfi_ext_expanded_insn;
-`endif
-
-  ibex_top #(
-      .SecureIbex      ( SecureIbex       ),
-      .LockstepOffset  ( LockstepOffset   ),
-      .ICacheScramble  ( ICacheScramble   ),
-      .PMPEnable       ( PMPEnable        ),
-      .PMPGranularity  ( PMPGranularity   ),
-      .PMPNumRegions   ( PMPNumRegions    ),
-      .MHPMCounterNum  ( MHPMCounterNum   ),
-      .MHPMCounterWidth( MHPMCounterWidth ),
-      .RV32E           ( RV32E            ),
-      .RV32M           ( RV32M            ),
-      .RV32B           ( RV32B            ),
-      .RV32ZC          ( RV32ZC           ),
-      .RegFile         ( RegFile          ),
-      .BranchTargetALU ( BranchTargetALU  ),
-      .ICache          ( ICache           ),
-      .ICacheECC       ( ICacheECC        ),
-      .WritebackStage  ( WritebackStage   ),
-      .BranchPredictor ( BranchPredictor  ),
-      .DbgTriggerEn    ( DbgTriggerEn     ),
-      .DmBaseAddr      ( 32'h00100000     ),
-      .DmAddrMask      ( 32'h00000003     ),
-      .DmHaltAddr      ( 32'h00100000     ),
-      .DmExceptionAddr ( 32'h00100000     )
-    ) u_top (
-      .clk_i                     (clk_sys),
-      .rst_ni                    (rst_sys_n),
-
-      .test_en_i                 (1'b0),
-      .scan_rst_ni               (1'b1),
-      .ram_cfg_icache_tag_i      (prim_ram_1p_pkg::RAM_1P_CFG_DEFAULT),
-      .ram_cfg_rsp_icache_tag_o  (),
-      .ram_cfg_icache_data_i     (prim_ram_1p_pkg::RAM_1P_CFG_DEFAULT),
-      .ram_cfg_rsp_icache_data_o (),
-
-      .hart_id_i                 (32'b0),
-      // First instruction executed is at 0x0 + 0x80
-      .boot_addr_i               (32'h20000000),
-
-      .instr_req_o               (instr_req),
-      .instr_gnt_i               (instr_gnt),
-      .instr_rvalid_i            (instr_rvalid),
-      .instr_addr_o              (instr_addr),
-      .instr_rdata_i             (instr_rdata),
-      .instr_rdata_intg_i        (instr_rdata_intg),
-      .instr_err_i               (instr_err),
-
-      .data_req_o                (data_req),
-      .data_gnt_i                (data_gnt),
-      .data_rvalid_i             (data_rvalid),
-      .data_we_o                 (data_we),
-      .data_be_o                 (data_be),
-      .data_addr_o               (data_addr),
-      .data_wdata_o              (data_wdata),
-      .data_wdata_intg_o         (),
-      .data_rdata_i              (data_rdata),
-      .data_rdata_intg_i         (data_rdata_intg),
-      .data_err_i                (data_err),
-
-      .irq_software_i            (1'b0),
-      .irq_timer_i               (timer_irq),
-      .irq_external_i            (1'b0),
-      .irq_fast_i                (ibex_irq_fast),
-      .irq_nm_i                  (1'b0),
-
-      .scramble_key_valid_i      ('0),
-      .scramble_key_i            ('0),
-      .scramble_nonce_i          ('0),
-      .scramble_req_o            (),
-
-      .debug_req_i               (1'b0),
-      .crash_dump_o              (),
-      .double_fault_seen_o       (),
-
-      .fetch_enable_i            (ibex_pkg::IbexMuBiOn),
-      .alert_minor_o             (),
-      .alert_major_internal_o    (),
-      .alert_major_bus_o         (),
-      .core_sleep_o              (),
-
-      .lockstep_cmp_en_o         (),
-
-      .data_req_shadow_o         (),
-      .data_we_shadow_o          (),
-      .data_be_shadow_o          (),
-      .data_addr_shadow_o        (),
-      .data_wdata_shadow_o       (),
-      .data_wdata_intg_shadow_o  (),
-
-      .instr_req_shadow_o        (),
-      .instr_addr_shadow_o       ()
-
-`ifdef RVFI
-     ,.rvfi_valid                (rvfi_valid                ),
-      .rvfi_order                (rvfi_order                ),
-      .rvfi_insn                 (rvfi_insn                 ),
-      .rvfi_trap                 (rvfi_trap                 ),
-      .rvfi_halt                 (rvfi_halt                 ),
-      .rvfi_intr                 (rvfi_intr                 ),
-      .rvfi_mode                 (rvfi_mode                 ),
-      .rvfi_ixl                  (rvfi_ixl                  ),
-      .rvfi_rs1_addr             (rvfi_rs1_addr             ),
-      .rvfi_rs2_addr             (rvfi_rs2_addr             ),
-      .rvfi_rs3_addr             (rvfi_rs3_addr             ),
-      .rvfi_rs1_rdata            (rvfi_rs1_rdata            ),
-      .rvfi_rs2_rdata            (rvfi_rs2_rdata            ),
-      .rvfi_rs3_rdata            (rvfi_rs3_rdata            ),
-      .rvfi_rd_addr              (rvfi_rd_addr              ),
-      .rvfi_rd_wdata             (rvfi_rd_wdata             ),
-      .rvfi_pc_rdata             (rvfi_pc_rdata             ),
-      .rvfi_pc_wdata             (rvfi_pc_wdata             ),
-      .rvfi_mem_addr             (rvfi_mem_addr             ),
-      .rvfi_mem_rmask            (rvfi_mem_rmask            ),
-      .rvfi_mem_wmask            (rvfi_mem_wmask            ),
-      .rvfi_mem_rdata            (rvfi_mem_rdata            ),
-      .rvfi_mem_wdata            (rvfi_mem_wdata            ),
-      .rvfi_ext_pre_mip          (),
-      .rvfi_ext_post_mip         (),
-      .rvfi_ext_nmi              (),
-      .rvfi_ext_nmi_int          (),
-      .rvfi_ext_debug_req        (),
-      .rvfi_ext_debug_mode       (),
-      .rvfi_ext_rf_wr_suppress   (),
-      .rvfi_ext_mcycle           (),
-      .rvfi_ext_mhpmcounters     (),
-      .rvfi_ext_mhpmcountersh    (),
-      .rvfi_ext_ic_scr_key_valid (),
-      .rvfi_ext_irq_valid        (),
-      .rvfi_ext_expanded_insn_valid(rvfi_ext_expanded_insn_valid),
-      .rvfi_ext_expanded_insn    (rvfi_ext_expanded_insn    ),
-      .rvfi_ext_expanded_insn_last()
-`endif
-    );
-`endif  // USE_KRONOS
-
-  // -------------------------------------------------------------------------
-  // AXI bridges: Ibex memory ports → AXI (axi_from_mem)
-  // -------------------------------------------------------------------------
-
-  // Instruction port (read-only)
-  axi_from_mem #(
-    .MemAddrWidth ( 32              ),
-    .AxiAddrWidth ( AxiAddrWidth    ),
-    .DataWidth    ( AxiDataWidth    ),
-    .MaxRequests  ( 2               ),
-    .AxiProt      ( 3'b000          ),
-    .axi_req_t    ( axi_in_req_t    ),
-    .axi_rsp_t    ( axi_in_resp_t   )
-  ) u_axi_from_mem_instr (
-    .clk_i           (clk_sys                  ),
-    .rst_ni          (rst_sys_n                ),
-    .mem_req_i       (instr_req                ),
-    .mem_addr_i      (instr_addr               ),
-    .mem_we_i        (1'b0                     ),
-    .mem_wdata_i     (32'b0                    ),
-    .mem_be_i        (4'b1111                  ),
-    .mem_gnt_o       (instr_gnt                ),
-    .mem_rsp_valid_o (instr_rvalid             ),
-    .mem_rsp_rdata_o (instr_rdata              ),
-    .mem_rsp_error_o (instr_err                ),
-    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[0]          ),
-    .axi_rsp_i       (xbar_slv_resp[0]         )
-  );
-
-  // Data port (read/write)
-  axi_from_mem #(
-    .MemAddrWidth ( 32              ),
-    .AxiAddrWidth ( AxiAddrWidth    ),
-    .DataWidth    ( AxiDataWidth    ),
-    .MaxRequests  ( 2               ),
-    .AxiProt      ( 3'b000          ),
-    .axi_req_t    ( axi_in_req_t    ),
-    .axi_rsp_t    ( axi_in_resp_t   )
-  ) u_axi_from_mem_data (
-    .clk_i           (clk_sys                  ),
-    .rst_ni          (rst_sys_n                ),
-    .mem_req_i       (data_req                 ),
-    .mem_addr_i      (data_addr                ),
-    .mem_we_i        (data_we                  ),
-    .mem_wdata_i     (data_wdata               ),
-    .mem_be_i        (data_be                  ),
-    .mem_gnt_o       (data_gnt                 ),
-    .mem_rsp_valid_o (data_rvalid              ),
-    .mem_rsp_rdata_o (data_rdata               ),
-    .mem_rsp_error_o (data_err                 ),
-    .slv_aw_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .slv_ar_cache_i  (axi_pkg::CACHE_MODIFIABLE),
-    .axi_req_o       (xbar_slv_req[1]          ),
-    .axi_rsp_i       (xbar_slv_resp[1]         )
-  );
+  // Bridge Kronos AXI types → crossbar AXI types (struct-to-struct)
+  `AXI_ASSIGN_REQ_STRUCT(xbar_slv_req[0], kronos_instr_axi_req)
+  `AXI_ASSIGN_RESP_STRUCT(kronos_instr_axi_rsp, xbar_slv_resp[0])
+  `AXI_ASSIGN_REQ_STRUCT(xbar_slv_req[1], kronos_data_axi_req)
+  `AXI_ASSIGN_RESP_STRUCT(kronos_data_axi_rsp, xbar_slv_resp[1])
 
   // -------------------------------------------------------------------------
   // PIO DMA signals (between pio and axi_from_mem)

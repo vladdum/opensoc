@@ -23,13 +23,12 @@ lint_off -rule WIDTHCONCAT -file "*/top/opensoc_top.sv"
 // Unsized parameters in struct literals in derived config pkg trigger WIDTHCONCAT
 lint_off -rule WIDTHCONCAT -file "*/top/opensoc_derived_config_pkg.sv"
 
-// Pre-existing ibex/lowrisc warnings that surface with AXI dependencies
-lint_off -rule REDEFMACRO    -file "*prim_assert*"
-lint_off -rule UNUSEDSIGNAL  -file "*ibex_top.sv"
-lint_off -rule UNUSEDSIGNAL  -file "*ibex_core.sv"
-lint_off -rule UNOPTFLAT     -file "*ibex_*"
 lint_off -rule SYNCASYNCNET  -file "*/pulp-platform.org*axi*"
 lint_off -rule SYNCASYNCNET  -file "*/pulp-platform.org*common_cells*"
+
+// crypto_cluster idle_o left unconnected (EnableCrypto=0, inside dead generate)
+lint_off -rule PINCONNECTEMPTY -file "*/top/opensoc_top.sv"
+         -match "*idle_o*"
 
 // Unused signals from AXI bridges in opensoc_top
 lint_off -rule UNUSED -file "*/top/opensoc_top.sv"
@@ -63,9 +62,10 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/gemm.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/pe_cell.sv"
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/systolic_array.sv"
 
-// Sim wrapper: only gpio_oe[1:0] are used for I2C loopback; upper bits are outputs
-lint_off -rule UNUSEDSIGNAL  -file "*/dv/rtl/opensoc_top_wrapper.sv"
+// Sim wrapper: intentionally unconnected outputs (gpio_o, i2c_*_o)
+lint_off -rule UNUSEDSIGNAL      -file "*/dv/rtl/opensoc_top_wrapper.sv"
          -match "*gpio_oe*"
+lint_off -rule PINCONNECTEMPTY   -file "*/dv/rtl/opensoc_top_wrapper.sv"
 
 // AXI-Stream inter-accelerator signals: unused in lean build (no accelerators)
 lint_off -rule UNUSEDSIGNAL  -file "*/top/opensoc_top.sv"
@@ -94,13 +94,16 @@ lint_off -rule DECLFILENAME  -file "*/opensoc_ip_opentitan_aes_0/*"
 lint_off -rule UNUSEDPARAM   -file "*/opensoc_ip_opentitan_aes_0/*"
 lint_off -rule UNUSEDSIGNAL  -file "*/opensoc_ip_opentitan_aes_0/*"
 
-// Kronos RTL: unused signals expected in Stage 0 single-cycle implementation
-// (instr_gnt/err not needed in single-cycle, 64-bit regfile upper bits unused for RV32I)
-lint_off -rule UNUSEDSIGNAL  -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
+// Kronos RTL: unused/unconnected signals in the current stage implementation
+lint_off -rule UNUSEDSIGNAL      -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
+lint_off -rule PINCONNECTEMPTY   -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
 
-// Third-party lowRISC prim/sim-shared packages (ibex ecosystem, transitive via opentitan_aes)
-lint_off -rule UNUSEDSIGNAL  -file "*/lowrisc_prim_*"
-lint_off -rule UNUSEDSIGNAL  -file "*/lowrisc_ibex_sim_shared_*"
+// sim_shared peripherals: upper address/data bits are unused (simple register maps)
+lint_off -rule UNUSEDSIGNAL  -file "*/opensoc_ip_sim_shared_0/*"
+
+// CryptoSlvIdx unused when EnableCrypto=0
+lint_off -rule UNUSEDPARAM   -file "*/top/opensoc_derived_config_pkg.sv"
+         -match "*CryptoSlvIdx*"
 
 // Third-party IP: PULP AXI modules — waive all lint rules
 lint_off -rule WIDTH          -file "*/pulp-platform.org*axi*"
@@ -117,9 +120,10 @@ lint_off -rule WIDTHCONCAT    -file "*/pulp-platform.org*axi*"
 lint_off -rule WIDTHTRUNC     -file "*/pulp-platform.org*axi*"
 lint_off -rule CMPCONST       -file "*/pulp-platform.org*axi*"
 lint_off -rule BLKANDNBLK     -file "*/pulp-platform.org*axi*"
-lint_off -rule MODDUP         -file "*/pulp-platform.org*axi*"
-lint_off -rule GENUNNAMED     -file "*/pulp-platform.org*axi*"
-lint_off -rule UNUSEDSIGNAL   -file "*/pulp-platform.org*axi*"
+lint_off -rule MODDUP              -file "*/pulp-platform.org*axi*"
+lint_off -rule GENUNNAMED          -file "*/pulp-platform.org*axi*"
+lint_off -rule UNUSEDSIGNAL        -file "*/pulp-platform.org*axi*"
+lint_off -rule PINCONNECTEMPTY     -file "*/pulp-platform.org*axi*"
 
 // Third-party IP: PULP common_cells — waive all lint rules
 lint_off -rule WIDTH          -file "*/pulp-platform.org*common_cells*"
@@ -136,6 +140,7 @@ lint_off -rule WIDTHCONCAT    -file "*/pulp-platform.org*common_cells*"
 lint_off -rule WIDTHTRUNC     -file "*/pulp-platform.org*common_cells*"
 lint_off -rule CMPCONST       -file "*/pulp-platform.org*common_cells*"
 lint_off -rule BLKANDNBLK     -file "*/pulp-platform.org*common_cells*"
-lint_off -rule MODDUP         -file "*/pulp-platform.org*common_cells*"
-lint_off -rule GENUNNAMED     -file "*/pulp-platform.org*common_cells*"
-lint_off -rule UNUSEDSIGNAL   -file "*/pulp-platform.org*common_cells*"
+lint_off -rule MODDUP              -file "*/pulp-platform.org*common_cells*"
+lint_off -rule GENUNNAMED          -file "*/pulp-platform.org*common_cells*"
+lint_off -rule UNUSEDSIGNAL        -file "*/pulp-platform.org*common_cells*"
+lint_off -rule PINCONNECTEMPTY     -file "*/pulp-platform.org*common_cells*"

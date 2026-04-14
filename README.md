@@ -1,13 +1,13 @@
 # OpenSoC
 
-A RISC-V System-on-Chip built on the lowRISC [Ibex](https://github.com/lowRISC/ibex) CPU core, using an AXI4 crossbar from [PULP Platform](https://github.com/pulp-platform/axi) to connect the CPU to memory and peripherals.
+A RISC-V System-on-Chip built on the [Kronos](https://github.com/vladdum/kronos-riscv) CPU core, using an AXI4 crossbar from [PULP Platform](https://github.com/pulp-platform/axi) to connect the CPU to memory and peripherals.
 
 ## Architecture
 
 ```
 opensoc_top (hw/top/opensoc_top.sv)
-├── ibex_top_tracing    — Ibex RISC-V core with trace output
-├── axi_from_mem ×N     — OBI-to-AXI bridges (CPU instr/data + PIO DMA + accel DMAs)
+├── kronos_top          — Kronos RISC-V CPU (native AXI4 master ports)
+├── axi_from_mem ×N     — OBI-to-AXI bridges (PIO DMA + accel DMAs)
 ├── axi_xbar            — AXI4 crossbar (parameterized masters × slaves)
 ├── axi_to_mem ×M       — AXI-to-memory bridges
 ├── ram_1p              — 1 MB SRAM (sim) / 512 KB block RAM (FPGA)
@@ -103,14 +103,13 @@ All build commands below should be run inside the WSL/Ubuntu terminal.
 - **FuseSoC and Python dependencies** — install with:
   ```bash
   pip3 install fusesoc
-  pip3 install -U -r hw/ip/ibex/python-requirements.txt
   ```
-- **RISC-V GCC toolchain** — the Ibex Makefiles expect the `riscv32-unknown-elf-` prefix.
+- **RISC-V GCC toolchain** — expects the `riscv32-unknown-elf-` prefix.
   On Debian/Ubuntu, install the `riscv64` toolchain (which can target rv32) and create
   symlinks:
   ```bash
   sudo apt-get install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
-  # Create riscv32-unknown-elf-* symlinks expected by the Ibex build system
+  # Create riscv32-unknown-elf-* symlinks
   for tool in gcc g++ objcopy objdump ld ar as ranlib nm strip; do
     sudo ln -sf /usr/bin/riscv64-unknown-elf-$tool /usr/local/bin/riscv32-unknown-elf-$tool
   done
@@ -291,7 +290,7 @@ hw/top/              — OpenSoC RTL (top-level, config pkgs)
   opensoc_derived_config_pkg.sv    — Derived values: crossbar dims, AXI types, addr map
 opensoc_top.core     — FuseSoC core file (dependencies & build targets, repo root)
 hw/lint/             — Verilator waiver files
-hw/ip/ibex/          — Ibex submodule (CPU core + shared sim RTL)
+hw/ip/sim/           — Simulation peripherals (simulator_ctrl.sv, timer.sv), copied from Ibex sim_shared
 hw/ip/pulp_axi/      — PULP AXI submodule (crossbar, bridges)
 hw/ip/common_cells/  — PULP common_cells submodule (required by pulp_axi)
 hw/ip/pulp_obi/      — PULP OBI submodule (for future use)
