@@ -27,7 +27,6 @@ lowrisc_prim_secded_0.1/rtl/prim_secded_pkg.sv
 lowrisc_prim_mubi_pkg_0.1/rtl/prim_mubi_pkg.sv
 lowrisc_prim_cipher_pkg_0.1/rtl/prim_cipher_pkg.sv
 lowrisc_prim_count_0/rtl/prim_count_pkg.sv
-lowrisc_ibex_ibex_pkg_0.1/rtl/ibex_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/cf_math_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/ecc_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/cb_filter_pkg.sv
@@ -39,11 +38,12 @@ opensoc_soc_opensoc_top_0/hw/top/opensoc_derived_config_pkg.sv
 [rtl]
 lowrisc_prim_assert_0.1/rtl/prim_assert.sv
 lowrisc_prim_assert_0.1/rtl/prim_flop_macros.sv
-lowrisc_ibex_ibex_core_0.1/rtl/*.sv
-lowrisc_ibex_ibex_icache_0.1/rtl/*.sv
-lowrisc_ibex_ibex_top_0.1/rtl/*.sv
-lowrisc_ibex_sim_shared_0/rtl/*.sv
-lowrisc_ibex_sim_shared_0/rtl/sim/*.sv
+opensoc_ip_kronos_riscv_0/rtl/kronos_pkg.sv
+opensoc_ip_kronos_riscv_0/rtl/stage0/*.sv
+opensoc_ip_kronos_riscv_0/rtl/stage1/*.sv
+opensoc_ip_kronos_riscv_0/rtl/stage2/*.sv
+opensoc_ip_kronos_riscv_0/rtl/stage3/*.sv
+opensoc_ip_sim_shared_0/*.sv
 lowrisc_prim_cdc_rand_delay_0/rtl/*.sv
 lowrisc_prim_cipher_0/rtl/*.sv
 lowrisc_prim_count_0/rtl/prim_count.sv

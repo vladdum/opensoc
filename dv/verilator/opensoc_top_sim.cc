@@ -2,14 +2,9 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <fstream>
 #include <iostream>
 
 #include "Vopensoc_top_wrapper__Syms.h"
-#if __has_include("ibex_pcounts.h")
-#include "ibex_pcounts.h"
-#define HAVE_IBEX_PCOUNTS 1
-#endif
 #include "opensoc_top_sim.h"
 #include "verilated_toplevel.h"
 #include "verilator_memutil.h"
@@ -64,20 +59,6 @@ bool OpenSocSim::Finish() {
   if (!simctrl.WasSimulationSuccessful()) {
     return false;
   }
-
-#ifdef HAVE_IBEX_PCOUNTS
-  // Set the scope to the root scope, the ibex_pcount_string function otherwise
-  // doesn't know the scope itself. Could be moved to ibex_pcount_string, but
-  // would require a way to set the scope name from here, similar to MemUtil.
-  svSetScope(svGetScopeFromName("TOP.opensoc_top_wrapper"));
-
-  std::cout << "\nPerformance Counters" << std::endl
-            << "====================" << std::endl;
-  std::cout << ibex_pcount_string(false);
-
-  std::ofstream pcount_csv("opensoc_top_pcount.csv");
-  pcount_csv << ibex_pcount_string(true);
-#endif
 
   return true;
 }

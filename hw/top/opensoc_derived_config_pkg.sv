@@ -4,11 +4,9 @@
 
 // OpenSoC derived configuration package.
 //
-// All targets (FPGA Arty A7-100T, ASIC, simulation) use the unified
-// opensoc_config_pkg (512 KB RAM, all accelerators enabled, CUT_ALL_PORTS).
-//
-// Then computes every derived value (crossbar dimensions, port indices, AXI
-// widths, typedefs, crossbar config struct, and address map).
+// Computes every derived value (crossbar dimensions, port indices, AXI
+// widths, typedefs, crossbar config struct, and address map) from the
+// parameters in opensoc_config_pkg.
 //
 // opensoc_top and any other modules that need design-wide constants should
 // import this package rather than the individual config packages.
@@ -16,42 +14,11 @@
 `include "axi/typedef.svh"
 
 package opensoc_derived_config_pkg;
-`ifndef USE_KRONOS
-  import ibex_pkg::*;
-`endif
   import axi_pkg::*;
 
   // =========================================================================
-  // Configurable parameters — forwarded from the active config package.
+  // Configurable parameters — forwarded from the config package.
   // =========================================================================
-
-`ifndef USE_KRONOS
-  // -------------------------------------------------------------------------
-  // Ibex CPU parameters (identical across all targets)
-  // -------------------------------------------------------------------------
-  localparam bit          SecureIbex       = opensoc_config_pkg::SecureIbex;
-  localparam int unsigned LockstepOffset   = opensoc_config_pkg::LockstepOffset;
-  localparam bit          ICacheScramble   = opensoc_config_pkg::ICacheScramble;
-  localparam bit          PMPEnable        = opensoc_config_pkg::PMPEnable;
-  localparam int unsigned PMPGranularity   = opensoc_config_pkg::PMPGranularity;
-  localparam int unsigned PMPNumRegions    = opensoc_config_pkg::PMPNumRegions;
-  localparam int unsigned MHPMCounterNum   = opensoc_config_pkg::MHPMCounterNum;
-  localparam int unsigned MHPMCounterWidth = opensoc_config_pkg::MHPMCounterWidth;
-  localparam bit          RV32E            = opensoc_config_pkg::RV32E;
-  localparam rv32m_e      RV32M            = opensoc_config_pkg::RV32M;
-  localparam rv32b_e      RV32B            = opensoc_config_pkg::RV32B;
-  localparam rv32zc_e     RV32ZC           = opensoc_config_pkg::RV32ZC;
-  localparam bit          BranchTargetALU  = opensoc_config_pkg::BranchTargetALU;
-  localparam bit          WritebackStage   = opensoc_config_pkg::WritebackStage;
-  localparam bit          ICache           = opensoc_config_pkg::ICache;
-  localparam bit          DbgTriggerEn     = opensoc_config_pkg::DbgTriggerEn;
-  localparam bit          ICacheECC        = opensoc_config_pkg::ICacheECC;
-  localparam bit          BranchPredictor  = opensoc_config_pkg::BranchPredictor;
-`endif  // USE_KRONOS
-
-  // -------------------------------------------------------------------------
-  // Parameters from the unified config
-  // -------------------------------------------------------------------------
   localparam              SRAMInitFile     = opensoc_config_pkg::SRAMInitFile;
   localparam int unsigned   RamDepth         = opensoc_config_pkg::RamDepth;
   localparam bit            EnableReLU       = opensoc_config_pkg::EnableReLU;
@@ -63,17 +30,6 @@ package opensoc_derived_config_pkg;
   localparam bit            EnableConv2d     = opensoc_config_pkg::EnableConv2d;
   localparam bit            EnableGemm       = opensoc_config_pkg::EnableGemm;
   localparam xbar_latency_e XbarLatencyMode  = opensoc_config_pkg::XbarLatencyMode;
-
-`ifndef USE_KRONOS
-  // -------------------------------------------------------------------------
-  // Register file: FPGA block-RAM RF on Xilinx targets; FF RF for ASIC/sim
-  // -------------------------------------------------------------------------
-`ifdef FPGA_XILINX
-  localparam regfile_e RegFile = RegFileFPGA;
-`else
-  localparam regfile_e RegFile = opensoc_config_pkg::RegFile;  // macro → RegFileFF
-`endif
-`endif  // USE_KRONOS
 
   // =========================================================================
   // Derived parameters — computed from the config values above

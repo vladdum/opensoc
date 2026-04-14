@@ -54,7 +54,7 @@ gh pr merge --delete-branch
 
 ## Project Overview
 
-OpenSoC is a RISC-V SoC built on the lowRISC **Ibex** CPU core. The top-level module (`opensoc_top`) uses an AXI4 crossbar (`axi_xbar` from PULP) to connect the Ibex CPU to 1 MB SRAM and a set of peripherals: simulator control, timer, UART, PIO, I2C, AES crypto cluster, and seven optional accelerators (ReLU, vector MAC, scatter-gather DMA, Softmax, Conv1D, Conv2D, GEMM).
+OpenSoC is a RISC-V SoC built on the **Kronos** CPU core. The top-level module (`opensoc_top`) uses an AXI4 crossbar (`axi_xbar` from PULP) to connect the Kronos CPU to 1 MB SRAM and a set of peripherals: simulator control, timer, UART, PIO, I2C, AES crypto cluster, and seven optional accelerators (ReLU, vector MAC, scatter-gather DMA, Softmax, Conv1D, Conv2D, GEMM).
 
 ## Build Commands
 
@@ -73,7 +73,7 @@ make run-hello
 make lint
 
 # Equivalent manual command (see Makefile CORES_ROOT for all paths)
-fusesoc --cores-root=. --cores-root=hw/ip/ibex --cores-root=hw/ip/ibex/vendor/lowrisc_ip \
+fusesoc --cores-root=. --cores-root=hw/ip/sim \
   --cores-root=hw/ip/common_cells --cores-root=hw/ip/pulp_axi \
   --cores-root=hw/ip/pio --cores-root=hw/ip/i2c_controller --cores-root=hw/ip/uart \
   --cores-root=hw/ip/relu_accel --cores-root=hw/ip/vec_mac \
@@ -109,8 +109,8 @@ Clean rebuild: `make clean && make synth`.
 
 ```
 opensoc_top (hw/top/opensoc_top.sv)
-├── ibex_top_tracing       — Ibex RISC-V core with trace output
-├── axi_from_mem ×N        — OBI-to-AXI bridges (instr + data + PIO DMA + enabled accel DMAs)
+├── kronos_top              — Kronos RISC-V CPU (native AXI4 master ports)
+├── axi_from_mem ×N        — OBI-to-AXI bridges (PIO DMA + enabled accel DMAs)
 ├── axi_xbar               — AXI4 crossbar (N masters × M slaves, sized by enable params)
 ├── axi_to_mem ×M          — AXI-to-memory bridges (core peripherals + enabled accels)
 ├── ram_1p                 — 1 MB single-port SRAM (sim) / 512 KB block RAM (FPGA)
@@ -145,7 +145,7 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
 - `hw/synth/` — Shared source file list (`sources.f`) for all synth flows
 - `opensoc_top.core` — FuseSoC core file defining dependencies and build targets (repo root)
 - `hw/lint/` — Verilator waiver files
-- `hw/ip/ibex/` — Ibex submodule (CPU core + shared sim RTL like bus, ram, timer)
+- `hw/ip/sim/` — Simulation peripherals (`simulator_ctrl.sv`, `timer.sv`), copied from Ibex sim_shared
 - `hw/ip/pulp_axi/` — PULP AXI submodule (crossbar, bridges)
 - `hw/ip/common_cells/` — PULP common_cells submodule (required by pulp_axi)
 - `hw/ip/pulp_obi/` — PULP OBI submodule (for future use)
@@ -184,8 +184,8 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
 ## FuseSoC Core Dependencies
 
 The core `opensoc:soc:opensoc_top` depends on:
-- `lowrisc:ibex:ibex_top_tracing` — Ibex CPU with tracing
-- `lowrisc:ibex:sim_shared` — Shared simulation RTL (bus, ram_1p, ram_2p, simulator_ctrl, timer)
+- `opensoc:ip:kronos_riscv` — Kronos RISC-V CPU (native AXI4 master ports)
+- `opensoc:ip:sim_shared` — Shared simulation RTL (simulator_ctrl, timer)
 - `pulp-platform.org::axi` — AXI4 crossbar and protocol bridges
 - `opensoc:ip:pio` — Programmable I/O block
 - `opensoc:ip:relu_accel` — ReLU accelerator
@@ -198,11 +198,7 @@ The core `opensoc:soc:opensoc_top` depends on:
 - `opensoc:ip:opentitan_aes` — OpenTitan AES block (with stub packages and local prim overrides)
 - `opensoc:ip:ram` — Technology-dispatch RAM wrapper (XPM/FPGA, sky130 stub/ASIC, ram_1p/sim)
 
-Seventeen `--cores-root` paths are needed: repo root, `hw/ip/ibex`, `hw/ip/ibex/vendor/lowrisc_ip`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/i2c_controller`, `hw/ip/uart`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`, `hw/ip/conv1d`, `hw/ip/conv2d`, `hw/ip/gemm`, `hw/ip/opentitan_aes`, `hw/ip/ram`.
-
-## Key Ibex Parameters
-
-Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B`, `RV32ZC`, `RegFile`. These are consumed by macro guards in `opensoc_config_pkg.sv` (defaults to `RV32MFast`, `RV32BNone`, `RV32ZcaZcbZcmp`, `RegFileFF`). `opensoc_top` has no module-level parameters — all values come from `opensoc_derived_config_pkg`.
+Sixteen `--cores-root` paths are needed: repo root, `hw/ip/sim`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/i2c_controller`, `hw/ip/uart`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`, `hw/ip/conv1d`, `hw/ip/conv2d`, `hw/ip/gemm`, `hw/ip/opentitan_aes`, `hw/ip/ram`.
 
 ## AXI Configuration
 
@@ -210,11 +206,12 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B
 - Slave-port ID width: 1 bit (from `axi_from_mem`)
 - Master-port ID width: computed as `$clog2(NumMasters) + 1` (5 bits with all accels enabled)
 - User width: 1 bit
-- Masters/slaves: parameterized — 3+N masters, 7+N slaves (N = number of enabled accelerators; +1 for crypto)
+- Masters/slaves: parameterized — 2+N masters, 7+N slaves (N = number of enabled accelerators; +1 for crypto)
+  - 2 CPU masters (instr, data) connect directly as native AXI4; PIO DMA and accel DMAs use OBI-to-AXI bridges
   - Default (sim/FPGA): 10 masters, 14 slaves (all 7 accelerators enabled + crypto)
 - Master order: instr, data, [accel DMAs in order], PIO DMA (always last)
 - Slave order: RAM, SimCtrl, Timer, UART, PIO, I2C, Crypto, [accel ctrls in order]
-- `MaxRequests = 2` on all bridges; `MaxMstTrans = 4`, `MaxSlvTrans = 4` on xbar
+- `MaxRequests = 2` on OBI-to-AXI bridges (accel/PIO DMA only); `MaxMstTrans = 4`, `MaxSlvTrans = 4` on xbar
 - ATOPs disabled; `XbarLatencyMode`: `CUT_ALL_PORTS` on all targets (pipeline registers for timing closure; harmless for simulation and ASIC)
 
 ## FPGA Configuration
@@ -228,7 +225,6 @@ Configurable via FuseSoC `vlogdefine` (command-line `+define+`): `RV32M`, `RV32B
 - AXI latency: `CUT_ALL_PORTS`
 - Reset: `btn[0]` active-high → 2-FF synchronizer → active-low `rst_n`
 - Verilog defines: `SYNTHESIS=1`, `FPGA_XILINX=1` → derived pkg selects `opensoc_config_pkg`
-- Register file: `RegFileFPGA` (selected in derived pkg when `FPGA_XILINX` is set)
 - FPGA wrapper: `hw/fpga/arty_a7/opensoc_fpga_arty_a7_top.sv`
 - Constraints: `hw/fpga/arty_a7/arty_a7.xdc`
 - Synth script: `hw/fpga/arty_a7/synth.tcl`

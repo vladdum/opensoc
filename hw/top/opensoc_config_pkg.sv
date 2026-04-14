@@ -6,65 +6,14 @@
 //
 // Used for both ASIC synthesis and full-feature FPGA targets (e.g. Arty A7-100T).
 // Edit this file to change the default parameter values.
-//
-// VCS does not support overriding enum parameters via command line.  FuseSoC
-// sets these via +define+NAME=VALUE (vlogdefine).  The `ifndef guards let the
-// command-line define win; if nothing is set the defaults below are used.
-
-`ifndef USE_KRONOS
-`ifndef RV32M
-  `define RV32M ibex_pkg::RV32MFast
-`endif
-`ifndef RV32B
-  `define RV32B ibex_pkg::RV32BNone
-`endif
-`ifndef RV32ZC
-  `define RV32ZC ibex_pkg::RV32ZcaZcbZcmp
-`endif
-`ifndef RegFile
-  `define RegFile ibex_pkg::RegFileFF
-`endif
-`endif  // USE_KRONOS
 
 package opensoc_config_pkg;
-`ifndef USE_KRONOS
-  import ibex_pkg::*;
-`endif
   import axi_pkg::*;
-
-`ifndef USE_KRONOS
-  // -------------------------------------------------------------------------
-  // Ibex CPU
-  // -------------------------------------------------------------------------
-  localparam bit          SecureIbex       = 1'b0;
-  localparam int unsigned LockstepOffset   = 1;
-  localparam bit          ICacheScramble   = 1'b0;
-  localparam bit          PMPEnable        = 1'b0;
-  localparam int unsigned PMPGranularity   = 0;
-  localparam int unsigned PMPNumRegions    = 4;
-  localparam int unsigned MHPMCounterNum   = 0;
-  localparam int unsigned MHPMCounterWidth = 40;
-  localparam bit          RV32E            = 1'b0;
-  localparam rv32m_e      RV32M            = `RV32M;
-  localparam rv32b_e      RV32B            = `RV32B;
-  localparam rv32zc_e     RV32ZC           = `RV32ZC;
-  localparam regfile_e    RegFile          = `RegFile;
-  localparam bit          BranchTargetALU  = 1'b0;
-  localparam bit          WritebackStage   = 1'b0;
-  localparam bit          ICache           = 1'b0;
-  localparam bit          DbgTriggerEn     = 1'b0;
-  localparam bit          ICacheECC        = 1'b0;
-  localparam bit          BranchPredictor  = 1'b0;
-`endif  // USE_KRONOS
 
   // -------------------------------------------------------------------------
   // Memory
   // -------------------------------------------------------------------------
   localparam              SRAMInitFile     = "";
-  // RamDepth is flow-specific:
-  //   FPGA (Vivado):    131072 × 32 = 512 KB (fits XC7A100T 607 KB BRAM)
-  //   ASIC (Sky130):     16384 × 32 =  64 KB (sky130_sram_1rw_32x16384 stub)
-  //   Simulation:       131072 × 32 = 512 KB
 `ifdef FPGA_XILINX
   localparam int unsigned RamDepth         = 131072;  // 512 KB
 `elsif SYNTHESIS
