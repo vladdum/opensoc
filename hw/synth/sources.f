@@ -8,25 +8,10 @@
 # Blank lines and '#' comments are ignored.
 
 [includes]
-lowrisc_prim_assert_0.1/rtl
-lowrisc_prim_secded_0.1/rtl
-lowrisc_prim_util_get_scramble_params_0/rtl
-lowrisc_prim_util_memload_0/rtl
-lowrisc_dv_dv_fcov_macros_0
 pulp-platform.org__axi_0.39.9/include
 pulp-platform.org__common_cells_1.39.0/include
 
 [packages]
-lowrisc_prim_generic_prim_pkg_0/rtl/prim_pkg.sv
-lowrisc_prim_util_0.1/rtl/prim_util_pkg.sv
-lowrisc_prim_generic_ram_1p_pkg_0/rtl/prim_ram_1p_pkg.sv
-lowrisc_prim_generic_ram_2p_pkg_0/rtl/prim_ram_2p_pkg.sv
-lowrisc_prim_generic_rom_pkg_0/rtl/prim_rom_pkg.sv
-lowrisc_prim_pad_wrapper_pkg_0/rtl/prim_pad_wrapper_pkg.sv
-lowrisc_prim_secded_0.1/rtl/prim_secded_pkg.sv
-lowrisc_prim_mubi_pkg_0.1/rtl/prim_mubi_pkg.sv
-lowrisc_prim_cipher_pkg_0.1/rtl/prim_cipher_pkg.sv
-lowrisc_prim_count_0/rtl/prim_count_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/cf_math_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/ecc_pkg.sv
 pulp-platform.org__common_cells_1.39.0/src/cb_filter_pkg.sv
@@ -36,46 +21,19 @@ opensoc_soc_opensoc_top_0/hw/top/opensoc_config_pkg.sv
 opensoc_soc_opensoc_top_0/hw/top/opensoc_derived_config_pkg.sv
 
 [rtl]
-lowrisc_prim_assert_0.1/rtl/prim_assert.sv
-lowrisc_prim_assert_0.1/rtl/prim_flop_macros.sv
 opensoc_ip_kronos_riscv_0/rtl/kronos_pkg.sv
-opensoc_ip_kronos_riscv_0/rtl/stage0/*.sv
-opensoc_ip_kronos_riscv_0/rtl/stage1/*.sv
-opensoc_ip_kronos_riscv_0/rtl/stage2/*.sv
+# Kronos modules used by stage3: alu/regfile/csr from stage0, forward/hazard
+# from stage1, decode/muldiv from stage2, everything else from stage3.
+# Stage0/1/2 kronos_top.sv and kronos_lsu.sv are excluded to avoid duplicates.
+opensoc_ip_kronos_riscv_0/rtl/stage0/kronos_alu.sv
+opensoc_ip_kronos_riscv_0/rtl/stage0/kronos_regfile.sv
+opensoc_ip_kronos_riscv_0/rtl/stage0/kronos_csr.sv
+opensoc_ip_kronos_riscv_0/rtl/stage1/kronos_forward.sv
+opensoc_ip_kronos_riscv_0/rtl/stage1/kronos_hazard.sv
+opensoc_ip_kronos_riscv_0/rtl/stage2/kronos_decode.sv
+opensoc_ip_kronos_riscv_0/rtl/stage2/kronos_muldiv.sv
 opensoc_ip_kronos_riscv_0/rtl/stage3/*.sv
 opensoc_ip_sim_shared_0/*.sv
-lowrisc_prim_cdc_rand_delay_0/rtl/*.sv
-lowrisc_prim_cipher_0/rtl/*.sv
-lowrisc_prim_count_0/rtl/prim_count.sv
-lowrisc_prim_generic_and2_0/rtl/*.sv
-lowrisc_prim_generic_buf_0/rtl/*.sv
-lowrisc_prim_generic_clock_buf_0/rtl/*.sv
-lowrisc_prim_generic_clock_div_0/rtl/*.sv
-lowrisc_prim_generic_clock_gating_0/rtl/*.sv
-lowrisc_prim_generic_clock_inv_0/rtl/*.sv
-lowrisc_prim_generic_clock_mux2_0/rtl/*.sv
-lowrisc_prim_generic_flop_0/rtl/*.sv
-lowrisc_prim_generic_flop_2sync_0/rtl/*.sv
-lowrisc_prim_generic_flop_en_0/rtl/*.sv
-lowrisc_prim_generic_flop_no_rst_0/rtl/*.sv
-lowrisc_prim_generic_pad_attr_0/rtl/*.sv
-lowrisc_prim_generic_pad_wrapper_0/rtl/*.sv
-lowrisc_prim_generic_ram_1p_0/rtl/*.sv
-lowrisc_prim_generic_ram_1r1w_0/rtl/*.sv
-lowrisc_prim_generic_ram_2p_0/rtl/*.sv
-lowrisc_prim_generic_rom_0/rtl/*.sv
-lowrisc_prim_generic_rst_sync_0/rtl/*.sv
-lowrisc_prim_generic_usb_diff_rx_0/rtl/*.sv
-lowrisc_prim_generic_xnor2_0/rtl/*.sv
-lowrisc_prim_generic_xor2_0/rtl/*.sv
-lowrisc_prim_lfsr_0.1/rtl/*.sv
-lowrisc_prim_mubi_0.1/rtl/*.sv
-lowrisc_prim_onehot_0/rtl/*.sv
-lowrisc_prim_onehot_check_0/rtl/*.sv
-lowrisc_prim_ram_1p_adv_0.1/rtl/*.sv
-lowrisc_prim_ram_1p_scr_0.1/rtl/*.sv
-lowrisc_prim_sec_anchor_0.1/rtl/*.sv
-lowrisc_prim_secded_0.1/rtl/*.sv
 pulp-platform.org__axi_0.39.9/src/*.sv
 pulp-platform.org__common_cells_1.39.0/src/*.sv
 pulp-platform.org__common_cells_1.39.0/src/deprecated/*.sv
