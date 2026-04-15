@@ -56,6 +56,7 @@ module opensoc_ram #(
 
   // Init file not supported for XPM path; pre-load via simulation or ELF loader
   xpm_memory_spram #(
+    .MEMORY_SIZE         (Depth * 32),
     .ADDR_WIDTH_A        (Aw),
     .BYTE_WRITE_WIDTH_A  (8),
     .WRITE_DATA_WIDTH_A  (32),

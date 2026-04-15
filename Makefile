@@ -67,8 +67,9 @@ SIM_TRACE_FLAGS := $(if $(or $(TRACE),$(WAVES)),--trace,)
 
 SIM_DIR        := build/opensoc_soc_opensoc_top_0/sim-verilator
 
-SYNTH_SRC_DIR_ARTY := build/opensoc_fpga_arty_a7_0/synth-vivado/src
-SYNTH_SRC_DIR_ASIC := build/opensoc_soc_opensoc_top_0/synth-verilator/src
+SYNTH_SRC_DIR_ARTY  := build/opensoc_fpga_arty_a7_0/synth-vivado/src
+SYNTH_SRC_DIR_KV260 := build/opensoc_fpga_kv260_0/synth-kv260-vivado/src
+SYNTH_SRC_DIR_ASIC  := build/opensoc_soc_opensoc_top_0/synth-verilator/src
 
 # ── Per-test registry (sw/tests/tests.mk) ────────────────────────────────────
 # Single source of truth for all SW test metadata (SW_TEST_DIR, SW_BUILD_DIR,
@@ -114,6 +115,7 @@ help:
 	@echo "Synthesis"
 	@echo "  synth                       Synthesize (default FLOW=fpga-arty)"
 	@echo "  synth FLOW=fpga-arty        Vivado / Arty A7-100T XC7A100T"
+	@echo "  synth FLOW=fpga-kv260       Vivado / KV260 (XCK26)"
 	@echo "  synth FLOW=yosys            sv2v + Yosys generic gates"
 	@echo "  synth FLOW=ol2              OpenLane 2 / Sky130"
 	@echo ""
@@ -138,6 +140,9 @@ help:
 .PHONY: clean
 clean:
 	rm -rf build
+	rm -rf .Xil cong
+	rm -f vivado.jou vivado.log vivado_*.backup.jou vivado_*.backup.log
+	rm -f opensoc_top.log trace_core_00000000.log clockInfo.txt
 
 # ── Regression ────────────────────────────────────────────────────────────────
 # REGRESSION_TESTS and RUN_TESTS are defined in sw/tests/tests.mk (included above).
@@ -225,11 +230,14 @@ $(addprefix run-,$(RUN_TESTS)): run-%:
 
 # ── Synthesis ─────────────────────────────────────────────────────────────────
 
-.PHONY: synth synth-setup-arty synth-setup-asic
+.PHONY: synth synth-setup-arty synth-setup-kv260 synth-setup-asic
 synth:
 ifeq ($(FLOW),fpga-arty)
 	$(MAKE) synth-setup-arty
 	time $(VIVADO) -mode batch -source hw/fpga/arty_a7/synth.tcl
+else ifeq ($(FLOW),fpga-kv260)
+	$(MAKE) synth-setup-kv260
+	time $(VIVADO) -mode batch -source hw/fpga/kv260/synth.tcl
 else ifeq ($(FLOW),yosys)
 	$(MAKE) synth-setup-asic
 	time bash hw/asic/synth.sh
@@ -237,7 +245,7 @@ else ifeq ($(FLOW),ol2)
 	$(MAKE) synth-setup-asic
 	time bash hw/asic/openlane2/run.sh
 else
-	$(error Unknown FLOW=$(FLOW). Use: fpga-arty, ol2, or yosys)
+	$(error Unknown FLOW=$(FLOW). Use: fpga-arty, fpga-kv260, ol2, or yosys)
 endif
 
 synth-setup-asic:
@@ -278,6 +286,28 @@ synth-setup-arty:
 	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
 	      --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
 	      opensoc:fpga:arty_a7 \
+	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
+	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1; \
+	  fi; \
+	  exec 9>&-; \
+	fi
+
+synth-setup-kv260:
+	@if [ -d "$(SYNTH_SRC_DIR_KV260)" ]; then \
+	  echo "synth-setup-kv260: $(SYNTH_SRC_DIR_KV260) exists, skipping (use 'make clean' to force)"; \
+	else \
+	  LOCK=build/.synth-setup-kv260.lock; \
+	  mkdir -p build; \
+	  exec 9>"$$LOCK"; \
+	  flock 9; \
+	  if [ -d "$(SYNTH_SRC_DIR_KV260)" ]; then \
+	    echo "synth-setup-kv260: completed by another process, skipping"; \
+	  else \
+	    echo "$(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth-kv260 --setup --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax --flag enable_conv1d --flag enable_conv2d --flag enable_gemm opensoc:fpga:kv260 --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1"; \
+	    $(FUSESOC) $(CORES_ROOT_BASE) $(CORES_ROOT_ACCELS) run --target=synth-kv260 --setup \
+	      --flag enable_relu --flag enable_vmac --flag enable_sgdma --flag enable_softmax \
+	      --flag enable_conv1d --flag enable_conv2d --flag enable_gemm \
+	      opensoc:fpga:kv260 \
 	      --EnableReLU 1 --EnableVMAC 1 --EnableSgDma 1 --EnableSoftmax 1 \
 	      --EnableConv1d 1 --EnableConv2d 1 --EnableGemm 1; \
 	  fi; \
