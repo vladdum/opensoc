@@ -32,6 +32,7 @@ verilator/
 
 # Vivado temp files
 .Xil/
+cong/
 tight_setup_hold_pins.txt
 vivado*.jou
 vivado*.log

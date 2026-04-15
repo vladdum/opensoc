@@ -1,0 +1,45 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:fpga:kv260"
+description: "OpenSoC FPGA build for AMD Kria KV260 (XCK26 UltraScale+)"
+
+filesets:
+  files_rtl:
+    depend:
+      - "opensoc:soc:opensoc_top"
+    files:
+      - hw/fpga/kv260/opensoc_fpga_kv260_top.sv
+    file_type: systemVerilogSource
+
+  files_constraints:
+    files:
+      - hw/fpga/kv260/kv260.xdc
+    file_type: xdc
+
+targets:
+  synth-kv260:
+    default_tool: vivado
+    filesets:
+      - files_rtl
+      - files_constraints
+    toplevel: opensoc_fpga_kv260_top
+    tools:
+      vivado:
+        part: xck26-sfvc784-2LV-c
+    parameters:
+      - SYNTHESIS=true
+      - FPGA_XILINX=true
+
+parameters:
+  SYNTHESIS:
+    datatype: bool
+    default: true
+    paramtype: vlogdefine
+    description: "Defined during FPGA synthesis to select direct clock assignment"
+  FPGA_XILINX:
+    datatype: bool
+    default: true
+    paramtype: vlogdefine
+    description: "Enables Xilinx-specific pragmas and block RAM inference"

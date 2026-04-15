@@ -2,15 +2,15 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Vivado synthesis script for OpenSoC on Arty A7-100T (XC7A100T-1CSG324C)
+# Vivado synthesis script for OpenSoC on KV260 (xck26-sfvc784-2LV-c)
 #
 # Prerequisites:
 #   Run FuseSoC setup first:
-#     make synth FLOW=fpga-arty (runs setup automatically)
+#     make synth FLOW=fpga-kv260 (runs setup automatically)
 #
 # Usage:
-#   make synth FLOW=fpga-arty              # full flow (setup + synthesis)
-#   vivado -mode batch -source hw/fpga/arty_a7/synth.tcl   # Vivado only
+#   make synth FLOW=fpga-kv260              # full flow (setup + synthesis)
+#   vivado -mode batch -source hw/fpga/kv260/synth.tcl   # Vivado only
 
 # ============================================================================
 # Configuration — derive repo root from this script's location
@@ -18,20 +18,26 @@
 set SCRIPT_DIR  [file dirname [file normalize [info script]]]
 set REPO_ROOT   [file normalize $SCRIPT_DIR/../../..]
 
-set PART        xc7a100tcsg324-1
-set TOP         opensoc_fpga_arty_a7_top
-set PROJ_NAME   opensoc_arty_a7
-set PROJ_DIR    $REPO_ROOT/build/vivado_arty_a7
-set SRC_DIR     $REPO_ROOT/build/opensoc_fpga_arty_a7_0/synth-vivado/src
-set XDC_FILE    $REPO_ROOT/hw/fpga/arty_a7/arty_a7.xdc
+set PART        xck26-sfvc784-2LV-c
+set TOP         opensoc_fpga_kv260_top
+set PROJ_NAME   opensoc_kv260
+set PROJ_DIR    $REPO_ROOT/build/vivado_kv260
+set SRC_DIR     $REPO_ROOT/build/opensoc_fpga_kv260_0/synth-kv260-vivado/src
+set XDC_FILE    $REPO_ROOT/hw/fpga/kv260/kv260.xdc
 set FILELIST    $REPO_ROOT/hw/synth/sources.f
+
+# ============================================================================
+# Clock frequency — single source of truth
+# ============================================================================
+set CLK_FREQ_MHZ 148
+set CLK_PERIOD   [expr {1000.0 / $CLK_FREQ_MHZ}]
 
 # ============================================================================
 # Verify FuseSoC setup has been run
 # ============================================================================
 if {![file exists $SRC_DIR]} {
     puts "ERROR: Source directory '$SRC_DIR' not found."
-    puts "Run FuseSoC setup first:  make synth FLOW=fpga-arty"
+    puts "Run FuseSoC setup first:  make synth FLOW=fpga-kv260"
     return -code error "FuseSoC setup required"
 }
 
@@ -64,8 +70,29 @@ create_project $PROJ_NAME $PROJ_DIR -part $PART -force
 set_property target_language Verilog [current_project]
 
 # ============================================================================
+# Zynq UltraScale+ PS IP — provides pl_clk0 and pl_resetn0
+# ============================================================================
+set ps_vlnv [lindex [get_ipdefs -filter "NAME == zynq_ultra_ps_e"] 0]
+create_ip -vlnv $ps_vlnv -module_name zynq_ultra_ps_e_0
+set_property -dict {
+    CONFIG.PSU__FPGA_PL0_ENABLE  {1}
+    CONFIG.PSU__USE__M_AXI_GP0   {0}
+    CONFIG.PSU__USE__M_AXI_GP1   {0}
+    CONFIG.PSU__USE__M_AXI_GP2   {0}
+    CONFIG.PSU__USE__S_AXI_GP0   {0}
+    CONFIG.PSU__USE__S_AXI_GP1   {0}
+    CONFIG.PSU__USE__S_AXI_GP2   {0}
+    CONFIG.PSU__USE__S_AXI_GP3   {0}
+} [get_ips zynq_ultra_ps_e_0]
+# Variable substitution requires a separate set_property (braces inhibit it)
+set_property CONFIG.PSU__CRL_APB__PL0_REF_CTRL__FREQMHZ $CLK_FREQ_MHZ [get_ips zynq_ultra_ps_e_0]
+generate_target {all} [get_ips zynq_ultra_ps_e_0]
+# Include PS IP RTL in top-level synthesis (not OOC DCP) so synth_design finds the module
+set_property SYNTH_CHECKPOINT_MODE None [get_files zynq_ultra_ps_e_0.xci]
+
+# ============================================================================
 # Verilog defines
-# Note: FPGA_BASYS3 is intentionally NOT set — derived config pkg selects
+# Note: no board-specific define beyond FPGA_XILINX — derived config pkg selects
 #       opensoc_config_pkg (all accelerators, 512 KB RAM, CUT_ALL_PORTS).
 # ============================================================================
 set VLOG_DEFINES "SYNTHESIS=1 FPGA_XILINX=1"
@@ -91,7 +118,7 @@ lappend PKG_FILES $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/kronos_pkg.sv
 # ============================================================================
 set rtl_patterns [read_filelist $FILELIST rtl $SRC_DIR]
 # FPGA-only: add the board wrapper
-lappend rtl_patterns $SRC_DIR/opensoc_fpga_arty_a7_0/hw/fpga/arty_a7/*.sv
+lappend rtl_patterns $SRC_DIR/opensoc_fpga_kv260_0/hw/fpga/kv260/*.sv
 # Kronos RTL (all stages; kronos_pkg.sv is already in PKG_FILES)
 lappend rtl_patterns $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage0/*.sv
 lappend rtl_patterns $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage1/*.sv
@@ -129,8 +156,15 @@ set_property file_type SystemVerilog [get_files $PKG_FILES]
 add_files -norecurse $RTL_FILES
 set_property file_type SystemVerilog [get_files $RTL_FILES]
 
-# Constraints
+# Constraints (pin assignments only — clock constraint applied below)
 add_files -fileset constrs_1 -norecurse $XDC_FILE
+
+# Clock constraint — derived from CLK_FREQ_MHZ defined at top of this script
+set clk_xdc [file join $PROJ_DIR clk.xdc]
+set fd [open $clk_xdc w]
+puts $fd "create_clock -period $CLK_PERIOD -name clk_i \[get_pins clk_buf_i/O\]"
+close $fd
+add_files -fileset constrs_1 -norecurse $clk_xdc
 
 # Top module
 set_property top $TOP [current_fileset]
@@ -154,7 +188,7 @@ puts " Running Synthesis..."
 puts "=========================================="
 set t0 [clock seconds]
 set_property XPM_LIBRARIES XPM_MEMORY [current_project]
-if {[catch {synth_design -top $TOP -part $PART} err]} {
+if {[catch {synth_design -top $TOP -part $PART -retiming} err]} {
     puts "ERROR: synth_design failed: $err"
     return -code error "Synthesis failed"
 }
@@ -214,18 +248,17 @@ puts "  $PROJ_DIR/post_route_timing.txt"
 # ============================================================================
 # Timing closure check
 # ============================================================================
-set CLK_PERIOD 20.0
 set route_wns [get_wns]
 puts ""
 if {$route_wns ne "N/A"} {
     set fmax_mhz [format "%.1f" [expr {1000.0 / ($CLK_PERIOD - $route_wns)}]]
     if {$route_wns < 0} {
         puts "WARNING: Timing NOT met — WNS = ${route_wns} ns"
-        puts "  Max achievable frequency: ${fmax_mhz} MHz (target: 50.0 MHz)"
+        puts "  Max achievable frequency: ${fmax_mhz} MHz (target: ${CLK_FREQ_MHZ}.0 MHz)"
         puts "  Review: $PROJ_DIR/post_route_timing.txt"
     } else {
         puts "Timing met — WNS = ${route_wns} ns"
-        puts "  Max achievable frequency: ${fmax_mhz} MHz (target: 50.0 MHz)"
+        puts "  Max achievable frequency: ${fmax_mhz} MHz (target: ${CLK_FREQ_MHZ}.0 MHz)"
     }
 } else {
     puts "WARNING: Could not extract WNS from timing report"
