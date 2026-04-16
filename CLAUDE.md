@@ -18,6 +18,20 @@ git worktree remove .claude/worktrees/<name>
 
 If the worktree has changes that should be discarded, use `--force`.
 
+## Task Parallelism
+
+When executing implementation plans with subagent-driven development, independent tasks may be dispatched in parallel. Use this table as guidance:
+
+| Tasks | Can parallelize? | Reason |
+|-------|-----------------|--------|
+| `sw/common/` file edits (common.mk, link.ld, crt0.S, simple_system_common.h/.c) | Yes | All touch different files with no shared state |
+| Lint (`make lint`) | Must precede test compilation | Submodule must be correct before SW builds are validated |
+| Per-test compilation fixes | Yes | Each test directory is independent |
+| Simulation runs | Yes | Each `make run-<test>` is fully independent |
+| Submodule bump → lint → SW migration → regression | No | Sequential dependency chain |
+
+**Rule:** if two tasks edit different files and neither depends on the other's output, they can run in parallel. Dispatch them as a single multi-agent call using `superpowers:dispatching-parallel-agents`.
+
 ## SW Tests
 
 When creating a new SW test under `sw/tests/`, always update `sw/tests/tests.mk`:

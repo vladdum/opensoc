@@ -48,7 +48,7 @@ SECTIONS
     } > ram
 
     .data : {
-        . = ALIGN(4);
+        . = ALIGN(8);
         *(.sdata)
         *(.sdata.*)
         *(.data)
@@ -56,7 +56,7 @@ SECTIONS
     } > ram
 
     .bss : {
-        . = ALIGN(4);
+        . = ALIGN(8);
         _bss_start = .;
         *(.sbss)
         *(.sbss.*)
@@ -67,9 +67,9 @@ SECTIONS
     } > ram
 
     .stack (NOLOAD): {
-        . = ALIGN(4);
+        . = ALIGN(16);
         . = . + _min_stack;
-        . = ALIGN(4);
+        . = ALIGN(16);
         stack = .;
         _stack = .;
     } > stack

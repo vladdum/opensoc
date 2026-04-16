@@ -59,6 +59,7 @@ reset_handler:
 
   /* stack initialization */
   la   x2, _stack_start
+  andi x2, x2, -16           /* enforce 16-byte alignment (lp64 ABI) */
 
 _start:
   .global _start

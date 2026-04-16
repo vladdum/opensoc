@@ -97,6 +97,10 @@ lint_off -rule UNUSEDSIGNAL  -file "*/opensoc_ip_opentitan_aes_0/*"
 // Kronos RTL: unused/unconnected signals in the current stage implementation
 lint_off -rule UNUSEDSIGNAL      -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
 lint_off -rule PINCONNECTEMPTY   -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
+// Kronos RTL: WIDTHEXPAND in kronos_decompress.sv — RV64C sign-extension
+// sequences use fewer replications than the LHS width; implicit zero-extension
+// is correct for these unsigned immediate fields.
+lint_off -rule WIDTHEXPAND       -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
 
 // sim_shared peripherals: upper address/data bits are unused (simple register maps)
 lint_off -rule UNUSEDSIGNAL  -file "*/opensoc_ip_sim_shared_0/*"

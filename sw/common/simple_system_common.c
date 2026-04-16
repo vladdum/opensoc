@@ -34,6 +34,20 @@ void puthex(uint32_t h) {
   }
 }
 
+void puthex64(uint64_t h) {
+  int cur_digit;
+  for (int i = 0; i < 16; i++) {
+    cur_digit = (h >> 60) & 0xF;
+
+    if (cur_digit < 10)
+      putchar('0' + cur_digit);
+    else
+      putchar('A' - 10 + cur_digit);
+
+    h <<= 4;
+  }
+}
+
 void sim_halt() { DEV_WRITE(SIM_CTRL_BASE + SIM_CTRL_CTRL, 1); }
 
 void pcount_reset() {
@@ -68,54 +82,23 @@ void pcount_reset() {
       "csrw mhpmcounter28,  x0\n"
       "csrw mhpmcounter29,  x0\n"
       "csrw mhpmcounter30,  x0\n"
-      "csrw mhpmcounter31,  x0\n"
-      "csrw minstreth,      x0\n"
-      "csrw mcycleh,        x0\n"
-      "csrw mhpmcounter3h,  x0\n"
-      "csrw mhpmcounter4h,  x0\n"
-      "csrw mhpmcounter5h,  x0\n"
-      "csrw mhpmcounter6h,  x0\n"
-      "csrw mhpmcounter7h,  x0\n"
-      "csrw mhpmcounter8h,  x0\n"
-      "csrw mhpmcounter9h,  x0\n"
-      "csrw mhpmcounter10h, x0\n"
-      "csrw mhpmcounter11h, x0\n"
-      "csrw mhpmcounter12h, x0\n"
-      "csrw mhpmcounter13h, x0\n"
-      "csrw mhpmcounter14h, x0\n"
-      "csrw mhpmcounter15h, x0\n"
-      "csrw mhpmcounter16h, x0\n"
-      "csrw mhpmcounter17h, x0\n"
-      "csrw mhpmcounter18h, x0\n"
-      "csrw mhpmcounter19h, x0\n"
-      "csrw mhpmcounter20h, x0\n"
-      "csrw mhpmcounter21h, x0\n"
-      "csrw mhpmcounter22h, x0\n"
-      "csrw mhpmcounter23h, x0\n"
-      "csrw mhpmcounter24h, x0\n"
-      "csrw mhpmcounter25h, x0\n"
-      "csrw mhpmcounter26h, x0\n"
-      "csrw mhpmcounter27h, x0\n"
-      "csrw mhpmcounter28h, x0\n"
-      "csrw mhpmcounter29h, x0\n"
-      "csrw mhpmcounter30h, x0\n"
-      "csrw mhpmcounter31h, x0\n");
+      "csrw mhpmcounter31,  x0\n");
 }
 
-unsigned int get_mepc() {
-  uint32_t result;
+uint64_t get_mepc(void) {
+  uint64_t result;
   __asm__ volatile("csrr %0, mepc;" : "=r"(result));
   return result;
 }
 
-unsigned int get_mcause() {
-  uint32_t result;
+uint64_t get_mcause(void) {
+  uint64_t result;
   __asm__ volatile("csrr %0, mcause;" : "=r"(result));
   return result;
 }
 
-unsigned int get_mtval() {
-  uint32_t result;
+uint64_t get_mtval(void) {
+  uint64_t result;
   __asm__ volatile("csrr %0, mtval;" : "=r"(result));
   return result;
 }
@@ -124,11 +107,11 @@ void simple_exc_handler(void) {
   puts("EXCEPTION!!!\n");
   puts("============\n");
   puts("MEPC:   0x");
-  puthex(get_mepc());
+  puthex64(get_mepc());
   puts("\nMCAUSE: 0x");
-  puthex(get_mcause());
+  puthex64(get_mcause());
   puts("\nMTVAL:  0x");
-  puthex(get_mtval());
+  puthex64(get_mtval());
   putchar('\n');
   sim_halt();
 

@@ -20,12 +20,12 @@ REPO_ROOT     := $(abspath $(SW_COMMON_DIR)../..)
 
 BUILD_DIR := $(REPO_ROOT)/build/sw/$(notdir $(CURDIR))
 
-CC      := riscv32-unknown-elf-gcc
-OBJCOPY := riscv32-unknown-elf-objcopy
+CC      := riscv64-unknown-elf-gcc
+OBJCOPY := riscv64-unknown-elf-objcopy
 
-ARCH ?= rv32imc_zicsr_zifencei
+ARCH ?= rv64imac_zicsr_zifencei
 
-CFLAGS := -march=$(ARCH) -mabi=ilp32 -static -mcmodel=medany -Wall -g -Os \
+CFLAGS := -march=$(ARCH) -mabi=lp64 -static -mcmodel=medany -Wall -g -Os \
            -fvisibility=hidden -nostdlib -nostartfiles -ffreestanding \
            -include $(SW_COMMON_DIR)simple_system_regs.h \
            $(PROGRAM_CFLAGS)
