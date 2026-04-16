@@ -56,8 +56,25 @@ ELF_i2c-loopback      := $(SW_BUILD_DIR)/i2c_loopback_test/i2c_loopback_test.elf
 # Per-test simulator flag overrides
 # ---------------------------------------------------------------------------
 
-# i2c-loopback needs more cycles for clock-stretching sequences
-SIM_FLAGS_i2c-loopback := -c 500000
+# Cycle-count limits to bound deadlocked simulations.
+# Design runs at ~72K sim-cycles/s; these cap worst-case wall time.
+SIM_FLAGS_hello                          := -c 500000
+SIM_FLAGS_uart                           := -c 500000
+SIM_FLAGS_pio                            := -c 1000000
+SIM_FLAGS_pio-sdk                        := -c 1000000
+SIM_FLAGS_pio-i2c                        := -c 1000000
+SIM_FLAGS_i2c                            := -c 500000
+SIM_FLAGS_i2c-loopback                   := -c 500000
+SIM_FLAGS_relu                           := -c 5000000
+SIM_FLAGS_vmac                           := -c 20000000
+SIM_FLAGS_sg-dma                         := -c 5000000
+SIM_FLAGS_softmax                        := -c 5000000
+SIM_FLAGS_aes                            := -c 10000000
+SIM_FLAGS_conv1d                         := -c 5000000
+SIM_FLAGS_conv1d-relu-stream             := -c 10000000
+SIM_FLAGS_conv2d                         := -c 10000000
+SIM_FLAGS_conv2d-relu-softmax-stream     := -c 15000000
+SIM_FLAGS_gemm                           := -c 5000000
 
 # ---------------------------------------------------------------------------
 # Regression test lists

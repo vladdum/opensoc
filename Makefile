@@ -58,7 +58,7 @@ FUSESOC_DEFINES := \
   --EnableConv2d $(ENABLE_CONV2D) \
   --EnableGemm $(ENABLE_GEMM)
 
-SW_ARCH  := rv32im_zicsr
+SW_ARCH  := rv64imac_zicsr_zifencei
 GTKW_DIR := dv/verilator
 
 SIM_TRACE_FLAGS := $(if $(or $(TRACE),$(WAVES)),--trace,)

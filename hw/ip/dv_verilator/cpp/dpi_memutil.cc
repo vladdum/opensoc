@@ -32,10 +32,10 @@ class ElfError : public std::exception {
   std::string msg_;
 };
 
-// Class wrapping an open ELF file
+// Class wrapping an open ELF file (supports both ELF32 and ELF64)
 class ElfFile {
  public:
-  ElfFile(const std::string &path) : path_(path) {
+  ElfFile(const std::string &path) : path_(path), is64_(false) {
     (void)elf_errno();
     if (elf_version(EV_CURRENT) == EV_NONE) {
       throw std::runtime_error(elf_errmsg(-1));
@@ -57,6 +57,15 @@ class ElfFile {
       close(fd_);
       throw ElfError(path, "not an ELF file.");
     }
+
+    // Determine ELF class (32 vs 64 bit)
+    char *ident = elf_getident(ptr_, nullptr);
+    if (!ident) {
+      elf_end(ptr_);
+      close(fd_);
+      throw ElfError(path, "could not read ELF identification.");
+    }
+    is64_ = (ident[EI_CLASS] == ELFCLASS64);
   }
 
   ~ElfFile() {
@@ -72,8 +81,17 @@ class ElfFile {
     return phnum;
   }
 
-  const Elf32_Phdr *GetPhdrs() {
+  bool Is64() const { return is64_; }
+
+  const Elf32_Phdr *GetPhdrs32() {
     const Elf32_Phdr *phdrs = elf32_getphdr(ptr_);
+    if (!phdrs)
+      throw ElfError(path_, elf_errmsg(-1));
+    return phdrs;
+  }
+
+  const Elf64_Phdr *GetPhdrs64() {
+    const Elf64_Phdr *phdrs = elf64_getphdr(ptr_);
     if (!phdrs)
       throw ElfError(path_, elf_errmsg(-1));
     return phdrs;
@@ -82,6 +100,7 @@ class ElfFile {
   std::string path_;
   int fd_;
   Elf *ptr_;
+  bool is64_;
 };
 }  // namespace
 
@@ -125,94 +144,88 @@ static MemImageType DetectMemImageType(const std::string &filepath) {
 // segments of the ELF file. Like objcopy, this generates a single "giant
 // segment" whose first byte corresponds to the first byte of the lowest
 // addressed segment and whose last byte corresponds to the last byte of the
-// highest address.
+// highest address. Supports both ELF32 and ELF64.
 static std::vector<uint8_t> FlattenElfFile(const std::string &filepath) {
   ElfFile elf(filepath);
-
   size_t phnum = elf.GetPhdrNum();
-  const Elf32_Phdr *phdrs = elf.GetPhdrs();
-
-  // To mimic what objcopy does (that is, the binary target of BFD), we need to
-  // iterate over all loadable program headers, find the lowest address, and
-  // then copy in our loadable data based on their offset with respect to the
-  // found base address.
-
-  bool any = false;
-  Elf32_Addr low = 0, high = 0;
-  for (size_t i = 0; i < phnum; i++) {
-    const Elf32_Phdr &phdr = phdrs[i];
-
-    if (phdr.p_type != PT_LOAD) {
-      std::cout << "Program header number " << i << " in `" << filepath
-                << "' is not of type PT_LOAD; ignoring." << std::endl;
-      continue;
-    }
-
-    if (phdr.p_filesz == 0) {
-      continue;
-    }
-
-    if (!any || phdr.p_paddr < low) {
-      low = phdr.p_paddr;
-    }
-
-    Elf32_Addr seg_top = phdr.p_paddr + (phdr.p_filesz - 1);
-    if (seg_top < phdr.p_paddr) {
-      std::ostringstream oss;
-      oss << "phdr for segment " << i << " has start 0x" << std::hex
-          << phdr.p_paddr << " and size 0x" << phdr.p_filesz
-          << ", which overflows the address space.";
-      throw ElfError(filepath, oss.str());
-    }
-
-    if (!any || seg_top > high) {
-      high = seg_top;
-    }
-
-    any = true;
-  }
-
-  // If any is false, there were no segments that contributed to the
-  // file. Return nothing.
-  if (!any)
-    return std::vector<uint8_t>();
-
-  // Otherwise, we know every valid byte of data has an address in the
-  // range [low, high] (inclusive).
-  assert(low <= high);
 
   size_t file_size;
   const char *file_data = elf_rawfile(elf.ptr_, &file_size);
   assert(file_data);
 
-  StagedMem ret;
+  // Lambda to process phdr array entries; works for both Elf32_Phdr and Elf64_Phdr
+  // because both have p_type, p_paddr, p_filesz, p_offset fields.
+  auto do_flatten = [&](auto *phdrs) -> std::vector<uint8_t> {
+    typedef decltype(phdrs[0].p_paddr) AddrT;
 
-  for (size_t i = 0; i < phnum; i++) {
-    const Elf32_Phdr &phdr = phdrs[i];
+    bool any = false;
+    AddrT low = 0, high = 0;
+    for (size_t i = 0; i < phnum; i++) {
+      const auto &phdr = phdrs[i];
 
-    if (phdr.p_type != PT_LOAD) {
-      continue;
+      if (phdr.p_type != PT_LOAD) {
+        std::cout << "Program header number " << i << " in `" << filepath
+                  << "' is not of type PT_LOAD; ignoring." << std::endl;
+        continue;
+      }
+
+      if (phdr.p_filesz == 0)
+        continue;
+
+      if (!any || phdr.p_paddr < low)
+        low = phdr.p_paddr;
+
+      AddrT seg_top = phdr.p_paddr + (phdr.p_filesz - 1);
+      if (seg_top < phdr.p_paddr) {
+        std::ostringstream oss;
+        oss << "phdr for segment " << i << " has start 0x" << std::hex
+            << phdr.p_paddr << " and size 0x" << phdr.p_filesz
+            << ", which overflows the address space.";
+        throw ElfError(filepath, oss.str());
+      }
+
+      if (!any || seg_top > high)
+        high = seg_top;
+
+      any = true;
     }
 
-    // Check the segment actually fits in the file
-    if (file_size < phdr.p_offset + phdr.p_filesz) {
-      std::ostringstream oss;
-      oss << "phdr for segment " << i << " claims to end at offset 0x"
-          << std::hex << phdr.p_offset + phdr.p_filesz
-          << ", but the file only has size 0x" << file_size << ".";
-      throw ElfError(filepath, oss.str());
+    if (!any)
+      return std::vector<uint8_t>();
+
+    assert(low <= high);
+
+    StagedMem ret;
+    for (size_t i = 0; i < phnum; i++) {
+      const auto &phdr = phdrs[i];
+
+      if (phdr.p_type != PT_LOAD)
+        continue;
+
+      if (file_size < phdr.p_offset + phdr.p_filesz) {
+        std::ostringstream oss;
+        oss << "phdr for segment " << i << " claims to end at offset 0x"
+            << std::hex << phdr.p_offset + phdr.p_filesz
+            << ", but the file only has size 0x" << file_size << ".";
+        throw ElfError(filepath, oss.str());
+      }
+
+      if (phdr.p_filesz == 0)
+        continue;
+
+      uint32_t off = (uint32_t)(phdr.p_paddr - low);
+      std::vector<uint8_t> seg(phdr.p_filesz, 0);
+      memcpy(&seg[0], file_data + phdr.p_offset, phdr.p_filesz);
+      ret.AddSegment(off, std::move(seg));
     }
+    return ret.GetFlat();
+  };
 
-    if (phdr.p_filesz == 0)
-      continue;
-
-    uint32_t off = phdr.p_paddr - low;
-    std::vector<uint8_t> seg(phdr.p_filesz, 0);
-    memcpy(&seg[0], file_data + phdr.p_offset, phdr.p_filesz);
-    ret.AddSegment(off, std::move(seg));
+  if (elf.Is64()) {
+    return do_flatten(elf.GetPhdrs64());
+  } else {
+    return do_flatten(elf.GetPhdrs32());
   }
-
-  return ret.GetFlat();
 }
 
 // Merge seg0 and seg1, overwriting any overlapping data in seg0 with
@@ -465,62 +478,71 @@ void DpiMemUtil::StageElf(bool verbose, const std::string &path) {
   assert(file_data);
 
   size_t phnum = elf.GetPhdrNum();
-  const Elf32_Phdr *phdrs = elf.GetPhdrs();
 
-  for (size_t i = 0; i < phnum; ++i) {
-    const Elf32_Phdr &phdr = phdrs[i];
-    if (phdr.p_type != PT_LOAD)
-      continue;
+  // Lambda to process a typed phdr array (works for both Elf32_Phdr and Elf64_Phdr)
+  auto process_phdrs = [&](auto *phdrs) {
+    for (size_t i = 0; i < phnum; ++i) {
+      const auto &phdr = phdrs[i];
+      if (phdr.p_type != PT_LOAD)
+        continue;
 
-    if (phdr.p_filesz == 0)
-      continue;
+      if (phdr.p_filesz == 0)
+        continue;
 
-    size_t mem_area_idx =
-        GetRegionForSegment(path, i, phdr.p_paddr, phdr.p_filesz);
+      size_t mem_area_idx =
+          GetRegionForSegment(path, i, (uint32_t)phdr.p_paddr,
+                              (uint32_t)phdr.p_filesz);
 
-    const MemArea &mem_area = *mem_areas_[mem_area_idx];
-    uint32_t mem_area_base = base_addrs_[mem_area_idx];
-    const std::string &name = names_[mem_area_idx];
+      const MemArea &mem_area = *mem_areas_[mem_area_idx];
+      uint32_t mem_area_base = base_addrs_[mem_area_idx];
+      const std::string &name = names_[mem_area_idx];
 
-    // Check that the segment is aligned correctly for the memory
-    uint32_t local_base = phdr.p_paddr - mem_area_base;
-    if (local_base % mem_area.GetWidthByte()) {
-      std::ostringstream oss;
-      oss << "Segment " << i << " has LMA 0x" << std::hex << phdr.p_paddr
-          << ", which starts at offset 0x" << local_base
-          << " in the memory region `" << name
-          << "'. This offset is not aligned to the region's word width of "
-          << std::dec << mem_area.GetWidth() << " bits.";
-      throw ElfError(path, oss.str());
+      // Check that the segment is aligned correctly for the memory
+      uint32_t local_base = (uint32_t)phdr.p_paddr - mem_area_base;
+      if (local_base % mem_area.GetWidthByte()) {
+        std::ostringstream oss;
+        oss << "Segment " << i << " has LMA 0x" << std::hex << phdr.p_paddr
+            << ", which starts at offset 0x" << local_base
+            << " in the memory region `" << name
+            << "'. This offset is not aligned to the region's word width of "
+            << std::dec << mem_area.GetWidth() << " bits.";
+        throw ElfError(path, oss.str());
+      }
+
+      // Where does the segment finish in the file image? We don't need
+      // to worry about overflow here, because we're adding two
+      // uint32_t's into a size_t. But we do need to check the segment
+      // actually fits in the file
+      size_t off_end = (size_t)phdr.p_offset + phdr.p_filesz;
+      if (file_size < off_end) {
+        std::ostringstream oss;
+        oss << "phdr for segment " << i << " claims to end at offset 0x"
+            << std::hex << off_end - 1 << ", but the file only has size 0x"
+            << file_size << ".";
+        throw ElfError(path, oss.str());
+      }
+
+      if (verbose) {
+        std::cout << "Loading segment " << i << " from ELF file `" << path
+                  << "' into memory `" << name << "'." << std::endl;
+      }
+
+      // Get the StagedMem object associated with this memory area. If
+      // there isn't one, make a new empty one.
+      StagedMem &staged_mem = staging_area_[name];
+
+      const char *seg_data = file_data + phdr.p_offset;
+      std::vector<uint8_t> vec(phdr.p_filesz, 0);
+      memcpy(&vec[0], seg_data, phdr.p_filesz);
+
+      staged_mem.AddSegment(local_base, std::move(vec));
     }
+  };
 
-    // Where does the segment finish in the file image? We don't need
-    // to worry about overflow here, because we're adding two
-    // uint32_t's into a size_t. But we do need to check the segment
-    // actually fits in the file
-    size_t off_end = (size_t)phdr.p_offset + phdr.p_filesz;
-    if (file_size < off_end) {
-      std::ostringstream oss;
-      oss << "phdr for segment " << i << " claims to end at offset 0x"
-          << std::hex << off_end - 1 << ", but the file only has size 0x"
-          << file_size << ".";
-      throw ElfError(path, oss.str());
-    }
-
-    if (verbose) {
-      std::cout << "Loading segment " << i << " from ELF file `" << path
-                << "' into memory `" << name << "'." << std::endl;
-    }
-
-    // Get the StagedMem object associated with this memory area. If
-    // there isn't one, make a new empty one.
-    StagedMem &staged_mem = staging_area_[name];
-
-    const char *seg_data = file_data + phdr.p_offset;
-    std::vector<uint8_t> vec(phdr.p_filesz, 0);
-    memcpy(&vec[0], seg_data, phdr.p_filesz);
-
-    staged_mem.AddSegment(local_base, std::move(vec));
+  if (elf.Is64()) {
+    process_phdrs(elf.GetPhdrs64());
+  } else {
+    process_phdrs(elf.GetPhdrs32());
   }
 }
 

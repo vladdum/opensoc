@@ -40,7 +40,9 @@ int OpenSocSim::Setup(int argc, char **argv, bool &exit_app) {
   simctrl.RegisterExtension(&_memutil);
 
   exit_app = false;
-  return simctrl.ParseCommandArgs(argc, argv, exit_app);
+  // ParseCommandArgs returns true on success, false on failure.
+  // Convert to int exit code: 0 = success, 1 = failure.
+  return simctrl.ParseCommandArgs(argc, argv, exit_app) ? 0 : 1;
 }
 
 void OpenSocSim::Run() {

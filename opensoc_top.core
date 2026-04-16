@@ -229,5 +229,5 @@ targets:
           - "--trace-structs"
           - "--output-split 20000"
           - "--build-jobs 0"
-          - '-CFLAGS "-std=c++17 -O1 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=opensoc_top_wrapper"'
+          - '-CFLAGS "-std=c++17 -O2 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=opensoc_top_wrapper"'
           - '-LDFLAGS "-pthread -lutil -lelf"'
