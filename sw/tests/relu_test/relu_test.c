@@ -75,16 +75,16 @@ int main(int argc, char **argv) {
   // -----------------------------------------------------------------------
   // Phase 2: Configure and launch accelerator
   // -----------------------------------------------------------------------
-  DEV_WRITE(RELU_SRC_ADDR, (uint32_t)src_data);
-  DEV_WRITE(RELU_DST_ADDR, (uint32_t)dst_data);
+  DEV_WRITE(RELU_SRC_ADDR, (uint32_t)(uintptr_t)src_data);
+  DEV_WRITE(RELU_DST_ADDR, (uint32_t)(uintptr_t)dst_data);
   DEV_WRITE(RELU_LEN,      NUM_WORDS);
 
   // Verify config readback
-  if (DEV_READ(RELU_SRC_ADDR, 0) != (uint32_t)src_data) {
+  if (DEV_READ(RELU_SRC_ADDR, 0) != (uint32_t)(uintptr_t)src_data) {
     puts("FAIL: SRC_ADDR readback mismatch\n");
     return 1;
   }
-  if (DEV_READ(RELU_DST_ADDR, 0) != (uint32_t)dst_data) {
+  if (DEV_READ(RELU_DST_ADDR, 0) != (uint32_t)(uintptr_t)dst_data) {
     puts("FAIL: DST_ADDR readback mismatch\n");
     return 1;
   }
@@ -203,5 +203,5 @@ int main(int argc, char **argv) {
     puts(" words incorrect\n");
   }
 
-  return 0;
+  return errors;
 }

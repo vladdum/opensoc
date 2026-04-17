@@ -48,7 +48,10 @@ void puthex64(uint64_t h) {
   }
 }
 
-void sim_halt() { DEV_WRITE(SIM_CTRL_BASE + SIM_CTRL_CTRL, 1); }
+void sim_halt(uint32_t failures) {
+  // SIM_CTRL_CTRL encoding: bit[0]=halt trigger, bits[31:1]=failure count.
+  DEV_WRITE(SIM_CTRL_BASE + SIM_CTRL_CTRL, (failures << 1) | 1u);
+}
 
 void pcount_reset() {
   asm volatile(
@@ -113,7 +116,7 @@ void simple_exc_handler(void) {
   puts("\nMTVAL:  0x");
   puthex64(get_mtval());
   putchar('\n');
-  sim_halt();
+  sim_halt(1);
 
   while(1);
 }

@@ -82,10 +82,13 @@ main_entry:
   addi x11, x0, 0
   jal x1, main
 
-  /* Halt simulation */
-  li x5, SIM_CTRL_BASE + SIM_CTRL_CTRL
-  li x6, 1
-  sw x6, 0(x5)
+  /* Halt simulation, propagating main()'s return value as the failure count.
+     SIM_CTRL_CTRL encoding: bit[0]=halt trigger, bits[31:1]=failure count.
+     a0 (x10) holds main()'s return value: 0=pass, >0=number of failures. */
+  slli x6, x10, 1           /* x6 = failures << 1                   */
+  ori  x6, x6,  1           /* x6 = (failures << 1) | halt_trigger  */
+  li   x5, SIM_CTRL_BASE + SIM_CTRL_CTRL
+  sw   x6, 0(x5)
 
   /* If execution ends up here put the core to sleep */
 sleep_loop:

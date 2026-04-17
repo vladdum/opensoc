@@ -24,21 +24,48 @@ if [ ! -d "$SRC_DIR" ]; then
 fi
 
 # ============================================================================
-# Read shared filelist (sections: includes, packages, rtl)
+# Read shared filelist (sections: includes, packages, [kronos], rtl)
 # ============================================================================
+
+# Parse one [section] from a filelist file, emit each entry prefixed with root/.
+_parse_section() {
+    local file="$1" section="$2" prefix="$3"
+    local in=0
+    while IFS= read -r line; do
+        line="${line%%#*}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z "$line" ]] && continue
+        if [[ "$line" =~ ^\[(.+)\]$ ]]; then
+            [[ "${BASH_REMATCH[1]}" == "$section" ]] && in=1 || in=0
+            continue
+        fi
+        [[ $in -eq 1 ]] && echo "${prefix}/${line}"
+    done < "$file"
+}
+
+# Read [section] from $FILELIST.  [kronos] entries are expanded by reading the
+# referenced per-stage filelist from the kronos-riscv submodule.  Output lines
+# are paths relative to $SRC_DIR (callers prepend $SRC_DIR/ when needed).
 read_filelist() {
     local section="$1"
     local in_section=0
+    local in_kronos=0
     while IFS= read -r line; do
-        line="${line%%#*}"          # strip comments
-        line="${line#"${line%%[![:space:]]*}"}"  # trim leading whitespace
-        line="${line%"${line##*[![:space:]]}"}"  # trim trailing whitespace
+        line="${line%%#*}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
         [[ -z "$line" ]] && continue
         if [[ "$line" =~ ^\[(.+)\]$ ]]; then
             [[ "${BASH_REMATCH[1]}" == "$section" ]] && in_section=1 || in_section=0
+            [[ "${BASH_REMATCH[1]}" == "kronos"   ]] && in_kronos=1  || in_kronos=0
             continue
         fi
-        [[ $in_section -eq 1 ]] && echo "$line"
+        if   [[ $in_section -eq 1 ]]; then
+            echo "$line"
+        elif [[ $in_kronos  -eq 1 ]]; then
+            _parse_section "$SRC_DIR/$line" "$section" "$(dirname "$line")"
+        fi
     done < "$FILELIST"
 }
 

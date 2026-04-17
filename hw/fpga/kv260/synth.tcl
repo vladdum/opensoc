@@ -49,7 +49,6 @@ proc read_filelist {filepath section prefix} {
     set result [list]
     set fd [open $filepath r]
     while {[gets $fd line] >= 0} {
-        # Strip comments and trim
         regsub {#.*$} $line {} line
         set line [string trim $line]
         if {$line eq ""} continue
@@ -109,8 +108,7 @@ set_property include_dirs $INC_DIRS [current_fileset]
 # Source files — packages first (order matters for elaboration)
 # ============================================================================
 set PKG_FILES [read_filelist $FILELIST packages $SRC_DIR]
-
-# Kronos package (must precede Kronos RTL in elaboration order)
+# Kronos package must precede Kronos RTL in elaboration order
 lappend PKG_FILES $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/kronos_pkg.sv
 
 # ============================================================================
@@ -119,11 +117,6 @@ lappend PKG_FILES $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/kronos_pkg.sv
 set rtl_patterns [read_filelist $FILELIST rtl $SRC_DIR]
 # FPGA-only: add the board wrapper
 lappend rtl_patterns $SRC_DIR/opensoc_fpga_kv260_0/hw/fpga/kv260/*.sv
-# Kronos RTL (all stages; kronos_pkg.sv is already in PKG_FILES)
-lappend rtl_patterns $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage0/*.sv
-lappend rtl_patterns $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage1/*.sv
-lappend rtl_patterns $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage2/*.sv
-lappend rtl_patterns $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage3/*.sv
 lappend rtl_patterns $SRC_DIR/opensoc_ip_sim_shared_0/*.sv
 
 set ALL_SV [list]

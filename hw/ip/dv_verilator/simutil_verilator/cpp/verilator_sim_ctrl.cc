@@ -391,6 +391,7 @@ void VerilatorSimCtrl::Run() {
     if (term_after_cycles_ && (time_ / 2 >= term_after_cycles_)) {
       std::cout << "Simulation timeout of " << term_after_cycles_
                 << " cycles reached, shutting down simulation." << std::endl;
+      simulation_success_ = false;
       break;
     }
   }

@@ -85,18 +85,9 @@ static void putdec(uint32_t v) {
   while (pos > 0) putchar(buf[--pos]);
 }
 
-static void putdec_signed(int32_t v) {
-  if (v < 0) {
-    putchar('-');
-    putdec((uint32_t)(-(int64_t)v));
-  } else {
-    putdec((uint32_t)v);
-  }
-}
-
 static void run_softmax(const int8_t *src, uint8_t *dst, int len) {
-  DEV_WRITE(SMAX_SRC_ADDR, (uint32_t)src);
-  DEV_WRITE(SMAX_DST_ADDR, (uint32_t)dst);
+  DEV_WRITE(SMAX_SRC_ADDR, (uint32_t)(uintptr_t)src);
+  DEV_WRITE(SMAX_DST_ADDR, (uint32_t)(uintptr_t)dst);
   DEV_WRITE(SMAX_VEC_LEN, len);
   DEV_WRITE(SMAX_CTRL, SMAX_CTRL_GO);
 
@@ -235,8 +226,8 @@ static void test_all_neg128(void) {
 // Test 6: VEC_LEN=0 (immediate DONE)
 // ---------------------------------------------------------------------------
 static void test_vec_len_zero(void) {
-  DEV_WRITE(SMAX_SRC_ADDR, (uint32_t)input_buf);
-  DEV_WRITE(SMAX_DST_ADDR, (uint32_t)output_buf);
+  DEV_WRITE(SMAX_SRC_ADDR, (uint32_t)(uintptr_t)input_buf);
+  DEV_WRITE(SMAX_DST_ADDR, (uint32_t)(uintptr_t)output_buf);
   DEV_WRITE(SMAX_VEC_LEN, 0);
   DEV_WRITE(SMAX_CTRL, SMAX_CTRL_GO);
 
@@ -372,5 +363,5 @@ int main(int argc, char **argv) {
     puts("FAIL\n");
   }
 
-  return 0;
+  return (int)total_errors;
 }

@@ -37,3 +37,4 @@ tight_setup_hold_pins.txt
 vivado*.jou
 vivado*.log
 clockInfo.txt
+iter_*CongestedCLBsAndNets.txt

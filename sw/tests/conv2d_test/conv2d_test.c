@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
   puts("--- Test 1: Valid, identity, 8x8 ---\n");
   {
     for (int i = 0; i < 64; i++) img8[i] = (int32_t)(int8_t)((i * 3 + 7) & 0x7F);
-    conv2d_run((uint32_t)img8, (uint32_t)out_buf, 8, 8, CONV2D_PAD_VALID, identity);
+    conv2d_run((uint32_t)(uintptr_t)img8, (uint32_t)(uintptr_t)out_buf, 8, 8, CONV2D_PAD_VALID, identity);
     // identity kernel: output[r][c] = img[(r+1)*8 + (c+1)]
     for (int r = 0; r < 6; r++)
       for (int c = 0; c < 6; c++)
@@ -209,7 +209,7 @@ int main(int argc, char **argv) {
   puts("--- Test 2: Valid, edge kernel, 8x8 ---\n");
   {
     for (int i = 0; i < 64; i++) img8[i] = (int32_t)(int8_t)(i & 0x7F);
-    conv2d_run((uint32_t)img8, (uint32_t)out_buf, 8, 8, CONV2D_PAD_VALID, edge);
+    conv2d_run((uint32_t)(uintptr_t)img8, (uint32_t)(uintptr_t)out_buf, 8, 8, CONV2D_PAD_VALID, edge);
     conv2d_ref_valid(img8, 8, 8, edge, ref_buf);
     errors += check(out_buf, ref_buf, 36, "Valid edge 8x8");
   }
@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
   puts("--- Test 3: Valid, smooth [1,2,1;2,4,2;1,2,1], 8x8 ---\n");
   {
     for (int i = 0; i < 64; i++) img8[i] = (int32_t)(int8_t)((i * 5 + 3) & 0x3F);
-    conv2d_run((uint32_t)img8, (uint32_t)out_buf, 8, 8, CONV2D_PAD_VALID, smooth);
+    conv2d_run((uint32_t)(uintptr_t)img8, (uint32_t)(uintptr_t)out_buf, 8, 8, CONV2D_PAD_VALID, smooth);
     conv2d_ref_valid(img8, 8, 8, smooth, ref_buf);
     errors += check(out_buf, ref_buf, 36, "Valid smooth 8x8");
   }
@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
   puts("--- Test 4: Valid, smooth, 16x16 ---\n");
   {
     for (int i = 0; i < 256; i++) img16[i] = (int32_t)(int8_t)((i * 3 + 1) & 0x3F);
-    conv2d_run((uint32_t)img16, (uint32_t)out_buf, 16, 16, CONV2D_PAD_VALID, smooth);
+    conv2d_run((uint32_t)(uintptr_t)img16, (uint32_t)(uintptr_t)out_buf, 16, 16, CONV2D_PAD_VALID, smooth);
     conv2d_ref_valid(img16, 16, 16, smooth, ref_buf);
     errors += check(out_buf, ref_buf, 14*14, "Valid smooth 16x16");
   }
@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
   {
     for (int i = 0; i < 1024; i++) img32[i] = (int32_t)(int8_t)((i * 7 + 2) & 0x3F);
     // Warm run for correctness (no timing)
-    conv2d_run((uint32_t)img32, (uint32_t)out_buf, 32, 32, CONV2D_PAD_VALID, smooth);
+    conv2d_run((uint32_t)(uintptr_t)img32, (uint32_t)(uintptr_t)out_buf, 32, 32, CONV2D_PAD_VALID, smooth);
     conv2d_ref_valid(img32, 32, 32, smooth, ref_buf);
     errors += check(out_buf, ref_buf, 30*30, "Valid smooth 32x32");
 
@@ -255,8 +255,8 @@ int main(int argc, char **argv) {
     DEV_WRITE(CONV2D_IMG_HEIGHT,   32);
     DEV_WRITE(CONV2D_KERNEL_SIZE,   3);
     DEV_WRITE(CONV2D_PADDING_MODE, CONV2D_PAD_VALID);
-    DEV_WRITE(CONV2D_SRC_ADDR, (uint32_t)img32);
-    DEV_WRITE(CONV2D_DST_ADDR, (uint32_t)out_buf);
+    DEV_WRITE(CONV2D_SRC_ADDR, (uint32_t)(uintptr_t)img32);
+    DEV_WRITE(CONV2D_DST_ADDR, (uint32_t)(uintptr_t)out_buf);
 
     pcount_reset();
     pcount_enable(1);
@@ -282,7 +282,7 @@ int main(int argc, char **argv) {
   puts("--- Test 6: Same, identity, 8x8 ---\n");
   {
     for (int i = 0; i < 64; i++) img8[i] = (int32_t)(int8_t)((i * 3 + 7) & 0x7F);
-    conv2d_run((uint32_t)img8, (uint32_t)out_buf, 8, 8, CONV2D_PAD_SAME, identity);
+    conv2d_run((uint32_t)(uintptr_t)img8, (uint32_t)(uintptr_t)out_buf, 8, 8, CONV2D_PAD_SAME, identity);
     for (int i = 0; i < 64; i++)
       ref_buf[i] = (int32_t)(int8_t)(img8[i] & 0xFF);
     errors += check(out_buf, ref_buf, 64, "Same identity 8x8");
@@ -294,7 +294,7 @@ int main(int argc, char **argv) {
   puts("--- Test 7: Same, smooth, 8x8 ---\n");
   {
     for (int i = 0; i < 64; i++) img8[i] = (int32_t)(int8_t)((i * 5 + 3) & 0x3F);
-    conv2d_run((uint32_t)img8, (uint32_t)out_buf, 8, 8, CONV2D_PAD_SAME, smooth);
+    conv2d_run((uint32_t)(uintptr_t)img8, (uint32_t)(uintptr_t)out_buf, 8, 8, CONV2D_PAD_SAME, smooth);
     conv2d_ref_same(img8, 8, 8, smooth, ref_buf);
     errors += check(out_buf, ref_buf, 64, "Same smooth 8x8");
   }
@@ -305,5 +305,5 @@ int main(int argc, char **argv) {
   putchar('\n');
   if (errors == 0) puts("ALL TESTS PASSED\n");
   else { puts("TESTS FAILED: "); putdec((uint32_t)errors); puts(" error(s)\n"); }
-  return 0;
+  return errors;
 }

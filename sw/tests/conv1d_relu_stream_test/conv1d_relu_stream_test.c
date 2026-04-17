@@ -113,7 +113,7 @@ static void stream_run(uint32_t conv1d_src, uint32_t relu_dst,
     ;
   if (!(DEV_READ(RELU_STATUS, 0) & RELU_STATUS_DONE)) {
     puts("TIMEOUT: stream pipeline did not complete\n");
-    return 1;
+    return;
   }
 }
 
@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
 
     DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
 
-    stream_run((uint32_t)sig_a, (uint32_t)out_a,
+    stream_run((uint32_t)(uintptr_t)sig_a, (uint32_t)(uintptr_t)out_a,
                IN_LEN_A, KSIZE_A, CONV1D_PAD_VALID, k3);
 
     int t1_err = 0;
@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
 
     DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
 
-    stream_run((uint32_t)sig_b, (uint32_t)out_b,
+    stream_run((uint32_t)(uintptr_t)sig_b, (uint32_t)(uintptr_t)out_b,
                IN_LEN_B, KSIZE_A, CONV1D_PAD_SAME, k3);
 
     // All outputs must be zero (all inputs negative, conv outputs negative)
@@ -279,7 +279,7 @@ int main(int argc, char **argv) {
 
     pcount_reset();
     pcount_enable(1);
-    stream_run((uint32_t)sig_c, (uint32_t)out_c,
+    stream_run((uint32_t)(uintptr_t)sig_c, (uint32_t)(uintptr_t)out_c,
                IN_LEN_C, KSIZE_C, CONV1D_PAD_VALID, k5);
     pcount_enable(0);
     uint32_t cyc_stream;
@@ -311,9 +311,9 @@ int main(int argc, char **argv) {
 
     pcount_reset();
     pcount_enable(1);
-    conv1d_dma_run((uint32_t)sig_c, (uint32_t)mid_c,
+    conv1d_dma_run((uint32_t)(uintptr_t)sig_c, (uint32_t)(uintptr_t)mid_c,
                    IN_LEN_C, KSIZE_C, CONV1D_PAD_VALID, k5);
-    relu_dma_run((uint32_t)mid_c, (uint32_t)out_c, OUT_LEN_C);
+    relu_dma_run((uint32_t)(uintptr_t)mid_c, (uint32_t)(uintptr_t)out_c, OUT_LEN_C);
     pcount_enable(0);
     uint32_t cyc_dma;
     PCOUNT_READ(mcycle, cyc_dma);
@@ -356,5 +356,5 @@ int main(int argc, char **argv) {
     puts("TESTS FAILED: "); putdec((uint32_t)errors); puts(" error(s)\n");
   }
 
-  return 0;
+  return errors;
 }

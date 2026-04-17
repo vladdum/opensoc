@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
     ref_gemm(a4, b4, ref_buf, 4, 4, 4);
     gemm_load_weights(b4, 4, 4);
     DEV_WRITE(GEMM_CTRL, GEMM_CTRL_SOFT_RESET);
-    gemm_run((uint32_t)a_buf, (uint32_t)c_buf, 4, 4, 4);
+    gemm_run((uint32_t)(uintptr_t)a_buf, (uint32_t)(uintptr_t)c_buf, 4, 4, 4);
 
     status = DEV_READ(GEMM_STATUS, 0);
     if (!(status & GEMM_STATUS_DONE)) { puts("FAIL: DONE not set\n"); errors++; }
@@ -207,7 +207,7 @@ int main(int argc, char **argv) {
 
     pcount_reset();
     pcount_enable(1);
-    gemm_run((uint32_t)a_buf, (uint32_t)c_buf, 8, 8, 8);
+    gemm_run((uint32_t)(uintptr_t)a_buf, (uint32_t)(uintptr_t)c_buf, 8, 8, 8);
     pcount_enable(0);
     uint32_t t4_cycles;
     PCOUNT_READ(mcycle, t4_cycles);
@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
     ref_gemm(a5, id, ref_buf, 4, 4, 4);
     gemm_load_weights(id, 4, 4);
     DEV_WRITE(GEMM_CTRL, GEMM_CTRL_SOFT_RESET);
-    gemm_run((uint32_t)a_buf, (uint32_t)c_buf, 4, 4, 4);
+    gemm_run((uint32_t)(uintptr_t)a_buf, (uint32_t)(uintptr_t)c_buf, 4, 4, 4);
 
     int t5_err = 0;
     for (int i = 0; i < 16; i++) {
@@ -276,7 +276,7 @@ int main(int argc, char **argv) {
 
     gemm_load_weights(z, 4, 4);
     DEV_WRITE(GEMM_CTRL, GEMM_CTRL_SOFT_RESET);
-    gemm_run((uint32_t)a_buf, (uint32_t)c_buf, 4, 4, 4);
+    gemm_run((uint32_t)(uintptr_t)a_buf, (uint32_t)(uintptr_t)c_buf, 4, 4, 4);
 
     int t6_err = 0;
     for (int i = 0; i < 16; i++) {
@@ -306,7 +306,7 @@ int main(int argc, char **argv) {
     ref_gemm(a7, b7, ref_buf, 4, 8, 4);
     gemm_load_weights(b7, 8, 4);
     DEV_WRITE(GEMM_CTRL, GEMM_CTRL_SOFT_RESET);
-    gemm_run((uint32_t)a_buf, (uint32_t)c_buf, 4, 8, 4);
+    gemm_run((uint32_t)(uintptr_t)a_buf, (uint32_t)(uintptr_t)c_buf, 4, 8, 4);
 
     int t7_err = 0;
     for (int i = 0; i < 16; i++) {
@@ -355,7 +355,7 @@ int main(int argc, char **argv) {
 
     gemm_load_weights(kern, 9, 1);
     DEV_WRITE(GEMM_CTRL, GEMM_CTRL_SOFT_RESET);
-    gemm_run((uint32_t)a_buf, (uint32_t)c_buf, 4, 9, 1);
+    gemm_run((uint32_t)(uintptr_t)a_buf, (uint32_t)(uintptr_t)c_buf, 4, 9, 1);
 
     int t8_err = 0;
     for (int i = 0; i < 4; i++) {
@@ -379,5 +379,5 @@ int main(int argc, char **argv) {
     puts("TESTS FAILED: "); putdec((uint32_t)errors); puts(" error(s)\n");
   }
 
-  return 0;
+  return errors;
 }
