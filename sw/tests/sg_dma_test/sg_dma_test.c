@@ -61,7 +61,7 @@ static void putdec(uint32_t v) {
 }
 
 static void run_sgdma(sg_desc_t *desc) {
-  DEV_WRITE(SGDMA_DESC_ADDR, (uint32_t)desc);
+  DEV_WRITE(SGDMA_DESC_ADDR, (uint32_t)(uintptr_t)desc);
   DEV_WRITE(SGDMA_CTRL, SGDMA_CTRL_GO);
 
   // Poll until done
@@ -119,8 +119,8 @@ static void test_single_8word(void) {
     src_buf[i] = 0xA0000000 + i;
     dst_buf[i] = 0;
   }
-  desc1.src_addr       = (uint32_t)src_buf;
-  desc1.dst_addr       = (uint32_t)dst_buf;
+  desc1.src_addr       = (uint32_t)(uintptr_t)src_buf;
+  desc1.dst_addr       = (uint32_t)(uintptr_t)dst_buf;
   desc1.word_len       = 8;
   desc1.ctrl           = 0;
   desc1.next_desc_addr = 0;
@@ -141,8 +141,8 @@ static void test_single_1word(void) {
   src_buf[0] = 0xDEADBEEF;
   dst_buf[0] = 0;
 
-  desc1.src_addr       = (uint32_t)src_buf;
-  desc1.dst_addr       = (uint32_t)dst_buf;
+  desc1.src_addr       = (uint32_t)(uintptr_t)src_buf;
+  desc1.dst_addr       = (uint32_t)(uintptr_t)dst_buf;
   desc1.word_len       = 1;
   desc1.ctrl           = 0;
   desc1.next_desc_addr = 0;
@@ -156,8 +156,8 @@ static void test_single_1word(void) {
 // Test 3: Single descriptor, word_len=0 (should complete immediately)
 // ---------------------------------------------------------------------------
 static void test_zero_len(void) {
-  desc1.src_addr       = (uint32_t)src_buf;
-  desc1.dst_addr       = (uint32_t)dst_buf;
+  desc1.src_addr       = (uint32_t)(uintptr_t)src_buf;
+  desc1.dst_addr       = (uint32_t)(uintptr_t)dst_buf;
   desc1.word_len       = 0;
   desc1.ctrl           = 0;
   desc1.next_desc_addr = 0;
@@ -183,20 +183,20 @@ static void test_chain_3desc(void) {
   }
 
   // Descriptor chain: A → B → C
-  chain_descs[0].src_addr       = (uint32_t)src_a;
-  chain_descs[0].dst_addr       = (uint32_t)dst_a;
+  chain_descs[0].src_addr       = (uint32_t)(uintptr_t)src_a;
+  chain_descs[0].dst_addr       = (uint32_t)(uintptr_t)dst_a;
   chain_descs[0].word_len       = 4;
   chain_descs[0].ctrl           = SGDMA_DESC_CTRL_CHAIN;
-  chain_descs[0].next_desc_addr = (uint32_t)&chain_descs[1];
+  chain_descs[0].next_desc_addr = (uint32_t)(uintptr_t)&chain_descs[1];
 
-  chain_descs[1].src_addr       = (uint32_t)src_b;
-  chain_descs[1].dst_addr       = (uint32_t)dst_b;
+  chain_descs[1].src_addr       = (uint32_t)(uintptr_t)src_b;
+  chain_descs[1].dst_addr       = (uint32_t)(uintptr_t)dst_b;
   chain_descs[1].word_len       = 4;
   chain_descs[1].ctrl           = SGDMA_DESC_CTRL_CHAIN;
-  chain_descs[1].next_desc_addr = (uint32_t)&chain_descs[2];
+  chain_descs[1].next_desc_addr = (uint32_t)(uintptr_t)&chain_descs[2];
 
-  chain_descs[2].src_addr       = (uint32_t)src_c;
-  chain_descs[2].dst_addr       = (uint32_t)dst_c;
+  chain_descs[2].src_addr       = (uint32_t)(uintptr_t)src_c;
+  chain_descs[2].dst_addr       = (uint32_t)(uintptr_t)dst_c;
   chain_descs[2].word_len       = 4;
   chain_descs[2].ctrl           = 0; // Last descriptor, no chain
   chain_descs[2].next_desc_addr = 0;
@@ -245,13 +245,13 @@ static void test_go_while_busy(void) {
     src_buf[i] = 0xBB000000 + i;
     dst_buf[i] = 0;
   }
-  desc1.src_addr       = (uint32_t)src_buf;
-  desc1.dst_addr       = (uint32_t)dst_buf;
+  desc1.src_addr       = (uint32_t)(uintptr_t)src_buf;
+  desc1.dst_addr       = (uint32_t)(uintptr_t)dst_buf;
   desc1.word_len       = 64;
   desc1.ctrl           = 0;
   desc1.next_desc_addr = 0;
 
-  DEV_WRITE(SGDMA_DESC_ADDR, (uint32_t)&desc1);
+  DEV_WRITE(SGDMA_DESC_ADDR, (uint32_t)(uintptr_t)&desc1);
   DEV_WRITE(SGDMA_CTRL, SGDMA_CTRL_GO);
 
   // Immediately try a second GO — should be ignored
@@ -280,8 +280,8 @@ static void test_back_to_back(void) {
     src_buf[i] = 0xCC000000 + i;
     dst_buf[i] = 0;
   }
-  desc1.src_addr       = (uint32_t)src_buf;
-  desc1.dst_addr       = (uint32_t)dst_buf;
+  desc1.src_addr       = (uint32_t)(uintptr_t)src_buf;
+  desc1.dst_addr       = (uint32_t)(uintptr_t)dst_buf;
   desc1.word_len       = 4;
   desc1.ctrl           = 0;
   desc1.next_desc_addr = 0;
@@ -293,8 +293,8 @@ static void test_back_to_back(void) {
     src_buf[i] = 0xDD000000 + i;
     dst_buf[i + 4] = 0;
   }
-  desc1.src_addr       = (uint32_t)src_buf;
-  desc1.dst_addr       = (uint32_t)(dst_buf + 4);
+  desc1.src_addr       = (uint32_t)(uintptr_t)src_buf;
+  desc1.dst_addr       = (uint32_t)(uintptr_t)(dst_buf + 4);
   desc1.word_len       = 4;
   desc1.ctrl           = 0;
   desc1.next_desc_addr = 0;
@@ -321,20 +321,20 @@ static void test_chain_with_zero_len(void) {
   }
 
   // Desc 0: 4-word copy → chain → desc 1 (zero-len) → chain → desc 2 (4-word copy)
-  chain_descs[0].src_addr       = (uint32_t)src_a;
-  chain_descs[0].dst_addr       = (uint32_t)dst_a;
+  chain_descs[0].src_addr       = (uint32_t)(uintptr_t)src_a;
+  chain_descs[0].dst_addr       = (uint32_t)(uintptr_t)dst_a;
   chain_descs[0].word_len       = 4;
   chain_descs[0].ctrl           = SGDMA_DESC_CTRL_CHAIN;
-  chain_descs[0].next_desc_addr = (uint32_t)&chain_descs[1];
+  chain_descs[0].next_desc_addr = (uint32_t)(uintptr_t)&chain_descs[1];
 
   chain_descs[1].src_addr       = 0;
   chain_descs[1].dst_addr       = 0;
   chain_descs[1].word_len       = 0; // Zero length — skip
   chain_descs[1].ctrl           = SGDMA_DESC_CTRL_CHAIN;
-  chain_descs[1].next_desc_addr = (uint32_t)&chain_descs[2];
+  chain_descs[1].next_desc_addr = (uint32_t)(uintptr_t)&chain_descs[2];
 
-  chain_descs[2].src_addr       = (uint32_t)src_c;
-  chain_descs[2].dst_addr       = (uint32_t)dst_c;
+  chain_descs[2].src_addr       = (uint32_t)(uintptr_t)src_c;
+  chain_descs[2].dst_addr       = (uint32_t)(uintptr_t)dst_c;
   chain_descs[2].word_len       = 4;
   chain_descs[2].ctrl           = 0;
   chain_descs[2].next_desc_addr = 0;
@@ -360,8 +360,8 @@ static void test_throughput(void) {
     src_buf[i] = 0xEE000000 + i;
     dst_buf[i] = 0;
   }
-  desc1.src_addr       = (uint32_t)src_buf;
-  desc1.dst_addr       = (uint32_t)dst_buf;
+  desc1.src_addr       = (uint32_t)(uintptr_t)src_buf;
+  desc1.dst_addr       = (uint32_t)(uintptr_t)dst_buf;
   desc1.word_len       = 256;
   desc1.ctrl           = 0;
   desc1.next_desc_addr = 0;
@@ -422,5 +422,5 @@ int main(int argc, char **argv) {
     puts("FAIL\n");
   }
 
-  return 0;
+  return (int)total_errors;
 }

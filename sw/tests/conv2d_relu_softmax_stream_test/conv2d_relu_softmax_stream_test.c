@@ -52,11 +52,6 @@ static void putdec(uint32_t v) {
   while (pos > 0) putchar(buf[--pos]);
 }
 
-static void put_i32(int32_t v) {
-  if (v < 0) { putchar('-'); putdec((uint32_t)(-v)); }
-  else putdec((uint32_t)v);
-}
-
 // ---------------------------------------------------------------------------
 // exp LUT (must match hardware exp_lut.sv, scale=46)
 // ---------------------------------------------------------------------------
@@ -254,7 +249,7 @@ int main(int argc, char **argv) {
     // Reset Conv2D
     DEV_WRITE(CONV2D_CTRL, CONV2D_CTRL_SOFT_RESET);
 
-    stream_run((uint32_t)img_buf, (uint32_t)smax_out,
+    stream_run((uint32_t)(uintptr_t)img_buf, (uint32_t)(uintptr_t)smax_out,
                IMG_W, IMG_H, k_id, VEC_LEN);
 
     if (!(DEV_READ(SMAX_STATUS, 0) & SMAX_STATUS_DONE)) {
@@ -306,7 +301,7 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < (int)((N_OUT+3)/4); i++) smax_out[i] = 0xDEADBEEFu;
     DEV_WRITE(CONV2D_CTRL, CONV2D_CTRL_SOFT_RESET);
-    stream_run((uint32_t)img_buf, (uint32_t)smax_out,
+    stream_run((uint32_t)(uintptr_t)img_buf, (uint32_t)(uintptr_t)smax_out,
                IMG_W, IMG_H, k_sm, VEC_LEN);
 
     if (!(DEV_READ(SMAX_STATUS, 0) & SMAX_STATUS_DONE)) {
@@ -353,7 +348,7 @@ int main(int argc, char **argv) {
     // --- (a) Stream pipeline ---
     pcount_reset();
     pcount_enable(1);
-    stream_run((uint32_t)img_buf, (uint32_t)smax_out,
+    stream_run((uint32_t)(uintptr_t)img_buf, (uint32_t)(uintptr_t)smax_out,
                IMG_W, IMG_H, k_id, VEC_LEN);
     pcount_enable(0);
     uint32_t cyc_stream;
@@ -368,13 +363,13 @@ int main(int argc, char **argv) {
 
     pcount_reset();
     pcount_enable(1);
-    conv2d_dma_run((uint32_t)img_buf, (uint32_t)conv2d_out,
+    conv2d_dma_run((uint32_t)(uintptr_t)img_buf, (uint32_t)(uintptr_t)conv2d_out,
                    IMG_W, IMG_H, k_id);
-    relu_dma_run((uint32_t)conv2d_out, (uint32_t)relu_out, N_OUT);
+    relu_dma_run((uint32_t)(uintptr_t)conv2d_out, (uint32_t)(uintptr_t)relu_out, N_OUT);
     // Softmax expects INT8 packed 4/word; relu_out is INT32. For DMA-only
     // path we pass relu_out reinterpreted as bytes — valid for identity kernel
     // since values fit in INT8 (bits[7:0] = value).
-    smax_dma_run((uint32_t)relu_out, (uint32_t)smax_out, VEC_LEN);
+    smax_dma_run((uint32_t)(uintptr_t)relu_out, (uint32_t)(uintptr_t)smax_out, VEC_LEN);
     pcount_enable(0);
     uint32_t cyc_dma;
     PCOUNT_READ(mcycle, cyc_dma);
@@ -406,5 +401,5 @@ int main(int argc, char **argv) {
     puts("TESTS FAILED: "); putdec((uint32_t)errors); puts(" error(s)\n");
   }
 
-  return 0;
+  return errors;
 }

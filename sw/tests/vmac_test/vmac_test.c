@@ -54,26 +54,13 @@ static void putdec_signed(int32_t v) {
   }
 }
 
-// Compute expected dot product with INT32 saturation (using int64_t)
-static int32_t expected_dot(const int8_t *a, const int8_t *b, int len) {
-  int64_t acc = 0;
-  for (int i = 0; i < len; i++) {
-    acc += (int64_t)a[i] * (int64_t)b[i];
-    // Saturate after each group of 4 (matching hardware behavior)
-    if ((i & 3) == 3 || i == len - 1) {
-      if (acc > 2147483647LL) acc = 2147483647LL;
-      if (acc < -2147483648LL) acc = -2147483648LL;
-    }
-  }
-  return (int32_t)acc;
-}
 
 // Run a dot product and return the result
 static int32_t run_vmac(const int8_t *a, const int8_t *b, int32_t *dst,
                         int len, int no_accum_clear) {
-  DEV_WRITE(VMAC_SRC_A_ADDR, (uint32_t)a);
-  DEV_WRITE(VMAC_SRC_B_ADDR, (uint32_t)b);
-  DEV_WRITE(VMAC_DST_ADDR,   (uint32_t)dst);
+  DEV_WRITE(VMAC_SRC_A_ADDR, (uint32_t)(uintptr_t)a);
+  DEV_WRITE(VMAC_SRC_B_ADDR, (uint32_t)(uintptr_t)b);
+  DEV_WRITE(VMAC_DST_ADDR,   (uint32_t)(uintptr_t)dst);
   DEV_WRITE(VMAC_LEN,        len);
 
   uint32_t ctrl = VMAC_CTRL_GO;
@@ -323,5 +310,5 @@ int main(int argc, char **argv) {
     puts("FAIL\n");
   }
 
-  return 0;
+  return (int)total_errors;
 }

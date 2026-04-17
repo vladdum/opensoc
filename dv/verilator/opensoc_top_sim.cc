@@ -10,6 +10,13 @@
 #include "verilator_memutil.h"
 #include "verilator_sim_ctrl.h"
 
+// DPI-C implementation for simulator_ctrl.sv: dpi_sim_finish(int unsigned).
+// Called from RTL when the SW test writes to SIM_CTRL_CTRL.
+// failures == 0  → simulation succeeded; failures > 0 → test reported errors.
+extern "C" void dpi_sim_finish(unsigned int failures) {
+  VerilatorSimCtrl::GetInstance().RequestStop(failures == 0);
+}
+
 OpenSocSim::OpenSocSim(const char *ram_hier_path, int ram_size_words)
     : _ram(ram_hier_path, ram_size_words, 4) {}
 

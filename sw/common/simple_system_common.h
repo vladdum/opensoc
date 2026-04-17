@@ -43,9 +43,13 @@ uint64_t get_mcause(void);
 uint64_t get_mtval(void);
 
 /**
- * Immediately halts the simulation
+ * Halts the simulation.
+ *
+ * @param failures Number of test failures (0 = pass, >0 = fail).
+ *                 Encoded as bits[31:1] of the SIM_CTRL_CTRL write;
+ *                 bit[0] is the halt trigger.
  */
-void sim_halt();
+void sim_halt(uint32_t failures);
 
 /**
  * Enables/disables performance counters.  This effects mcycle and minstret as

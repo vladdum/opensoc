@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
 
   ref_conv_valid(signal_a, IN_LEN, kernel, KSIZE, ref_a);
 
-  conv1d_run((uint32_t)signal_a, (uint32_t)output_a, IN_LEN,
+  conv1d_run((uint32_t)(uintptr_t)signal_a, (uint32_t)(uintptr_t)output_a, IN_LEN,
              KSIZE, CONV1D_PAD_VALID, kernel);
 
   status = DEV_READ(CONV1D_STATUS, 0);
@@ -238,7 +238,7 @@ int main(int argc, char **argv) {
 
   DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
 
-  conv1d_run((uint32_t)signal_b, (uint32_t)output_b, IN_LEN_B,
+  conv1d_run((uint32_t)(uintptr_t)signal_b, (uint32_t)(uintptr_t)output_b, IN_LEN_B,
              KSIZE, CONV1D_PAD_SAME, kernel);
 
   int t2_err = 0;
@@ -269,7 +269,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < IN_LEN; i++) output_a[i] = 0;
     ref_conv_valid(signal_a, IN_LEN, k5, 5, ref_a);
     DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
-    conv1d_run((uint32_t)signal_a, (uint32_t)output_a, IN_LEN, 5, CONV1D_PAD_VALID, k5);
+    conv1d_run((uint32_t)(uintptr_t)signal_a, (uint32_t)(uintptr_t)output_a, IN_LEN, 5, CONV1D_PAD_VALID, k5);
     int t3_err = 0;
     for (int n = 0; n < olen; n++) {
       if (output_a[n] != ref_a[n]) {
@@ -295,7 +295,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < IN_LEN; i++) output_a[i] = 0;
     ref_conv_valid(signal_a, IN_LEN, k7, 7, ref_a);
     DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
-    conv1d_run((uint32_t)signal_a, (uint32_t)output_a, IN_LEN, 7, CONV1D_PAD_VALID, k7);
+    conv1d_run((uint32_t)(uintptr_t)signal_a, (uint32_t)(uintptr_t)output_a, IN_LEN, 7, CONV1D_PAD_VALID, k7);
     int t4_err = 0;
     for (int n = 0; n < olen; n++) {
       if (output_a[n] != ref_a[n]) {
@@ -321,7 +321,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < IN_LEN_B; i++) output_b[i] = 0;
     ref_conv_valid(signal_b, IN_LEN_B, k1, 1, ref_b);
     DEV_WRITE(CONV1D_CTRL, CONV1D_CTRL_SOFT_RESET);
-    conv1d_run((uint32_t)signal_b, (uint32_t)output_b, IN_LEN_B, 1, CONV1D_PAD_VALID, k1);
+    conv1d_run((uint32_t)(uintptr_t)signal_b, (uint32_t)(uintptr_t)output_b, IN_LEN_B, 1, CONV1D_PAD_VALID, k1);
     int t5_err = 0;
     for (int n = 0; n < IN_LEN_B; n++) {
       if (output_b[n] != ref_b[n]) {
@@ -350,7 +350,7 @@ int main(int argc, char **argv) {
 
     pcount_reset();
     pcount_enable(1);
-    conv1d_run((uint32_t)signal_c, (uint32_t)output_c, IN_LEN_C, 5, CONV1D_PAD_VALID, k5t);
+    conv1d_run((uint32_t)(uintptr_t)signal_c, (uint32_t)(uintptr_t)output_c, IN_LEN_C, 5, CONV1D_PAD_VALID, k5t);
     pcount_enable(0);
     uint32_t cyc;
     PCOUNT_READ(mcycle, cyc);
@@ -386,5 +386,5 @@ int main(int argc, char **argv) {
     puts("TESTS FAILED: "); putdec((uint32_t)errors); puts(" error(s)\n");
   }
 
-  return 0;
+  return errors;
 }
