@@ -26,7 +26,6 @@ SW_DIR_relu              := $(SW_TEST_DIR)/relu_test
 SW_DIR_vmac              := $(SW_TEST_DIR)/vmac_test
 SW_DIR_sg-dma            := $(SW_TEST_DIR)/sg_dma_test
 SW_DIR_softmax           := $(SW_TEST_DIR)/softmax_test
-SW_DIR_aes               := $(SW_TEST_DIR)/aes_test
 SW_DIR_conv1d            := $(SW_TEST_DIR)/conv1d_test
 SW_DIR_conv1d-relu-stream:= $(SW_TEST_DIR)/conv1d_relu_stream_test
 SW_DIR_conv2d                    := $(SW_TEST_DIR)/conv2d_test
@@ -44,7 +43,6 @@ ELF_relu              := $(SW_BUILD_DIR)/relu_test/relu_test.elf
 ELF_vmac              := $(SW_BUILD_DIR)/vmac_test/vmac_test.elf
 ELF_sg-dma            := $(SW_BUILD_DIR)/sg_dma_test/sg_dma_test.elf
 ELF_softmax           := $(SW_BUILD_DIR)/softmax_test/softmax_test.elf
-ELF_aes               := $(SW_BUILD_DIR)/aes_test/aes_test.elf
 ELF_conv1d            := $(SW_BUILD_DIR)/conv1d_test/conv1d_test.elf
 ELF_conv1d-relu-stream:= $(SW_BUILD_DIR)/conv1d_relu_stream_test/conv1d_relu_stream_test.elf
 ELF_conv2d                    := $(SW_BUILD_DIR)/conv2d_test/conv2d_test.elf
@@ -69,7 +67,6 @@ SIM_FLAGS_relu                           := -c 5000000
 SIM_FLAGS_vmac                           := -c 20000000
 SIM_FLAGS_sg-dma                         := -c 5000000
 SIM_FLAGS_softmax                        := -c 5000000
-SIM_FLAGS_aes                            := -c 10000000
 SIM_FLAGS_conv1d                         := -c 5000000
 SIM_FLAGS_conv1d-relu-stream             := -c 10000000
 SIM_FLAGS_conv2d                         := -c 10000000
@@ -90,7 +87,6 @@ REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_RELU)),relu)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_VMAC)),vmac)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_SGDMA)),sg-dma)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_SOFTMAX)),softmax)
-REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CRYPTO)),aes)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV1D)),conv1d)
 REGRESSION_TESTS += $(if $(and $(filter 1,$(ENABLE_CONV1D)),$(filter 1,$(ENABLE_RELU))),conv1d-relu-stream)
 REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_CONV2D)),conv2d)
@@ -100,7 +96,7 @@ REGRESSION_TESTS += $(if $(filter 1,$(ENABLE_GEMM)),gemm)
 # run-* targets exposed to the user (bash-completable)
 RUN_TESTS := \
   hello uart pio pio-sdk pio-i2c i2c \
-  relu vmac sg-dma softmax aes \
+  relu vmac sg-dma softmax \
   conv1d conv1d-relu-stream \
   conv2d conv2d-relu-softmax-stream gemm \
   i2c-loopback

@@ -26,7 +26,6 @@ CORES_ROOT_ACCELS := --cores-root=hw/ip/relu_accel \
                      --cores-root=hw/ip/vec_mac \
                      --cores-root=hw/ip/sg_dma \
                      --cores-root=hw/ip/softmax \
-                     --cores-root=hw/ip/opentitan_aes \
                      --cores-root=hw/ip/conv1d \
                      --cores-root=hw/ip/conv2d \
                      --cores-root=hw/ip/gemm
@@ -104,7 +103,6 @@ help:
 	@echo "  run-vmac         Vector MAC: 12 tests incl. saturation and multi-kick"
 	@echo "  run-sg-dma       SG-DMA: chaining, zero-length descriptors, throughput"
 	@echo "  run-softmax      Softmax: uniform, one-hot, accuracy vs. C reference"
-	@echo "  run-aes          AES-128 ECB encrypt/decrypt with NIST test vector"
 	@echo "  run-conv1d       1D convolution: FIR filter and same-padding mode verify"
 	@echo "  run-conv1d-relu-stream  Conv1D→ReLU stream pipeline: end-to-end and throughput"
 	@echo "  run-conv2d       2D convolution: 3x3 kernel on 8x8, 16x16, 32x32 images"
@@ -125,7 +123,6 @@ help:
 	@echo "  ENABLE_VMAC=1               Include vector MAC accelerator"
 	@echo "  ENABLE_SGDMA=1              Include scatter-gather DMA"
 	@echo "  ENABLE_SOFTMAX=1            Include softmax accelerator"
-	@echo "  ENABLE_CRYPTO=1             Include crypto cluster (OpenTitan AES)"
 	@echo "  ENABLE_CONV1D=1             Include 1D convolution engine"
 	@echo "  ENABLE_CONV2D=1             Include 2D convolution engine"
 	@echo "  ENABLE_GEMM=1               Include GEMM systolic array accelerator"
