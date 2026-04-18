@@ -102,16 +102,16 @@ After cloning, initialize submodules: `git submodule update --init --recursive`
 ### Synthesis
 
 ```bash
-make synth                    # default: FPGA synthesis for Arty A7-100T (Vivado)
-make synth FLOW=fpga-arty     # FPGA: Vivado / Arty A7-100T XC7A100T (all accels)
+make synth                    # default: FPGA synthesis for KV260 (Vivado)
+make synth FLOW=fpga-kv260    # FPGA: Vivado / KV260 XCK26 @ 148 MHz (all accels)
 make synth FLOW=yosys         # ASIC: sv2v + Yosys generic gates
 make synth FLOW=ol2           # ASIC: OpenLane 2 / Sky130 synthesis + STA
-make synth-setup-arty         # FuseSoC setup for Arty A7-100T (collect sources)
+make synth-setup-kv260        # FuseSoC setup for KV260 (collect sources)
 ```
 
 Each flow calls its own FuseSoC setup target internally; `hw/synth/sources.f` is the shared file list used by the non-Vivado flows.
 
-**FPGA-arty flow** (`FLOW=fpga-arty`, default): Targets Arty A7-100T (XC7A100T). Vivado must be on PATH. Add to `~/.bashrc`: `source /opt/Xilinx/2025.2/Vivado/settings64.sh`. Uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode. Sets `FPGA_XILINX=1`; derived config selects unified config (512 KB RAM, all 7 accelerators + crypto, `CUT_ALL_PORTS`). Reports written to `build/vivado/`.
+**FPGA-kv260 flow** (`FLOW=fpga-kv260`, default): Targets KV260 (XCK26). Vivado must be on PATH. Add to `~/.bashrc`: `source /opt/Xilinx/2025.2/Vivado/settings64.sh`. Uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode. Sets `FPGA_XILINX=1`; derived config selects unified config (512 KB RAM, all 7 accelerators + crypto, `CUT_ALL_PORTS`). Reports written to `build/vivado_kv260/`.
 
 **OpenLane 2 flow** (`FLOW=ol2`): Runs sv2v → Yosys (Sky130 mapped) → OpenROAD STA. Prerequisites: `sv2v`, Nix with flakes enabled (`experimental-features = nix-command flakes` in `/etc/nix/nix.conf`). The Nix flake provides matched Yosys + OpenROAD + OpenLane. Results in `build/openlane2/runs/`.
 
@@ -154,7 +154,7 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
 - `hw/top/` — OpenSoC RTL (top-level and config packages)
   - `opensoc_config_pkg.sv` — Unified config: ASIC + FPGA (512 KB, all accels, `CUT_ALL_PORTS`)
   - `opensoc_derived_config_pkg.sv` — Computes all derived values (crossbar dims, AXI widths, typedefs, address map)
-- `hw/fpga/arty_a7/` — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth script
+- `hw/fpga/kv260/` — KV260 FPGA target (XCK26, 148 MHz): constraints, wrapper, synth script
 - `hw/asic/` — ASIC synthesis (sv2v + Yosys script, OpenLane 2 flow)
 - `hw/synth/` — Shared source file list (`sources.f`) for all synth flows
 - `opensoc_top.core` — FuseSoC core file defining dependencies and build targets (repo root)
@@ -230,16 +230,15 @@ Sixteen `--cores-root` paths are needed: repo root, `hw/ip/sim`, `hw/ip/common_c
 
 ## FPGA Configuration
 
-### Arty A7-100T (default, `FLOW=fpga-arty`)
+### KV260 (default, `FLOW=fpga-kv260`)
 
-- Part: XC7A100T-1CSG324C (Artix-7, 63K LUTs, 607 KB BRAM)
-- System clock: 100 MHz board oscillator → `PLLE2_ADV` → 50 MHz
+- Part: XCK26-SFVC784-2LV-C (Zynq UltraScale+)
+- System clock: 148 MHz (from Zynq PS PL0 reference clock)
 - RAM: 512 KB block RAM (`RamDepth = 131072`)
 - Accelerators: all enabled (`EnableReLU/VMAC/SgDma/Softmax/Conv1d/Conv2d/Gemm = 1`) → 10 masters, 14 slaves
 - AXI latency: `CUT_ALL_PORTS`
-- Reset: `btn[0]` active-high → 2-FF synchronizer → active-low `rst_n`
 - Verilog defines: `SYNTHESIS=1`, `FPGA_XILINX=1` → derived pkg selects `opensoc_config_pkg`
-- FPGA wrapper: `hw/fpga/arty_a7/opensoc_fpga_arty_a7_top.sv`
-- Constraints: `hw/fpga/arty_a7/arty_a7.xdc`
-- Synth script: `hw/fpga/arty_a7/synth.tcl`
+- FPGA wrapper: `hw/fpga/kv260/opensoc_fpga_kv260_top.sv`
+- Constraints: `hw/fpga/kv260/kv260.xdc`
+- Synth script: `hw/fpga/kv260/synth.tcl`
 
