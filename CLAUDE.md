@@ -68,7 +68,7 @@ gh pr merge --delete-branch
 
 ## Project Overview
 
-OpenSoC is a RISC-V SoC built on the **Kronos** CPU core. The top-level module (`opensoc_top`) uses an AXI4 crossbar (`axi_xbar` from PULP) to connect the Kronos CPU to 1 MB SRAM and a set of peripherals: simulator control, timer, UART, PIO, I2C, AES crypto cluster, and seven optional accelerators (ReLU, vector MAC, scatter-gather DMA, Softmax, Conv1D, Conv2D, GEMM).
+OpenSoC is a RISC-V SoC built on the **Kronos** CPU core. The top-level module (`opensoc_top`) uses an AXI4 crossbar (`axi_xbar` from PULP) to connect the Kronos CPU to 1 MB SRAM and a set of peripherals: simulator control, timer, UART, PIO, I2C, and seven optional accelerators (ReLU, vector MAC, scatter-gather DMA, Softmax, Conv1D, Conv2D, GEMM).
 
 ## Build Commands
 
@@ -92,8 +92,8 @@ fusesoc --cores-root=. --cores-root=hw/ip/sim \
   --cores-root=hw/ip/pio --cores-root=hw/ip/i2c_controller --cores-root=hw/ip/uart \
   --cores-root=hw/ip/relu_accel --cores-root=hw/ip/vec_mac \
   --cores-root=hw/ip/sg_dma --cores-root=hw/ip/softmax \
-  --cores-root=hw/ip/opentitan_aes --cores-root=hw/ip/conv1d \
-  --cores-root=hw/ip/conv2d --cores-root=hw/ip/gemm --cores-root=hw/ip/ram \
+  --cores-root=hw/ip/conv1d --cores-root=hw/ip/conv2d \
+  --cores-root=hw/ip/gemm --cores-root=hw/ip/ram \
   run --target=lint opensoc:soc:opensoc_top
 ```
 
@@ -111,7 +111,7 @@ make synth-setup-kv260        # FuseSoC setup for KV260 (collect sources)
 
 Each flow calls its own FuseSoC setup target internally; `hw/synth/sources.f` is the shared file list used by the non-Vivado flows.
 
-**FPGA-kv260 flow** (`FLOW=fpga-kv260`, default): Targets KV260 (XCK26). Vivado must be on PATH. Add to `~/.bashrc`: `source /opt/Xilinx/2025.2/Vivado/settings64.sh`. Uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode. Sets `FPGA_XILINX=1`; derived config selects unified config (512 KB RAM, all 7 accelerators + crypto, `CUT_ALL_PORTS`). Reports written to `build/vivado_kv260/`.
+**FPGA-kv260 flow** (`FLOW=fpga-kv260`, default): Targets KV260 (XCK26). Vivado must be on PATH. Add to `~/.bashrc`: `source /opt/Xilinx/2025.2/Vivado/settings64.sh`. Uses in-process commands (`synth_design`, `opt_design`, `place_design`, `route_design`, `write_bitstream`) — NOT `launch_runs`/`wait_on_run` which hang in batch mode. Sets `FPGA_XILINX=1`; derived config selects unified config (512 KB RAM, all 7 accelerators, `CUT_ALL_PORTS`). Reports written to `build/vivado_kv260/`.
 
 **OpenLane 2 flow** (`FLOW=ol2`): Runs sv2v → Yosys (Sky130 mapped) → OpenROAD STA. Prerequisites: `sv2v`, Nix with flakes enabled (`experimental-features = nix-command flakes` in `/etc/nix/nix.conf`). The Nix flake provides matched Yosys + OpenROAD + OpenLane. Results in `build/openlane2/runs/`.
 
@@ -139,20 +139,19 @@ opensoc_top (hw/top/opensoc_top.sv)
 ├── softmax                — Softmax pipeline with DMA (0x40080000) [optional]
 ├── conv1d                 — 1D convolution engine with DMA + AXI-Stream output (0x40090000) [optional]
 ├── conv2d                 — 2D convolution engine with DMA (0x400A0000) [optional]
-├── gemm                   — 8×8 systolic array GEMM accelerator with DMA (0x400B0000) [optional]
-└── crypto_cluster         — AES-128/192/256 crypto accelerator via OpenTitan AES (0x40100000)
+└── gemm                   — 8×8 systolic array GEMM accelerator with DMA (0x400B0000) [optional]
 ```
 
-`opensoc_top` has **no module parameters** — all configuration comes from `opensoc_derived_config_pkg` (imported via wildcard). `opensoc_config_pkg` is the single unified config (512 KB RAM, all 7 accels + crypto, `CUT_ALL_PORTS`) used for both ASIC and FPGA targets.
+`opensoc_top` has **no module parameters** — all configuration comes from `opensoc_derived_config_pkg` (imported via wildcard). `opensoc_config_pkg` is the single unified config (512 KB RAM, all 7 accels, `CUT_ALL_PORTS`) used for both ASIC and FPGA targets.
 
-Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`, `EnableConv1d`, `EnableConv2d`, `EnableGemm`, `EnableCrypto`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
+Accelerator enables (`EnableReLU`, `EnableVMAC`, `EnableSgDma`, `EnableSoftmax`, `EnableConv1d`, `EnableConv2d`, `EnableGemm`) are set in the active config package. The crossbar dimensions (`NumMasters`, `NumSlaves`) and address map are computed dynamically from these enables in the derived package.
 
-Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x40000000, Timer at 0x40010000, UART at 0x40020000, PIO at 0x40030000, I2C at 0x40040000, ReLU at 0x40050000, VMAC at 0x40060000, SG DMA at 0x40070000, Softmax at 0x40080000, Conv1d at 0x40090000, Conv2d at 0x400A0000, GEMM at 0x400B0000, Crypto (AES) at 0x40100000. Boot address is 0x20000080.
+Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x40000000, Timer at 0x40010000, UART at 0x40020000, PIO at 0x40030000, I2C at 0x40040000, ReLU at 0x40050000, VMAC at 0x40060000, SG DMA at 0x40070000, Softmax at 0x40080000, Conv1d at 0x40090000, Conv2d at 0x400A0000, GEMM at 0x400B0000. Boot address is 0x20000080.
 
 ## Repository Structure
 
 - `hw/top/` — OpenSoC RTL (top-level and config packages)
-  - `opensoc_config_pkg.sv` — Unified config: ASIC + FPGA (512 KB, all accels, `CUT_ALL_PORTS`)
+  - `opensoc_config_pkg.sv` — Unified config: ASIC + FPGA (512 KB, all 7 accels, `CUT_ALL_PORTS`)
   - `opensoc_derived_config_pkg.sv` — Computes all derived values (crossbar dims, AXI widths, typedefs, address map)
 - `hw/fpga/kv260/` — KV260 FPGA target (XCK26, 148 MHz): constraints, wrapper, synth script
 - `hw/asic/` — ASIC synthesis (sv2v + Yosys script, OpenLane 2 flow)
@@ -172,15 +171,6 @@ Memory map: RAM at 0x20000000 (1 MB / 512 KB on unified FPGA), SimCtrl at 0x4000
 - `hw/ip/conv2d/` — 2D convolution engine IP (line buffer + 3×3 PE + addr gen)
 - `hw/ip/gemm/` — 8×8 systolic array GEMM IP (pe_cell, data_skew, systolic_array, result_drain)
 - `hw/ip/ram/` — Technology-dispatch RAM wrapper (`opensoc_ram.sv`)
-- `hw/ip/opentitan_aes/` — OpenTitan AES block (direct RTL copy, not a submodule)
-  - `aes/` — AES core RTL (40 files from OpenTitan `hw/ip/aes/rtl/`)
-  - `tlul/` — TL-UL bus adapter files (not in Ibex)
-  - `prim/` — Local prim overrides (newer `prim_gf_mult`, `prim_alert_sender` with SVA stripped for Verilator)
-  - `packages/` — Stub packages for OpenTitan peripherals not in OpenSoC (lc_ctrl, edn, keymgr, csrng, entropy_src, top_pkg)
-  - `opentitan_aes.core` — FuseSoC core; depends on Ibex's lowrisc prim cores for shared modules
-  - `lc_ctrl_pkg.core` — Stub `lowrisc:ip:lc_ctrl_pkg` satisfying transitive deps
-  - `crypto_cluster.sv` — Wraps AES with OpenSoC's mem interface (req/addr/we/be/wdata → TL-UL)
-  - `axi_lite_to_tlul.sv` — AXI4-Lite to TL-UL bridge (single-outstanding, used by crypto cluster)
 - `dv/` — Design verification
   - `dv/verilator/` — SoC-level Verilator simulation (C++ driver, sim header, GTKWave views)
   - `dv/rtl/` — RTL simulation wrapper (`opensoc_top_wrapper.sv`)
@@ -209,10 +199,9 @@ The core `opensoc:soc:opensoc_top` depends on:
 - `opensoc:ip:conv1d` — 1D convolution engine
 - `opensoc:ip:conv2d` — 2D convolution engine
 - `opensoc:ip:gemm` — 8×8 systolic array GEMM accelerator
-- `opensoc:ip:opentitan_aes` — OpenTitan AES block (with stub packages and local prim overrides)
 - `opensoc:ip:ram` — Technology-dispatch RAM wrapper (XPM/FPGA, sky130 stub/ASIC, ram_1p/sim)
 
-Sixteen `--cores-root` paths are needed: repo root, `hw/ip/sim`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/i2c_controller`, `hw/ip/uart`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`, `hw/ip/conv1d`, `hw/ip/conv2d`, `hw/ip/gemm`, `hw/ip/opentitan_aes`, `hw/ip/ram`.
+Fifteen `--cores-root` paths are needed: repo root, `hw/ip/sim`, `hw/ip/common_cells`, `hw/ip/pulp_axi`, `hw/ip/pio`, `hw/ip/i2c_controller`, `hw/ip/uart`, `hw/ip/relu_accel`, `hw/ip/vec_mac`, `hw/ip/sg_dma`, `hw/ip/softmax`, `hw/ip/conv1d`, `hw/ip/conv2d`, `hw/ip/gemm`, `hw/ip/ram`.
 
 ## AXI Configuration
 
@@ -220,11 +209,11 @@ Sixteen `--cores-root` paths are needed: repo root, `hw/ip/sim`, `hw/ip/common_c
 - Slave-port ID width: 1 bit (from `axi_from_mem`)
 - Master-port ID width: computed as `$clog2(NumMasters) + 1` (5 bits with all accels enabled)
 - User width: 1 bit
-- Masters/slaves: parameterized — 2+N masters, 7+N slaves (N = number of enabled accelerators; +1 for crypto)
+- Masters/slaves: parameterized — 2+N masters, 6+N slaves (N = number of enabled accelerators)
   - 2 CPU masters (instr, data) connect directly as native AXI4; PIO DMA and accel DMAs use OBI-to-AXI bridges
-  - Default (sim/FPGA): 10 masters, 14 slaves (all 7 accelerators enabled + crypto)
+  - Default (sim/FPGA): 10 masters, 13 slaves (all 7 accelerators enabled)
 - Master order: instr, data, [accel DMAs in order], PIO DMA (always last)
-- Slave order: RAM, SimCtrl, Timer, UART, PIO, I2C, Crypto, [accel ctrls in order]
+- Slave order: RAM, SimCtrl, Timer, UART, PIO, I2C, [accel ctrls in order]
 - `MaxRequests = 2` on OBI-to-AXI bridges (accel/PIO DMA only); `MaxMstTrans = 4`, `MaxSlvTrans = 4` on xbar
 - ATOPs disabled; `XbarLatencyMode`: `CUT_ALL_PORTS` on all targets (pipeline registers for timing closure; harmless for simulation and ASIC)
 
@@ -235,7 +224,7 @@ Sixteen `--cores-root` paths are needed: repo root, `hw/ip/sim`, `hw/ip/common_c
 - Part: XCK26-SFVC784-2LV-C (Zynq UltraScale+)
 - System clock: 148 MHz (from Zynq PS PL0 reference clock)
 - RAM: 512 KB block RAM (`RamDepth = 131072`)
-- Accelerators: all enabled (`EnableReLU/VMAC/SgDma/Softmax/Conv1d/Conv2d/Gemm = 1`) → 10 masters, 14 slaves
+- Accelerators: all enabled (`EnableReLU/VMAC/SgDma/Softmax/Conv1d/Conv2d/Gemm = 1`) → 10 masters, 13 slaves
 - AXI latency: `CUT_ALL_PORTS`
 - Verilog defines: `SYNTHESIS=1`, `FPGA_XILINX=1` → derived pkg selects `opensoc_config_pkg`
 - FPGA wrapper: `hw/fpga/kv260/opensoc_fpga_kv260_top.sv`

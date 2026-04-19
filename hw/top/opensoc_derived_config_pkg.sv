@@ -25,7 +25,6 @@ package opensoc_derived_config_pkg;
   localparam bit            EnableVMAC       = opensoc_config_pkg::EnableVMAC;
   localparam bit            EnableSgDma      = opensoc_config_pkg::EnableSgDma;
   localparam bit            EnableSoftmax    = opensoc_config_pkg::EnableSoftmax;
-  localparam bit            EnableCrypto     = opensoc_config_pkg::EnableCrypto;
   localparam bit            EnableConv1d     = opensoc_config_pkg::EnableConv1d;
   localparam bit            EnableConv2d     = opensoc_config_pkg::EnableConv2d;
   localparam bit            EnableGemm       = opensoc_config_pkg::EnableGemm;
@@ -43,8 +42,8 @@ package opensoc_derived_config_pkg;
                                      + 32'(EnableConv1d) + 32'(EnableConv2d)
                                      + 32'(EnableGemm);
   localparam int unsigned NumMasters = 3 + NumAccel;  // instr + data + PIO DMA + accel DMAs
-  // RAM + SimCtrl + Timer + UART + PIO + I2C + [Crypto] + accel ctrls
-  localparam int unsigned NumSlaves  = 6 + 32'(EnableCrypto) + NumAccel;
+  // RAM + SimCtrl + Timer + UART + PIO + I2C + accel ctrls
+  localparam int unsigned NumSlaves  = 6 + NumAccel;
   localparam int unsigned NumRules   = NumSlaves;
 
   // -------------------------------------------------------------------------
@@ -66,20 +65,19 @@ package opensoc_derived_config_pkg;
 
   // -------------------------------------------------------------------------
   // Slave port indices: 0=RAM, 1=SimCtrl, 2=Timer, 3=UART, 4=PIO, 5=I2C,
-  //                     [6=Crypto if enabled], [accel ctrls...]
+  //                     [accel ctrls start at 6]
   // -------------------------------------------------------------------------
-  localparam int unsigned CryptoSlvIdx = 6;  // valid only when EnableCrypto=1
-  localparam int unsigned ReluSlvIdx   = 6 + 32'(EnableCrypto);
-  localparam int unsigned VmacSlvIdx   = 6 + 32'(EnableCrypto) + 32'(EnableReLU);
-  localparam int unsigned SgDmaSlvIdx  = 6 + 32'(EnableCrypto) + 32'(EnableReLU) + 32'(EnableVMAC);
-  localparam int unsigned SmaxSlvIdx    = 6 + 32'(EnableCrypto) + 32'(EnableReLU)
+  localparam int unsigned ReluSlvIdx   = 6;
+  localparam int unsigned VmacSlvIdx   = 6 + 32'(EnableReLU);
+  localparam int unsigned SgDmaSlvIdx  = 6 + 32'(EnableReLU) + 32'(EnableVMAC);
+  localparam int unsigned SmaxSlvIdx    = 6 + 32'(EnableReLU)
                                         + 32'(EnableVMAC) + 32'(EnableSgDma);
-  localparam int unsigned Conv1dSlvIdx  = 6 + 32'(EnableCrypto) + 32'(EnableReLU)
+  localparam int unsigned Conv1dSlvIdx  = 6 + 32'(EnableReLU)
                                         + 32'(EnableVMAC) + 32'(EnableSgDma) + 32'(EnableSoftmax);
-  localparam int unsigned Conv2dSlvIdx     = 6 + 32'(EnableCrypto) + 32'(EnableReLU)
+  localparam int unsigned Conv2dSlvIdx     = 6 + 32'(EnableReLU)
                                            + 32'(EnableVMAC) + 32'(EnableSgDma)
                                            + 32'(EnableSoftmax) + 32'(EnableConv1d);
-  localparam int unsigned GemmSlvIdx      = 6 + 32'(EnableCrypto) + 32'(EnableReLU)
+  localparam int unsigned GemmSlvIdx      = 6 + 32'(EnableReLU)
                                            + 32'(EnableVMAC) + 32'(EnableSgDma)
                                            + 32'(EnableSoftmax) + 32'(EnableConv1d)
                                            + 32'(EnableConv2d);
@@ -145,7 +143,6 @@ package opensoc_derived_config_pkg;
     map[5] = '{ idx: 32'd5, start_addr: 32'h4004_0000, end_addr: 32'h4004_0400 }; // I2C      1 kB
     // Optional slaves
     r = 6;
-    if (EnableCrypto)  begin map[r] = '{ idx: r, start_addr: 32'h4010_0000, end_addr: 32'h4010_1000 }; r = r + 1; end
     if (EnableReLU)    begin map[r] = '{ idx: r, start_addr: 32'h4005_0000, end_addr: 32'h4005_0400 }; r = r + 1; end
     if (EnableVMAC)    begin map[r] = '{ idx: r, start_addr: 32'h4006_0000, end_addr: 32'h4006_0400 }; r = r + 1; end
     if (EnableSgDma)   begin map[r] = '{ idx: r, start_addr: 32'h4007_0000, end_addr: 32'h4007_0400 }; r = r + 1; end

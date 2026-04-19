@@ -426,26 +426,6 @@ module opensoc_top
   );
 
   // -------------------------------------------------------------------------
-  // Crypto Cluster (OpenTitan AES via mem → TL-UL bridge)
-  // -------------------------------------------------------------------------
-  if (EnableCrypto) begin : gen_crypto
-    crypto_cluster u_crypto (
-      .clk_i     (clk_sys),
-      .rst_ni    (rst_sys_n),
-
-      .req_i     (mem_req[CryptoSlvIdx]),
-      .addr_i    (mem_addr[CryptoSlvIdx]),
-      .we_i      (mem_we[CryptoSlvIdx]),
-      .be_i      (mem_strb[CryptoSlvIdx]),
-      .wdata_i   (mem_wdata[CryptoSlvIdx]),
-      .rvalid_o  (mem_rvalid[CryptoSlvIdx]),
-      .rdata_o   (mem_rdata[CryptoSlvIdx]),
-
-      .idle_o    ()
-    );
-  end
-
-  // -------------------------------------------------------------------------
   // ReLU Accelerator (DMA bridge + instance)
   // -------------------------------------------------------------------------
   if (EnableReLU) begin : gen_relu

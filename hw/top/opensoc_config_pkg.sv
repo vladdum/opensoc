@@ -38,9 +38,6 @@ package opensoc_config_pkg;
 `ifndef EnableSoftmax
   `define EnableSoftmax 1'b0
 `endif
-`ifndef EnableCrypto
-  `define EnableCrypto  1'b0
-`endif
 `ifndef EnableConv1d
   `define EnableConv1d  1'b0
 `endif
@@ -54,7 +51,6 @@ package opensoc_config_pkg;
   localparam bit EnableVMAC    = `EnableVMAC;
   localparam bit EnableSgDma   = `EnableSgDma;
   localparam bit EnableSoftmax = `EnableSoftmax;
-  localparam bit EnableCrypto  = `EnableCrypto;
   localparam bit EnableConv1d  = `EnableConv1d;
   localparam bit EnableConv2d  = `EnableConv2d;
   localparam bit EnableGemm    = `EnableGemm;
