@@ -29,7 +29,7 @@ set FILELIST    $REPO_ROOT/hw/synth/sources.f
 # ============================================================================
 # Clock frequency — single source of truth
 # ============================================================================
-set CLK_FREQ_MHZ 148
+set CLK_FREQ_MHZ 200
 set CLK_PERIOD   [expr {1000.0 / $CLK_FREQ_MHZ}]
 
 # ============================================================================
@@ -151,6 +151,14 @@ set_property file_type SystemVerilog [get_files $RTL_FILES]
 
 # Constraints (pin assignments only — clock constraint applied below)
 add_files -fileset constrs_1 -norecurse $XDC_FILE
+
+# Kronos timing constraints (multicycle paths for branch comparator)
+set KRONOS_XDC $SRC_DIR/opensoc_ip_kronos_riscv_0/rtl/stage5/kronos_kv260.xdc
+if {[file exists $KRONOS_XDC]} {
+    add_files -fileset constrs_1 -norecurse $KRONOS_XDC
+} else {
+    puts "WARNING: Kronos XDC not found at $KRONOS_XDC — multicycle constraints not applied"
+}
 
 # Clock constraint — derived from CLK_FREQ_MHZ defined at top of this script
 set clk_xdc [file join $PROJ_DIR clk.xdc]
