@@ -1,0 +1,21 @@
+{
+  "signal": [
+    { "name": "clk_i",  "wave": "p.....",   "node": "...." },
+    {},
+    { "name": "a_i",    "wave": "x=.=.=",
+      "data": ["A₀", "A₁", "A₂"] },
+    { "name": "b_i",    "wave": "x=.=.=",
+      "data": ["B₀", "B₁", "B₂"] },
+    {},
+    { "name": "s_o",    "wave": "x=.=.=",
+      "data": ["A₀+B₀", "A₁+B₁", "A₂+B₂"] }
+  ],
+  "config": { "hscale": 2 },
+  "head": {
+    "text": "PIPE_STAGES = 0 — Combinational (zero-latency) output",
+    "tick": 0
+  },
+  "foot": {
+    "text": "s_o follows a_i/b_i combinationally. clk_i and rst_ni are unused (tied-off by the dispatcher)."
+  }
+}

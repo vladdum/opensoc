@@ -1,0 +1,93 @@
+digraph adder_ripple {
+  // ────────────────────────────────────────────────────────────────
+  // adder_ripple — full-adder ripple-carry chain.
+  //
+  // Layout: neato -n2 (pinned positions).
+  //
+  // Shows FA[0]..FA[4] (abstracted from W-1) in a horizontal chain.
+  // Carry propagates left-to-right; sum bits emerge at each stage.
+  // ────────────────────────────────────────────────────────────────
+  graph [
+    splines     = line,
+    pad         = 0.3,
+    outputorder = edgesfirst,
+    fontname    = "Helvetica",
+  ];
+
+  node [
+    shape    = box,
+    style    = "filled,rounded",
+    fontname = "Helvetica",
+    fontsize = 14,
+    penwidth = 2,
+  ];
+
+  edge [
+    fontname = "Helvetica",
+    fontsize = 11,
+    penwidth = 2,
+    color    = "#111827",
+  ];
+
+  // Title
+  title [pos="560,440!", label="adder_ripple — Explicit Full-Adder Chain (W bits)",
+         shape=plaintext, style="", fontsize=18, fontcolor="#111827"];
+
+  // Inputs row: a[i] and b[i] above each FA
+  a0 [pos="80,340!",  label="a[0]\nb[0]", fillcolor="#bbf7d0", color="#22c55e", fontsize=12, width=1.0, height=0.7, fixedsize=true];
+  a1 [pos="280,340!", label="a[1]\nb[1]", fillcolor="#bbf7d0", color="#22c55e", fontsize=12, width=1.0, height=0.7, fixedsize=true];
+  a2 [pos="480,340!", label="a[2]\nb[2]", fillcolor="#bbf7d0", color="#22c55e", fontsize=12, width=1.0, height=0.7, fixedsize=true];
+  a3 [pos="680,340!", label="a[3]\nb[3]", fillcolor="#bbf7d0", color="#22c55e", fontsize=12, width=1.0, height=0.7, fixedsize=true];
+  a4 [pos="880,340!", label="a[W-1]\nb[W-1]", fillcolor="#bbf7d0", color="#22c55e", fontsize=12, width=1.2, height=0.7, fixedsize=true];
+
+  // Carry-in at FA[0]
+  cin [pos="-80,220!", label="c[0]=0", fillcolor="#f5f5f5", color="#9ca3af", fontsize=12,
+       width=1.0, height=0.6, fixedsize=true];
+
+  // Full adder cells
+  fa0 [pos="80,220!",  label="FA[0]", fillcolor="#bfdbfe", color="#3b82f6", fontsize=14, width=1.0, height=0.7, fixedsize=true];
+  fa1 [pos="280,220!", label="FA[1]", fillcolor="#bfdbfe", color="#3b82f6", fontsize=14, width=1.0, height=0.7, fixedsize=true];
+  fa2 [pos="480,220!", label="FA[2]", fillcolor="#bfdbfe", color="#3b82f6", fontsize=14, width=1.0, height=0.7, fixedsize=true];
+  fa3 [pos="680,220!", label="FA[3]", fillcolor="#bfdbfe", color="#3b82f6", fontsize=14, width=1.0, height=0.7, fixedsize=true];
+
+  // Ellipsis
+  ellipsis [pos="790,220!", label="...", shape=plaintext, style="", fontsize=22, fontcolor="#6b7280"];
+
+  fa4 [pos="880,220!", label="FA[W-1]", fillcolor="#bfdbfe", color="#3b82f6", fontsize=13, width=1.2, height=0.7, fixedsize=true];
+
+  // Sum bits
+  s0 [pos="80,100!",  label="s[0]",   fillcolor="#fca5a5", color="#ef4444", fontsize=12, width=1.0, height=0.6, fixedsize=true];
+  s1 [pos="280,100!", label="s[1]",   fillcolor="#fca5a5", color="#ef4444", fontsize=12, width=1.0, height=0.6, fixedsize=true];
+  s2 [pos="480,100!", label="s[2]",   fillcolor="#fca5a5", color="#ef4444", fontsize=12, width=1.0, height=0.6, fixedsize=true];
+  s3 [pos="680,100!", label="s[3]",   fillcolor="#fca5a5", color="#ef4444", fontsize=12, width=1.0, height=0.6, fixedsize=true];
+  s4 [pos="880,100!", label="s[W-1]", fillcolor="#fca5a5", color="#ef4444", fontsize=12, width=1.2, height=0.6, fixedsize=true];
+
+  // Carry labels
+  c1_lbl [pos="180,240!", label="c[1]", shape=plaintext, style="", fontsize=11, fontcolor="#1e3a8a"];
+  c2_lbl [pos="380,240!", label="c[2]", shape=plaintext, style="", fontsize=11, fontcolor="#1e3a8a"];
+  c3_lbl [pos="580,240!", label="c[3]", shape=plaintext, style="", fontsize=11, fontcolor="#1e3a8a"];
+  c4_lbl [pos="780,240!", label="c[4]", shape=plaintext, style="", fontsize=11, fontcolor="#1e3a8a"];
+
+  // Complexity note
+  note [pos="560,-20!",
+        label="Depth: O(W)  |  Cell count: W FAs  |  Fan-out: 1  |  Critical path: carry chain",
+        shape=plaintext, style="", fontsize=13, fontcolor="#374151"];
+
+  // Edges: inputs → FA
+  a0 -> fa0 [tailport=s, headport=n]; a1 -> fa1 [tailport=s, headport=n];
+  a2 -> fa2 [tailport=s, headport=n]; a3 -> fa3 [tailport=s, headport=n];
+  a4 -> fa4 [tailport=s, headport=n];
+
+  // Carry chain
+  cin -> fa0 [tailport=e, headport=w];
+  fa0 -> fa1 [tailport=e, headport=w, color="#3b82f6", penwidth=3];
+  fa1 -> fa2 [tailport=e, headport=w, color="#3b82f6", penwidth=3];
+  fa2 -> fa3 [tailport=e, headport=w, color="#3b82f6", penwidth=3];
+  fa3 -> ellipsis [tailport=e, color="#3b82f6", penwidth=3, arrowhead=none];
+  ellipsis -> fa4 [headport=w, color="#3b82f6", penwidth=3];
+
+  // Sum outputs
+  fa0 -> s0 [tailport=s, headport=n]; fa1 -> s1 [tailport=s, headport=n];
+  fa2 -> s2 [tailport=s, headport=n]; fa3 -> s3 [tailport=s, headport=n];
+  fa4 -> s4 [tailport=s, headport=n];
+}

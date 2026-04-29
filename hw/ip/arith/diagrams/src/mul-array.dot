@@ -1,0 +1,104 @@
+digraph mul_array {
+  // ────────────────────────────────────────────────────────────────
+  // mul_array — Shift-and-add partial-product array multiplier.
+  //
+  // Layout: dot (hierarchical, top-down).
+  //
+  // For 8×8 signed multiply:
+  //   - Sign-extend A and B to 16 bits.
+  //   - Rows 0..6: PP[i] = b[i] ? a_ext << i : 0  (add)
+  //   - Row 7:     PP[7] = b[7] ? a_ext << 7 : 0  (SUBTRACT — two's complement sign)
+  //   - Ripple-chain of 7 adders reduces the rows.
+  //   - Final sum truncated to 16 bits.
+  // ────────────────────────────────────────────────────────────────
+  graph [
+    rankdir  = TB,
+    splines  = spline,
+    pad      = 0.4,
+    fontname = "Helvetica",
+    nodesep  = 0.4,
+    ranksep  = 1.0,
+  ];
+
+  node [
+    shape    = box,
+    style    = "filled,rounded",
+    fontname = "Helvetica",
+    fontsize = 13,
+    penwidth = 2,
+  ];
+
+  edge [
+    fontname = "Helvetica",
+    fontsize = 11,
+    penwidth = 2,
+    color    = "#111827",
+  ];
+
+  // Title
+  title [label="mul_array — Shift-and-Add (8×8 → 16-bit signed)",
+         shape=plaintext, style="", fontsize=17, fontcolor="#111827"];
+
+  // Inputs
+  inp_a [label="a_i [7:0] (signed)",  fillcolor="#bbf7d0", color="#22c55e", fontsize=13];
+  inp_b [label="b_i [7:0] (signed)",  fillcolor="#bbf7d0", color="#22c55e", fontsize=13];
+
+  // Sign extension
+  ext [label="Sign-extend\na_ext [15:0] = {a_i[7]×8, a_i}",
+       fillcolor="#f5f5f5", color="#9ca3af", fontsize=12];
+
+  // Partial products
+  subgraph cluster_pp {
+    label="Partial Products (8 rows)";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    pp0 [label="PP[0] = b[0] ? a_ext<<0 : 0  (+)", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    pp1 [label="PP[1] = b[1] ? a_ext<<1 : 0  (+)", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    pp2 [label="PP[2] = b[2] ? a_ext<<2 : 0  (+)", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    pp3 [label="PP[3] = b[3] ? a_ext<<3 : 0  (+)", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    pp_dots [label="...", shape=plaintext, style="", fontsize=22, fontcolor="#6b7280"];
+    pp6 [label="PP[6] = b[6] ? a_ext<<6 : 0  (+)", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    pp7 [label="−PP[7] = b[7] ? a_ext<<7 : 0  (SUBTRACT)", fillcolor="#bfdbfe", color="#ef4444", penwidth=2, fontsize=12];
+  }
+
+  // Adder chain
+  subgraph cluster_add {
+    label="Ripple adder chain (7 additions)";
+    style="filled,rounded";
+    fillcolor="#fff7ed";
+    color="#f97316";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    add0 [label="add₀ = PP[0] + PP[1]", fillcolor="#fed7aa", color="#f97316", fontsize=12];
+    add1 [label="add₁ = add₀ + PP[2]",  fillcolor="#fed7aa", color="#f97316", fontsize=12];
+    add2 [label="add₂ = add₁ + PP[3]",  fillcolor="#fed7aa", color="#f97316", fontsize=12];
+    add_dots [label="...", shape=plaintext, style="", fontsize=22, fontcolor="#6b7280"];
+    add5 [label="add₅ = add₄ + PP[6]",  fillcolor="#fed7aa", color="#f97316", fontsize=12];
+    addn [label="add₆ = add₅ − PP[7]   (negate MSB PP)", fillcolor="#fed7aa", color="#f97316", fontsize=12];
+  }
+
+  // Output
+  outp [label="p_o [15:0] = add₆[15:0]", fillcolor="#fca5a5", color="#ef4444", fontsize=13];
+
+  // Complexity note
+  note [label="Depth: O(B_W) = 7 adder stages  |  Corrected two's-complement sign: row 7 subtracts  |  Simple but slow",
+        shape=plaintext, style="", fontsize=12, fontcolor="#374151"];
+
+  // Edges
+  inp_a -> ext; inp_b -> ext;
+  ext -> pp0; ext -> pp1; ext -> pp2; ext -> pp3; ext -> pp6; ext -> pp7;
+  pp0 -> add0; pp1 -> add0;
+  add0 -> add1; pp2 -> add1;
+  add1 -> add2; pp3 -> add2;
+  add2 -> add_dots;
+  add_dots -> add5; pp6 -> add5;
+  add5 -> addn; pp7 -> addn;
+  addn -> outp;
+}

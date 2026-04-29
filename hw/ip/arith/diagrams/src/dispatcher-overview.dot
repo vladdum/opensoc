@@ -1,0 +1,134 @@
+digraph dispatcher_overview {
+  // ────────────────────────────────────────────────────────────────
+  // hw/ip/arith — Dispatcher pattern for adder.sv and mul_signed.sv.
+  //
+  // Layout: dot (hierarchical, left-to-right).
+  //
+  // Shows how compile-time KIND selects one of N body modules via a
+  // generate-case block, and how PIPE_STAGES shift registers delay
+  // the combinational result to the output port.
+  // ────────────────────────────────────────────────────────────────
+  graph [
+    rankdir    = LR,
+    splines    = spline,
+    pad        = 0.4,
+    fontname   = "Helvetica",
+    nodesep    = 0.5,
+    ranksep    = 0.9,
+  ];
+
+  node [
+    shape    = box,
+    style    = "filled,rounded",
+    fontname = "Helvetica",
+    fontsize = 14,
+    penwidth = 2,
+  ];
+
+  edge [
+    fontname = "Helvetica",
+    fontsize = 12,
+    penwidth = 2,
+    color    = "#111827",
+  ];
+
+  // Title
+  title [label="arith Dispatcher — compile-time KIND → body → PIPE_STAGES → output",
+         shape=plaintext, style="", fontsize=18, fontcolor="#111827"];
+
+  // ── Input ports ──────────────────────────────────────────────────
+  subgraph cluster_inputs {
+    label="Input ports";
+    style="filled,rounded";
+    fillcolor="#f0fdf4";
+    color="#22c55e";
+    penwidth=2;
+    fontsize=13;
+    fontname="Helvetica";
+
+    inp_a [label="a_i [W-1:0]",  fillcolor="#bbf7d0", color="#22c55e", fontsize=13];
+    inp_b [label="b_i [W-1:0]",  fillcolor="#bbf7d0", color="#22c55e", fontsize=13];
+    inp_clk [label="clk_i / rst_ni\n(unused if PIPE_STAGES=0)",
+             fillcolor="#f5f5f5", color="#9ca3af", fontsize=12];
+  }
+
+  // ── generate case (KIND) ─────────────────────────────────────────
+  subgraph cluster_body {
+    label="generate case (KIND)  — compile-time select";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=13;
+    fontname="Helvetica";
+
+    // adder bodies
+    add_op   [label="ADD_OPERATOR\n(native +)",      fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    add_rpl  [label="ADD_RIPPLE\nadder_ripple",      fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    add_cla  [label="ADD_CLA\nadder_cla",            fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    add_ks   [label="ADD_KOGGE_STONE\nadder_kogge_stone", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    add_bk   [label="ADD_BRENT_KUNG\nadder_brent_kung",   fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    add_sk   [label="ADD_SKLANSKY\nadder_sklansky",  fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+
+    // multiplier bodies (same operation-cell color as adders)
+    mul_op   [label="MUL_OPERATOR\n(native *)",      fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    mul_arr  [label="MUL_ARRAY\nmul_array",          fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    mul_b4   [label="MUL_BOOTH4\nmul_booth4",        fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    mul_wt   [label="MUL_WALLACE\nmul_wallace",      fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    mul_dd   [label="MUL_DADDA\nmul_dadda",          fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+  }
+
+  // ── Combinational mux ─────────────────────────────────────────────
+  s_comb [label="s_comb / p_comb\n(combinational result)",
+          fillcolor="#f5f5f5", color="#9ca3af", fontsize=13,
+          width=2.8, height=0.8, fixedsize=true];
+
+  // ── Pipeline stages ───────────────────────────────────────────────
+  subgraph cluster_pipe {
+    label="PIPE_STAGES output registers\n(0 = bypass, N = N flip-flop chain)";
+    style="filled,rounded";
+    fillcolor="#fff7ed";
+    color="#f97316";
+    penwidth=2;
+    fontsize=13;
+    fontname="Helvetica";
+
+    pipe0 [label="PIPE_STAGES=0\nassign s_o = s_comb",
+           fillcolor="#fed7aa", color="#f97316", fontsize=12];
+    pipeN [label="PIPE_STAGES=N\ns_pipe[0..N-1]\nalways_ff chain",
+           fillcolor="#fed7aa", color="#f97316", fontsize=12];
+  }
+
+  // ── Output port ───────────────────────────────────────────────────
+  out_s [label="s_o / p_o\n[W-1:0] or [P_W-1:0]",
+         fillcolor="#fca5a5", color="#ef4444", fontsize=13,
+         width=2.8, height=0.8, fixedsize=true];
+
+  // ── Dispatcher label ──────────────────────────────────────────────
+  kind_lbl [label="KIND param\n(compile-time)\nselects exactly\none branch",
+            shape=plaintext, style="", fontsize=12, fontcolor="#1e3a8a"];
+
+  // ── Edges ─────────────────────────────────────────────────────────
+  inp_a -> add_op; inp_a -> add_rpl; inp_a -> add_cla;
+  inp_a -> add_ks; inp_a -> add_bk; inp_a -> add_sk;
+  inp_a -> mul_op; inp_a -> mul_arr; inp_a -> mul_b4;
+  inp_a -> mul_wt; inp_a -> mul_dd;
+
+  inp_b -> add_op; inp_b -> add_rpl; inp_b -> add_cla;
+  inp_b -> add_ks; inp_b -> add_bk; inp_b -> add_sk;
+  inp_b -> mul_op; inp_b -> mul_arr; inp_b -> mul_b4;
+  inp_b -> mul_wt; inp_b -> mul_dd;
+
+  add_op  -> s_comb; add_rpl -> s_comb; add_cla -> s_comb;
+  add_ks  -> s_comb; add_bk  -> s_comb; add_sk  -> s_comb;
+  mul_op  -> s_comb; mul_arr -> s_comb; mul_b4  -> s_comb;
+  mul_wt  -> s_comb; mul_dd  -> s_comb;
+
+  s_comb -> pipe0;
+  s_comb -> pipeN;
+
+  pipe0 -> out_s;
+  pipeN -> out_s;
+
+  inp_clk -> pipeN [style=dashed, color="#9ca3af"];
+}

@@ -1,0 +1,6 @@
+read_verilog @OUTDIR@/design.v
+hierarchy -top @TOP@
+synth -top @TOP@
+abc -g cmos2
+stat -tech cmos
+write_json @OUTDIR@/design.json
