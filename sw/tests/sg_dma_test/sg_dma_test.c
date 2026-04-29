@@ -28,20 +28,21 @@ typedef struct __attribute__((packed, aligned(4))) {
 // ---------------------------------------------------------------------------
 // Test buffers
 // ---------------------------------------------------------------------------
-static uint32_t src_buf[256] __attribute__((aligned(4)));
-static uint32_t dst_buf[256] __attribute__((aligned(4)));
+static uint32_t src_buf[256] __attribute__((aligned(4))) DMA_BUF;
+static uint32_t dst_buf[256] __attribute__((aligned(4))) DMA_BUF;
 
 // Separate source regions for chained tests
-static uint32_t src_a[4] __attribute__((aligned(4)));
-static uint32_t src_b[4] __attribute__((aligned(4)));
-static uint32_t src_c[4] __attribute__((aligned(4)));
-static uint32_t dst_a[4] __attribute__((aligned(4)));
-static uint32_t dst_b[4] __attribute__((aligned(4)));
-static uint32_t dst_c[4] __attribute__((aligned(4)));
+static uint32_t src_a[4] __attribute__((aligned(4))) DMA_BUF;
+static uint32_t src_b[4] __attribute__((aligned(4))) DMA_BUF;
+static uint32_t src_c[4] __attribute__((aligned(4))) DMA_BUF;
+static uint32_t dst_a[4] __attribute__((aligned(4))) DMA_BUF;
+static uint32_t dst_b[4] __attribute__((aligned(4))) DMA_BUF;
+static uint32_t dst_c[4] __attribute__((aligned(4))) DMA_BUF;
 
-// Descriptors
-static sg_desc_t desc1 __attribute__((aligned(4)));
-static sg_desc_t chain_descs[3] __attribute__((aligned(4)));
+// Descriptors are fetched by the SG-DMA engine over the AXI bus, so they
+// must also live in the non-cacheable DMA region.
+static sg_desc_t desc1 __attribute__((aligned(4))) DMA_BUF;
+static sg_desc_t chain_descs[3] __attribute__((aligned(4))) DMA_BUF;
 
 static int test_num = 0;
 static int total_errors = 0;

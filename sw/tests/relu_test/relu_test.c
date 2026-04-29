@@ -22,8 +22,8 @@
 // ---------------------------------------------------------------------------
 #define NUM_WORDS 8192
 
-static int32_t src_data[NUM_WORDS] __attribute__((aligned(4)));
-static int32_t dst_data[NUM_WORDS] __attribute__((aligned(4)));
+static int32_t src_data[NUM_WORDS] __attribute__((aligned(4))) DMA_BUF;
+static int32_t dst_data[NUM_WORDS] __attribute__((aligned(4))) DMA_BUF;
 
 // ---------------------------------------------------------------------------
 // Helper: print uint32 in decimal (up to 10 digits)

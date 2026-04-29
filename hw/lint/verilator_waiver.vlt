@@ -82,10 +82,18 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_i2c_loopback.sv"
 // Kronos RTL: unused/unconnected signals in the current stage implementation
 lint_off -rule UNUSEDSIGNAL      -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
 lint_off -rule PINCONNECTEMPTY   -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
+// Kronos RTL: kronos_pkg defines PMP/event-counter localparams used by the
+// CPU but not by every consumer of the package (e.g. opensoc_top.sv).
+lint_off -rule UNUSEDPARAM       -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
 // Kronos RTL: WIDTHEXPAND in kronos_decompress.sv — RV64C sign-extension
 // sequences use fewer replications than the LHS width; implicit zero-extension
 // is correct for these unsigned immediate fields.
 lint_off -rule WIDTHEXPAND       -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
+
+// Kronos retire_*/debug-only outputs intentionally left unconnected in
+// opensoc_top.sv (they are sim-only trace ports).
+lint_off -rule PINCONNECTEMPTY   -file "*/top/opensoc_top.sv"
+         -match "*retire_*"
 
 // sim_shared peripherals: upper address/data bits are unused (simple register maps)
 lint_off -rule UNUSEDSIGNAL  -file "*/opensoc_ip_sim_shared_0/*"

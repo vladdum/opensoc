@@ -207,13 +207,13 @@ static void smax_dma_run(uint32_t src, uint32_t dst, uint32_t len) {
 // Softmax VEC_LEN must be multiple of 4; 36 is divisible by 4.
 #define VEC_LEN N_OUT
 
-static int32_t  img_buf[IMG_H * IMG_W] __attribute__((aligned(4)));
-static int32_t  conv2d_out[N_OUT]      __attribute__((aligned(4)));
-static int32_t  relu_out[N_OUT]        __attribute__((aligned(4)));
+static int32_t  img_buf[IMG_H * IMG_W] __attribute__((aligned(4))) DMA_BUF;
+static int32_t  conv2d_out[N_OUT]      __attribute__((aligned(4))) DMA_BUF;
+static int32_t  relu_out[N_OUT]        __attribute__((aligned(4))) DMA_BUF;
 // Softmax packs 4 UINT8 per word → needs N_OUT/4 words
-static uint32_t smax_out[(N_OUT + 3) / 4] __attribute__((aligned(4)));
+static uint32_t smax_out[(N_OUT + 3) / 4] __attribute__((aligned(4))) DMA_BUF;
 
-// Reference arrays
+// Reference arrays — CPU-only, never touched by DMA
 static int32_t  ref_conv[N_OUT]        __attribute__((aligned(4)));
 static int32_t  ref_relu[N_OUT]        __attribute__((aligned(4)));
 static uint8_t  ref_smax[N_OUT]        __attribute__((aligned(4)));

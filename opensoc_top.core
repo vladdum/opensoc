@@ -17,6 +17,7 @@ filesets:
     files:
       - hw/top/opensoc_config_pkg.sv
       - hw/top/opensoc_derived_config_pkg.sv
+      - hw/top/opensoc_kronos_axi_bridge.sv
       - hw/top/opensoc_top.sv
     file_type: systemVerilogSource
 

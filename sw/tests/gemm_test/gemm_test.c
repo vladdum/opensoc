@@ -109,9 +109,9 @@ static void ref_gemm(const int8_t *a, const int8_t *b, int32_t *c,
 // A stored as INT8 in 32-bit words (hardware reads bits [7:0]).
 // ---------------------------------------------------------------------------
 #define MAX_DIM 8
-static int32_t a_buf[MAX_DIM * MAX_DIM] __attribute__((aligned(4)));
-static int32_t c_buf[MAX_DIM * MAX_DIM] __attribute__((aligned(4)));
-static int32_t ref_buf[MAX_DIM * MAX_DIM];
+static int32_t a_buf[MAX_DIM * MAX_DIM] __attribute__((aligned(4))) DMA_BUF;
+static int32_t c_buf[MAX_DIM * MAX_DIM] __attribute__((aligned(4))) DMA_BUF;
+static int32_t ref_buf[MAX_DIM * MAX_DIM];  // CPU-only golden reference
 
 int main(int argc, char **argv) {
   int errors = 0;

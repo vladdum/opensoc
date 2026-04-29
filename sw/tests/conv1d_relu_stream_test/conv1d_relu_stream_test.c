@@ -154,25 +154,25 @@ static void relu_dma_run(uint32_t src, uint32_t dst, uint32_t len) {
 #define KSIZE_A    3
 #define OUT_LEN_A  (IN_LEN_A - KSIZE_A + 1)   // 14
 
-static int32_t sig_a[IN_LEN_A]   __attribute__((aligned(4)));
-static int32_t out_a[IN_LEN_A]   __attribute__((aligned(4)));
-static int32_t ref_a[IN_LEN_A]   __attribute__((aligned(4)));
+static int32_t sig_a[IN_LEN_A]   __attribute__((aligned(4))) DMA_BUF;
+static int32_t out_a[IN_LEN_A]   __attribute__((aligned(4))) DMA_BUF;
+static int32_t ref_a[IN_LEN_A]   __attribute__((aligned(4)));  // CPU-only golden
 
 #define IN_LEN_B   8
 #define OUT_LEN_B  IN_LEN_B   // same-pad
 
-static int32_t sig_b[IN_LEN_B]   __attribute__((aligned(4)));
-static int32_t out_b[IN_LEN_B]   __attribute__((aligned(4)));
-static int32_t ref_b[IN_LEN_B]   __attribute__((aligned(4)));
+static int32_t sig_b[IN_LEN_B]   __attribute__((aligned(4))) DMA_BUF;
+static int32_t out_b[IN_LEN_B]   __attribute__((aligned(4))) DMA_BUF;
+static int32_t ref_b[IN_LEN_B]   __attribute__((aligned(4)));  // CPU-only golden
 
 #define IN_LEN_C   64
 #define KSIZE_C    5
 #define OUT_LEN_C  (IN_LEN_C - KSIZE_C + 1)   // 60
 
-static int32_t sig_c[IN_LEN_C]   __attribute__((aligned(4)));
-static int32_t out_c[IN_LEN_C]   __attribute__((aligned(4)));
-static int32_t mid_c[IN_LEN_C]   __attribute__((aligned(4)));  // intermediate for two-pass
-static int32_t ref_c[IN_LEN_C]   __attribute__((aligned(4)));
+static int32_t sig_c[IN_LEN_C]   __attribute__((aligned(4))) DMA_BUF;
+static int32_t out_c[IN_LEN_C]   __attribute__((aligned(4))) DMA_BUF;
+static int32_t mid_c[IN_LEN_C]   __attribute__((aligned(4))) DMA_BUF;  // intermediate two-pass DMA buffer
+static int32_t ref_c[IN_LEN_C]   __attribute__((aligned(4)));  // CPU-only golden
 
 int main(int argc, char **argv) {
   int errors = 0;

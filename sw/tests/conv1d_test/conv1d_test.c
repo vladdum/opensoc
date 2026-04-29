@@ -113,21 +113,21 @@ static void conv1d_run(uint32_t src, uint32_t dst, uint32_t length,
 #define KSIZE     3
 #define OUT_VALID (IN_LEN - KSIZE + 1)   // 14
 
-static int32_t signal_a[IN_LEN]   __attribute__((aligned(4)));
-static int32_t output_a[IN_LEN]   __attribute__((aligned(4)));
-static int32_t ref_a[IN_LEN]      __attribute__((aligned(4)));
+static int32_t signal_a[IN_LEN]   __attribute__((aligned(4))) DMA_BUF;
+static int32_t output_a[IN_LEN]   __attribute__((aligned(4))) DMA_BUF;
+static int32_t ref_a[IN_LEN]      __attribute__((aligned(4)));  // CPU-only golden
 
 #define IN_LEN_B  8
 
-static int32_t signal_b[IN_LEN_B] __attribute__((aligned(4)));
-static int32_t output_b[IN_LEN_B] __attribute__((aligned(4)));
-static int32_t ref_b[IN_LEN_B]    __attribute__((aligned(4)));
+static int32_t signal_b[IN_LEN_B] __attribute__((aligned(4))) DMA_BUF;
+static int32_t output_b[IN_LEN_B] __attribute__((aligned(4))) DMA_BUF;
+static int32_t ref_b[IN_LEN_B]    __attribute__((aligned(4)));  // CPU-only golden
 
 #define IN_LEN_C  64
 
-static int32_t signal_c[IN_LEN_C] __attribute__((aligned(4)));
-static int32_t output_c[IN_LEN_C] __attribute__((aligned(4)));
-static int32_t ref_c[IN_LEN_C]    __attribute__((aligned(4)));
+static int32_t signal_c[IN_LEN_C] __attribute__((aligned(4))) DMA_BUF;
+static int32_t output_c[IN_LEN_C] __attribute__((aligned(4))) DMA_BUF;
+static int32_t ref_c[IN_LEN_C]    __attribute__((aligned(4)));  // CPU-only golden
 
 int main(int argc, char **argv) {
   int errors = 0;

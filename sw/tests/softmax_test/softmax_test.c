@@ -64,9 +64,9 @@ static void softmax_ref(const int8_t *in, uint8_t *out, int n) {
 // ---------------------------------------------------------------------------
 // Test buffers (word-aligned for DMA)
 // ---------------------------------------------------------------------------
-static int8_t  input_buf[256] __attribute__((aligned(4)));
-static uint8_t output_buf[256] __attribute__((aligned(4)));
-static uint8_t ref_buf[256] __attribute__((aligned(4)));
+static int8_t  input_buf[256] __attribute__((aligned(4))) DMA_BUF;
+static uint8_t output_buf[256] __attribute__((aligned(4))) DMA_BUF;
+static uint8_t ref_buf[256] __attribute__((aligned(4)));  // CPU-only golden reference
 
 static int test_num = 0;
 static int total_errors = 0;
