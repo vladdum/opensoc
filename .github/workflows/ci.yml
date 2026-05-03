@@ -17,12 +17,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            verilator \
             gcc-riscv64-unknown-elf \
             binutils-riscv64-unknown-elf \
             srecord \
             libelf-dev \
             ccache
+
+      # ubuntu-24.04 ships Verilator 5.020, which doesn't accept stage-6
+      # kronos patterns (BLKLOOPINIT array reset inside for-loops). Reuse
+      # the kronos submodule's composite action to build & cache 5.046.
+      - name: Install Verilator 5.046
+        uses: ./hw/ip/kronos_riscv/.github/actions/setup-verilator
 
       - name: Create riscv32-unknown-elf symlinks
         run: |

@@ -13,6 +13,13 @@
 #define DEV_READ(addr, val) (*((volatile uint32_t *)(addr)))
 #define PCOUNT_READ(name, dst) asm volatile("csrr %0, " #name ";" : "=r"(dst))
 
+// DMA_BUF marks a buffer that is shared between the CPU and an accelerator
+// DMA engine. It places the variable in the .dma_buffers linker section,
+// which maps to the kronos PMA non-cacheable region (see opensoc_top.sv,
+// sw/common/link.ld). Bypasses the dcache so DMA reads/writes stay
+// coherent without an explicit fence.
+#define DMA_BUF __attribute__((section(".dma_buffers")))
+
 /**
  * Writes character to simulator out log. Signature matches c stdlib function
  * of the same name.

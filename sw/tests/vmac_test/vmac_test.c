@@ -18,15 +18,15 @@
 // ---------------------------------------------------------------------------
 // Test buffers
 // ---------------------------------------------------------------------------
-static int8_t vec_a[256] __attribute__((aligned(4)));
-static int8_t vec_b[256] __attribute__((aligned(4)));
-static int32_t dst_result __attribute__((aligned(4)));
+static int8_t vec_a[256] __attribute__((aligned(4))) DMA_BUF;
+static int8_t vec_b[256] __attribute__((aligned(4))) DMA_BUF;
+static int32_t dst_result __attribute__((aligned(4))) DMA_BUF;
 
 // Large buffers for throughput test
 #define THROUGHPUT_ELEMS 1024
-static int8_t big_a[THROUGHPUT_ELEMS] __attribute__((aligned(4)));
-static int8_t big_b[THROUGHPUT_ELEMS] __attribute__((aligned(4)));
-static int32_t big_dst __attribute__((aligned(4)));
+static int8_t big_a[THROUGHPUT_ELEMS] __attribute__((aligned(4))) DMA_BUF;
+static int8_t big_b[THROUGHPUT_ELEMS] __attribute__((aligned(4))) DMA_BUF;
+static int32_t big_dst __attribute__((aligned(4))) DMA_BUF;
 
 static int test_num = 0;
 static int total_errors = 0;

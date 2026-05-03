@@ -6,8 +6,9 @@ OUTPUT_ARCH(riscv)
 
 MEMORY
 {
-    ram   : ORIGIN = 0x20000000, LENGTH = 0x78000  /* 480 KB code + data */
-    stack : ORIGIN = 0x20078000, LENGTH = 0x8000   /* 32 KB stack — top of 512 KB FPGA RAM */
+    ram     : ORIGIN = 0x20000000, LENGTH = 0x60000  /* 384 KB code + data */
+    dma_buf : ORIGIN = 0x20060000, LENGTH = 0x18000  /* 96 KB DMA-shared, non-cacheable (kronos PMA region #1) */
+    stack   : ORIGIN = 0x20078000, LENGTH = 0x8000   /* 32 KB stack — top of 512 KB FPGA RAM */
 }
 
 _min_stack   = 0x2000;
@@ -65,6 +66,14 @@ SECTIONS
         *(COMMON)
         _bss_end = .;
     } > ram
+
+    .dma_buffers (NOLOAD): {
+        . = ALIGN(8);
+        _dma_buffers_start = .;
+        *(.dma_buffers)
+        *(.dma_buffers.*)
+        _dma_buffers_end = .;
+    } > dma_buf
 
     .stack (NOLOAD): {
         . = ALIGN(16);

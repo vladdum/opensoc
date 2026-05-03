@@ -131,11 +131,11 @@ static int check(const int32_t *got, const int32_t *exp, int n,
 // ---------------------------------------------------------------------------
 #define MAX_N  (32*32)
 
-static int32_t img8[8*8]    __attribute__((aligned(4)));
-static int32_t img16[16*16] __attribute__((aligned(4)));
-static int32_t img32[32*32] __attribute__((aligned(4)));
-static int32_t out_buf[MAX_N] __attribute__((aligned(4)));
-static int32_t ref_buf[MAX_N] __attribute__((aligned(4)));
+static int32_t img8[8*8]    __attribute__((aligned(4))) DMA_BUF;
+static int32_t img16[16*16] __attribute__((aligned(4))) DMA_BUF;
+static int32_t img32[32*32] __attribute__((aligned(4))) DMA_BUF;
+static int32_t out_buf[MAX_N] __attribute__((aligned(4))) DMA_BUF;
+static int32_t ref_buf[MAX_N] __attribute__((aligned(4)));  // CPU-only golden reference
 
 // ---------------------------------------------------------------------------
 // main

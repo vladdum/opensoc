@@ -142,7 +142,22 @@ module opensoc_top
   kronos_axi_req_t  kronos_instr_axi_req, kronos_data_axi_req;
   kronos_axi_resp_t kronos_instr_axi_rsp, kronos_data_axi_rsp;
 
-  kronos_top u_top (
+  // Stage-6e PMA non-cacheable regions:
+  //   [0] 0x4000_0000 – 0x4FFF_FFFF: all OpenSoC MMIO peripherals
+  //   [1] 0x2006_0000 – 0x2007_7FFF: 96 KiB RAM slice for DMA-shared buffers
+  //       (matches the dma_buf MEMORY region in sw/common/link.ld; accel tests
+  //       place their DMA arrays here so kronos's dcache stays out of the way).
+  localparam int unsigned       KronosNumNcRegions     = 2;
+  localparam logic [63:0]       KronosNcRegionBase  [KronosNumNcRegions] =
+      '{64'h0000_0000_4000_0000, 64'h0000_0000_2006_0000};
+  localparam logic [63:0]       KronosNcRegionLimit [KronosNumNcRegions] =
+      '{64'h0000_0000_4FFF_FFFF, 64'h0000_0000_2007_7FFF};
+
+  kronos_top #(
+    .NUM_NC_REGIONS  (KronosNumNcRegions),
+    .NC_REGION_BASE  (KronosNcRegionBase),
+    .NC_REGION_LIMIT (KronosNcRegionLimit)
+  ) u_top (
     .clk_i           (clk_sys),
     .rst_ni          (rst_sys_n),
     .instr_axi_req_o (kronos_instr_axi_req),
@@ -151,14 +166,53 @@ module opensoc_top
     .data_axi_rsp_i  (kronos_data_axi_rsp),
     .irq_timer_i     (timer_irq),
     .irq_fast_i      (irq_fast),
-    .boot_addr_i     (32'h20000080)
+    // Stage-6a privileged-spec interrupts: not driven by OpenSoC platform yet.
+    .irq_msi_i       ('0),
+    .irq_mei_i       ('0),
+    .irq_ssi_i       ('0),
+    .irq_sti_i       ('0),
+    .irq_sei_i       ('0),
+    .boot_addr_i     (32'h20000080),
+    // Sim-only retire/trace outputs — left unconnected in synthesis builds.
+    .retire_valid_o      (),
+    .retire_pc_o         (),
+    .retire_instr_o      (),
+    .retire_rd_wen_o     (),
+    .retire_rd_o         (),
+    .retire_rd_wdata_o   (),
+    .retire_fp_wen_o     (),
+    .retire_fp_rd_o      (),
+    .retire_fp_wdata_o   (),
+    .retire_mem_wen_o    (),
+    .retire_mem_addr_o   (),
+    .retire_mem_wdata_o  (),
+    .retire_mem_funct3_o (),
+    .retire_csr_wen_o    (),
+    .retire_csr_addr_o   (),
+    .retire_csr_wdata_o  (),
+    .retire_trap_taken_o (),
+    .retire_trap_cause_o ()
   );
 
-  // Bridge Kronos AXI types → crossbar AXI types (struct-to-struct)
-  `AXI_ASSIGN_REQ_STRUCT(xbar_slv_req[0], kronos_instr_axi_req)
-  `AXI_ASSIGN_RESP_STRUCT(kronos_instr_axi_rsp, xbar_slv_resp[0])
-  `AXI_ASSIGN_REQ_STRUCT(xbar_slv_req[1], kronos_data_axi_req)
-  `AXI_ASSIGN_RESP_STRUCT(kronos_data_axi_rsp, xbar_slv_resp[1])
+  // Bridge Kronos AXI (64a/64d) → OpenSoC xbar AXI (32a/32d):
+  // address narrow + data downsize. Stopgap until SoC migrates to 64-bit AXI.
+  opensoc_kronos_axi_bridge u_kronos_instr_bridge (
+    .clk_i        (clk_sys),
+    .rst_ni       (rst_sys_n),
+    .kronos_req_i (kronos_instr_axi_req),
+    .kronos_resp_o(kronos_instr_axi_rsp),
+    .xbar_req_o   (xbar_slv_req[0]),
+    .xbar_resp_i  (xbar_slv_resp[0])
+  );
+
+  opensoc_kronos_axi_bridge u_kronos_data_bridge (
+    .clk_i        (clk_sys),
+    .rst_ni       (rst_sys_n),
+    .kronos_req_i (kronos_data_axi_req),
+    .kronos_resp_o(kronos_data_axi_rsp),
+    .xbar_req_o   (xbar_slv_req[1]),
+    .xbar_resp_i  (xbar_slv_resp[1])
+  );
 
   // -------------------------------------------------------------------------
   // PIO DMA signals (between pio and axi_from_mem)
