@@ -79,21 +79,19 @@ lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_dual_uart.sv"
 // I2C loopback wrapper: unused output signals (i2c_*_o, gpio_o, uart_tx)
 lint_off -rule UNUSEDSIGNAL  -file "*/rtl/opensoc_i2c_loopback.sv"
 
-// Kronos RTL: unused/unconnected signals in the current stage implementation
-lint_off -rule UNUSEDSIGNAL      -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
-lint_off -rule PINCONNECTEMPTY   -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
-// Kronos RTL: kronos_pkg defines PMP/event-counter localparams used by the
-// CPU but not by every consumer of the package (e.g. opensoc_top.sv).
-lint_off -rule UNUSEDPARAM       -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
-// Kronos RTL: WIDTHEXPAND in kronos_decompress.sv — RV64C sign-extension
-// sequences use fewer replications than the LHS width; implicit zero-extension
-// is correct for these unsigned immediate fields.
-lint_off -rule WIDTHEXPAND       -file "*/opensoc_ip_kronos_riscv_0/rtl/*"
-
 // Kronos retire_*/debug-only outputs intentionally left unconnected in
 // opensoc_top.sv (they are sim-only trace ports).
 lint_off -rule PINCONNECTEMPTY   -file "*/top/opensoc_top.sv"
          -match "*retire_*"
+
+// Kronos IFU-side combinational cycle on s0_valid_to_icache:
+//   s0_valid_to_icache -> u_itlb.lookup_valid_i -> hit -> perm_fail
+//   -> instr_page_fault -> ex_redirect -> redirect_load -> s0_valid_to_icache
+// Acknowledged by upstream (kronos commit ecd359e, fix-issue-89) as a deferred
+// follow-up — clean fix requires pipelining the iTLB lookup into a registered
+// s1 stage with trap-pc snapshot. Remove this waiver once that lands.
+lint_off -rule UNOPTFLAT         -file "*/opensoc_ip_kronos_riscv_0/rtl/stage6/kronos_top.sv"
+         -match "*s0_valid_to_icache*"
 
 // sim_shared peripherals: upper address/data bits are unused (simple register maps)
 lint_off -rule UNUSEDSIGNAL  -file "*/opensoc_ip_sim_shared_0/*"

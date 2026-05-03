@@ -32,6 +32,7 @@ SW_DIR_conv2d                    := $(SW_TEST_DIR)/conv2d_test
 SW_DIR_conv2d-relu-softmax-stream:= $(SW_TEST_DIR)/conv2d_relu_softmax_stream_test
 SW_DIR_gemm                      := $(SW_TEST_DIR)/gemm_test
 SW_DIR_i2c-loopback      := $(SW_TEST_DIR)/i2c_loopback_test
+SW_DIR_printf-repro      := $(SW_TEST_DIR)/printf_repro_test
 
 ELF_hello             := $(SW_BUILD_DIR)/hello_test/hello_test.elf
 ELF_uart              := $(SW_BUILD_DIR)/uart_test/uart_test.elf
@@ -49,6 +50,7 @@ ELF_conv2d                    := $(SW_BUILD_DIR)/conv2d_test/conv2d_test.elf
 ELF_conv2d-relu-softmax-stream:= $(SW_BUILD_DIR)/conv2d_relu_softmax_stream_test/conv2d_relu_softmax_stream_test.elf
 ELF_gemm                      := $(SW_BUILD_DIR)/gemm_test/gemm_test.elf
 ELF_i2c-loopback      := $(SW_BUILD_DIR)/i2c_loopback_test/i2c_loopback_test.elf
+ELF_printf-repro      := $(SW_BUILD_DIR)/printf_repro_test/printf_repro_test.elf
 
 # ---------------------------------------------------------------------------
 # Per-test simulator flag overrides
@@ -72,13 +74,14 @@ SIM_FLAGS_conv1d-relu-stream             := -c 10000000
 SIM_FLAGS_conv2d                         := -c 10000000
 SIM_FLAGS_conv2d-relu-softmax-stream     := -c 15000000
 SIM_FLAGS_gemm                           := -c 5000000
+SIM_FLAGS_printf-repro                   := -c 500000
 
 # ---------------------------------------------------------------------------
 # Regression test lists
 # ---------------------------------------------------------------------------
 
 # Base: always run, no IP flags required
-REGRESSION_BASE := hello uart pio pio-sdk pio-i2c i2c
+REGRESSION_BASE := hello uart pio pio-sdk pio-i2c i2c printf-repro
 
 # Conditional: included when the corresponding ENABLE_* flag(s) are set.
 # i2c-loopback excluded pending fix — see issue #14.
@@ -99,4 +102,4 @@ RUN_TESTS := \
   relu vmac sg-dma softmax \
   conv1d conv1d-relu-stream \
   conv2d conv2d-relu-softmax-stream gemm \
-  i2c-loopback
+  i2c-loopback printf-repro

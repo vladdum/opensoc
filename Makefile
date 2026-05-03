@@ -108,6 +108,7 @@ help:
 	@echo "  run-conv2d       2D convolution: 3x3 kernel on 8x8, 16x16, 32x32 images"
 	@echo "  run-gemm         GEMM systolic array: 4x4, 8x8 matmul, identity, saturation"
 	@echo "  run-i2c-loopback I2C master + PIO slave: write, read, clock stretching"
+	@echo "  run-printf-repro Reproducer for kronos #82 dcache store-to-load bug"
 	@echo ""
 	@echo "Synthesis"
 	@echo "  synth                       Synthesize (default FLOW=fpga-kv260)"
