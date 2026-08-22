@@ -1,6 +1,6 @@
 # OpenSoC
 
-A RISC-V System-on-Chip built on the [Kronos](https://github.com/vladdum/kronos-riscv) CPU core, using an AXI4 crossbar from [PULP Platform](https://github.com/pulp-platform/axi) to connect the CPU to memory and peripherals.
+A RISC-V System-on-Chip built on the [Kronos](https://github.com/vladdum/kronos-riscv) CPU core (pinned as a git submodule at `hw/ip/kronos_riscv` — currently a stage-6-era Kronos: RV64IMAFDC, in-order, I/D caches + MMU), using an AXI4 crossbar from [PULP Platform](https://github.com/pulp-platform/axi) to connect the CPU to memory and peripherals.
 
 ## Architecture
 
@@ -127,7 +127,7 @@ All build commands below should be run inside the WSL/Ubuntu terminal.
 
 | Flow | Command | Prerequisites |
 |------|---------|---------------|
-| **FPGA / Arty A7-100T** (default) | `make synth` | [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) |
+| **FPGA / Kria KV260** (default) | `make synth` | [Vivado](https://www.xilinx.com/products/design-tools/vivado.html) |
 | **OpenLane 2** | `make synth FLOW=ol2` | [Nix](https://nixos.org/download/) with flakes enabled, [sv2v](https://github.com/zachjs/sv2v) |
 | **Yosys generic** | `make synth FLOW=yosys` | [sv2v](https://github.com/zachjs/sv2v), [Yosys](https://github.com/YosysHQ/yosys) |
 
@@ -163,8 +163,8 @@ make build                       Build Verilator simulator (default TOP=opensoc_
 make build TOP=dual_uart         Build dual-UART simulator
 make build TOP=i2c_loopback      Build I2C loopback simulator
 make run-<test>                  Build SW and run simulation (e.g. make run-relu)
-make synth                       Synthesize (default: Arty A7-100T FPGA)
-make synth FLOW=fpga-arty        FPGA synthesis (Vivado / Arty A7-100T, all accels)
+make synth                       Synthesize (default: Kria KV260 FPGA)
+make synth FLOW=fpga-kv260       FPGA synthesis (Vivado / Kria KV260, all accels)
 make synth FLOW=yosys            ASIC synthesis (sv2v + Yosys, generic gates)
 make synth FLOW=ol2              ASIC synthesis (OpenLane 2 / Sky130 + STA)
 make clean                       Remove build directory
@@ -192,32 +192,32 @@ Available tests:
 | `run-dual-uart` | Two-SoC UART handshake and 8-round data exchange |
 | `run-i2c-loopback` | I2C master + PIO slave: write, read, clock stretching |
 
-Options: `FLOW=fpga-arty|yosys|ol2` selects synthesis flow (default: `fpga-arty`). `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GTKWave.
+Options: `FLOW=fpga-kv260|yosys|ol2` selects synthesis flow (default: `fpga-kv260`). `TRACE=1` enables FST waveform dump, `WAVES=1` enables trace + opens GTKWave.
 
 ### Synthesis
 
 Three synthesis flows are available, selected via the `FLOW` variable:
 
 ```bash
-make synth                    # FPGA: Vivado / Arty A7-100T XC7A100T (default)
-make synth FLOW=fpga-arty     # FPGA: Vivado / Arty A7-100T XC7A100T (all accels)
+make synth                    # FPGA: Vivado / Kria KV260 XCK26 (default)
+make synth FLOW=fpga-kv260    # FPGA: Vivado / Kria KV260 XCK26 (all accels)
 make synth FLOW=yosys         # ASIC: sv2v + Yosys generic gates (quick sanity check)
 make synth FLOW=ol2           # ASIC: OpenLane 2 / Sky130 synthesis + STA
 ```
 
 Each flow calls its own FuseSoC setup internally. `hw/synth/sources.f` is the shared file list for the non-Vivado flows. Use `make clean` to force a fresh setup.
 
-#### FPGA / Vivado — Arty A7-100T (default)
+#### FPGA / Vivado — Kria KV260 (default)
 
-Targets the Digilent Arty A7-100T (Xilinx Artix-7 XC7A100T, 63K LUTs / 607 KB BRAM). All 4 accelerators enabled; 512 KB block RAM. Full flow: synth → opt → place → phys_opt → route → bitstream.
+Targets the AMD Kria KV260 Vision AI Starter Kit (Zynq UltraScale+ XCK26-SFVC784-2LV). All accelerators enabled; 512 KB block RAM; the PL clock comes from the PS block (the KV260 carrier has no external PL clock). Full flow: synth → opt → place → phys_opt → route → bitstream. See `docs/superpowers/specs/2026-04-15-kv260-fpga-target-design.md` for the target's design rationale.
 
 **Two-step build** (useful when iterating in the Vivado GUI):
 ```bash
-make synth-setup-arty
-vivado -mode batch -source hw/fpga/arty_a7/synth.tcl
+make synth-setup-kv260
+vivado -mode batch -source hw/fpga/kv260/synth.tcl
 ```
 
-Reports: `build/vivado/` — `post_synth_timing.txt`, `post_route_timing.txt`, `post_synth_utilization.txt`, `post_route_utilization.txt`, `opensoc_arty_a7.bit`.
+Reports and the bitstream land in `build/vivado_kv260/` — `post_synth_timing.txt`, `post_route_timing.txt`, `post_synth_utilization.txt`, `post_route_utilization.txt`.
 
 #### OpenLane 2 / Sky130
 
@@ -233,18 +233,8 @@ Results: `build/yosys/opensoc_top_netlist.v`, `build/yosys/yosys.log`.
 
 **Clean rebuild:** `make clean && make synth`.
 
-**Arty A7-100T pin mapping (`FLOW=fpga-arty`):**
-
-| Board resource  | SoC signal       | Notes                            |
-|-----------------|------------------|----------------------------------|
-| LED[3:0]        | gpio_o[3:0]      | Active-high                      |
-| SW[3:0]         | gpio_i[3:0]      | Direct sample                    |
-| BTN[3:1]        | gpio_i[6:4]      | Direct sample                    |
-| Pmod JA[0]      | I2C SDA          | Open-drain (external pullup)     |
-| Pmod JA[1]      | I2C SCL          | Open-drain (external pullup)     |
-| Pmod JD[7:0]    | gpio[15:8]       | Bidirectional with OE            |
-| USB-UART        | UART TX/RX       | Via on-board FTDI bridge         |
-| BTN[0]          | Reset            | Active-high, inverted internally |
+**KV260 pin mapping:** all PL I/O sit in bank 45 (LVCMOS33); see
+`hw/fpga/kv260/kv260.xdc` for the authoritative pin constraints.
 
 Clock: 100 MHz board oscillator → PLLE2_ADV → 50 MHz system clock. RAM: 512 KB block RAM. All 4 accelerators enabled.
 
@@ -304,7 +294,7 @@ hw/ip/conv2d/        — 2D convolution engine IP (line buffer + 3×3 PE + addr 
 hw/ip/gemm/          — 8×8 systolic array GEMM IP (pe_cell, data_skew, systolic_array, result_drain)
 hw/ip/ram/           — Technology-dispatch RAM wrapper (XPM/FPGA, sky130 stub/ASIC, ram_1p/sim)
 hw/ip/opentitan_aes/ — OpenTitan AES block (direct RTL, not a submodule)
-hw/fpga/arty_a7/     — Arty A7-100T FPGA target (XC7A100T): constraints, wrapper, synth.tcl
+hw/fpga/kv260/       — Kria KV260 FPGA target (XCK26): constraints, wrapper, synth.tcl
 hw/asic/             — ASIC synthesis (sv2v + Yosys, OpenLane 2 flow)
 hw/synth/            — Shared source file list (sources.f) for non-Vivado flows
 dv/verilator/        — Verilator SoC-level simulation testbench
