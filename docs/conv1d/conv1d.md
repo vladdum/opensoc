@@ -39,86 +39,57 @@ conv1d.sv (control registers + DMA FSM)
 
 A parameterized shift register with `DEPTH = KERNEL_SIZE` and `WIDTH = 8` (INT8). One new sample is loaded per cycle when the DMA returns valid data. The register presents all `DEPTH` entries simultaneously to the PE.
 
-```
-Input sample (INT8)
-       │
-       ▼
-  ┌────────┐  ┌────────┐  ┌────────┐       ┌────────┐
-  │ reg[0] │→ │ reg[1] │→ │ reg[2] │→ ... →│reg[N-1]│
-  └────────┘  └────────┘  └────────┘       └────────┘
-       │            │           │                │
-    w[0]         w[1]        w[2]            w[N-1]   (kernel weights)
-       │            │           │                │
-       └────────────┴───────────┴────────────────┘
-                              │
-                         conv1d_pe
+```mermaid
+flowchart LR
+    in["Input sample (INT8)"] --> r0["reg[0]"] --> r1["reg[1]"] --> r2["reg[2]"] --> rdots["…"] --> rn["reg[N−1]"]
+    r0 -- "× w[0]" --> pe["conv1d_pe"]
+    r1 -- "× w[1]" --> pe
+    r2 -- "× w[2]" --> pe
+    rn -- "× w[N−1]" --> pe
 ```
 
 ### conv1d_pe.sv
 
 `KERNEL_SIZE` parallel signed multipliers, each computing `reg[k] * w[k]` (INT8 × INT8 → INT16). The products are summed into a single INT32 accumulator. One valid output is produced per cycle when `valid_i` is asserted (i.e., after the shift register has been filled for the first time and on every subsequent shift).
 
-```
-reg[0]×w[0] ──┐
-reg[1]×w[1] ──┤
-reg[2]×w[2] ──┼──► partial_sum (INT32) ──► result_o (INT32)
-    ⋮         │
-reg[N-1]×w[N-1]┘
+```mermaid
+flowchart LR
+    m0["reg[0] × w[0]"] --> sum["partial_sum (INT32)"]
+    m1["reg[1] × w[1]"] --> sum
+    m2["reg[2] × w[2]"] --> sum
+    mdots["⋮"] --> sum
+    mn["reg[N−1] × w[N−1]"] --> sum
+    sum --> result_o["result_o (INT32)"]
 ```
 
 No saturation is applied at the PE level — INT8×INT8 products fit in INT16, and the sum of 16 such products fits within INT32 range.
 
 ## FSM
 
-```
-              GO
-IDLE ─────────────────► RD_REQ
-                           │
-                         gnt
-                           │
-                           ▼
-                        RD_WAIT ◄──────────────────────────┐
-                           │                               │
-                         rvalid                            │
-                           │                               │
-                    shift sample in                        │
-                    compute PE output                      │
-                           │                               │
-                   kernel full?                            │
-                    ┌──yes─┴──no──┐                        │
-                    ▼             ▼                        │
-                 WR_REQ        RD_REQ ─► (next sample) ───┘
-                    │
-                  gnt
-                    │
-                    ▼
-                 WR_WAIT
-                    │
-                  rvalid
-                    │
-          samples remaining?
-              ┌──yes──┴──no──┐
-              ▼              ▼
-           RD_REQ           IDLE (DONE)
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> RD_REQ : GO
+    RD_REQ --> RD_WAIT : gnt
+    RD_WAIT : RD_WAIT — on rvalid, shift sample in and compute PE output
+    RD_WAIT --> RD_REQ : rvalid & kernel not full (next sample)
+    RD_WAIT --> WR_REQ : rvalid & kernel full
+    WR_REQ --> WR_WAIT : gnt
+    WR_WAIT --> RD_REQ : rvalid & samples remaining
+    WR_WAIT --> IDLE : rvalid & no samples remaining (DONE)
 ```
 
 **Stream mode** (`CTRL[2]=1`): the `WR_REQ`/`WR_WAIT` states are bypassed. After each PE result is captured the FSM enters `STREAM_OUT`, drives the AXI-Stream output, and waits for `m_axis_tready` before advancing to the next read or returning to IDLE.
 
-```
-              GO (stream mode)
-IDLE ──────────────────► RD_REQ
-                            │
-                          gnt
-                            ▼
-                         RD_WAIT
-                            │ rvalid + kernel full
-                            ▼
-                        STREAM_OUT  ◄── holds until m_axis_tready
-                            │
-                  last element?
-                    ┌──yes──┴──no──┐
-                    ▼              ▼
-                   IDLE          RD_REQ
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> RD_REQ : GO (stream mode)
+    RD_REQ --> RD_WAIT : gnt
+    RD_WAIT --> STREAM_OUT : rvalid & kernel full
+    STREAM_OUT : STREAM_OUT — holds until m_axis_tready
+    STREAM_OUT --> RD_REQ : not last element
+    STREAM_OUT --> IDLE : last element
 ```
 
 **Causal zero-pad mode (same):** before the first real read, `KERNEL_SIZE-1` virtual-zero samples are pre-counted in the fill counter, so the first output is produced immediately after the first real read. The pre-fill does not generate DMA reads. The output formula is:

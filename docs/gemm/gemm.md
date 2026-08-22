@@ -40,20 +40,13 @@ gemm.sv (control registers + DMA FSM)
 
 Each PE holds one INT8 weight register (`w_q`) and one INT32 accumulator (`acc_q`). On a MAC enable pulse (`en_i`), the PE computes `acc_q += a_in_i * w_q`. The weight is loaded independently via `set_w_i` / `w_i`; the accumulator is cleared synchronously via `clr_i`.
 
-```
-     set_w_i, w_i
-          │
-    ┌─────▼─────┐
-    │   w_q     │  (INT8 weight register)
-    └─────┬─────┘
-          │
-a_in_i ──►│  MAC (en_i)
-          │
-    ┌─────▼─────┐
-    │   acc_q   │  (INT32 accumulator)
-    └─────┬─────┘
-          │
-       acc_o
+```mermaid
+flowchart TB
+    setw["set_w_i / w_i"] --> wq["w_q<br>(INT8 weight register)"]
+    wq --> mac["MAC (en_i)<br>acc_q += a_in_i × w_q"]
+    a_in_i --> mac
+    mac --> accq["acc_q<br>(INT32 accumulator)"]
+    accq --> acc_o
 ```
 
 A pass-through register (`a_out_q`) propagates `a_in_i` eastward to the next PE in the same row, though the current implementation broadcasts each `skew_out[k]` to all N columns in row k rather than using east-flow propagation.
@@ -62,15 +55,13 @@ A pass-through register (`a_out_q`) propagates `a_in_i` eastward to the next PE 
 
 A chain of 7 explicit flip-flop stages introduces a per-row delay: row 0 sees the input directly, row 1 sees it one cycle later, …, row 7 sees it seven cycles later. This ensures that when the MAC enable fires at the end of the 8-cycle SKEW_FEED phase, each row k has the correct A element (`A[m][k]`) at its input.
 
-```
-cycle:    0     1     2     3     4     5     6     7 (en)
-         ─────────────────────────────────────────────────
-row 0    a[7]  a[6]  a[5]  a[4]  a[3]  a[2]  a[1]  a[0] ✓
-row 1     0    a[7]  a[6]  a[5]  a[4]  a[3]  a[2]  a[1] ✓
-row 2     0     0    a[7]  a[6]  a[5]  a[4]  a[3]  a[2] ✓
-  ⋮
-row 7     0     0     0     0     0     0     0    a[7] ✓
-```
+| | cycle 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 (en) |
+|---|---|---|---|---|---|---|---|---|
+| row 0 | a[7] | a[6] | a[5] | a[4] | a[3] | a[2] | a[1] | a[0] ✓ |
+| row 1 | 0 | a[7] | a[6] | a[5] | a[4] | a[3] | a[2] | a[1] ✓ |
+| row 2 | 0 | 0 | a[7] | a[6] | a[5] | a[4] | a[3] | a[2] ✓ |
+| ⋮ | | | | | | | | |
+| row 7 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | a[7] ✓ |
 
 The reversed-order feed (`a[7-k]` at cycle k, where unused indices are zero-extended) is what aligns each row's data with the enable pulse.
 
@@ -96,58 +87,26 @@ The 8-input sum is implemented as a chain: `s0 = acc[0]+acc[1]`, `s1 = s0+acc[2]
 
 The accelerator uses a 7-state FSM. The outer loop iterates over M output rows; for each row it clears the accumulators, reads K elements of A via DMA, runs the 8-cycle skew-feed, then writes N output elements via DMA.
 
-```
-              GO
-IDLE ─────────────────► COMPUTE_CLR
-                              │
-                         assert sa_clr
-                         reset k, n
-                              │
-                              ▼
-                           RD_REQ ◄────────────────────────┐
-                              │                            │
-                        assert dma_req                     │
-                              │                            │
-                            gnt                            │
-                              │                            │
-                              ▼                            │
-                           RD_WAIT                         │
-                              │                            │
-                           rvalid                          │
-                              │                            │
-                    store a_row_buf[k]                     │
-                              │                            │
-                     k == K-1? ─── no: k++ ───────────────┘
-                              │ yes: k=0
-                              ▼
-                          SKEW_FEED ◄──────────────────────┐
-                              │                            │
-                  feed a_row_buf[7-k] to skew              │
-                     advance k                             │
-                              │                            │
-                     k == 7? ─── no ──────────────────────┘
-                     (en fires)
-                              │ yes: k=0
-                              ▼
-                           WR_REQ ◄────────────────────────┐
-                              │                            │
-                        assert dma_req                     │
-                        write drain[n]                     │
-                              │                            │
-                            gnt                            │
-                              │                            │
-                              ▼                            │
-                           WR_WAIT                         │
-                              │                            │
-                           rvalid                          │
-                              │                            │
-                     n == N-1? ─── no: n++ ───────────────┘
-                              │ yes: n=0
-                              │
-                     m == M-1? ─── no: m++, ──► COMPUTE_CLR
-                              │ yes
-                              ▼
-                          IDLE (DONE)
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    COMPUTE_CLR : COMPUTE_CLR — assert sa_clr, reset k and n
+    RD_REQ : RD_REQ — assert dma_req
+    RD_WAIT : RD_WAIT — on rvalid, store a_row_buf[k]
+    SKEW_FEED : SKEW_FEED — feed a_row_buf[7−k] to skew, advance k
+    WR_REQ : WR_REQ — assert dma_req, write drain[n]
+    WR_WAIT : WR_WAIT — wait rvalid
+    IDLE --> COMPUTE_CLR : GO
+    COMPUTE_CLR --> RD_REQ
+    RD_REQ --> RD_WAIT : gnt
+    RD_WAIT --> RD_REQ : rvalid & k < K−1 (k++)
+    RD_WAIT --> SKEW_FEED : rvalid & k == K−1 (k=0)
+    SKEW_FEED --> SKEW_FEED : k < 7
+    SKEW_FEED --> WR_REQ : k == 7 (en fires, k=0)
+    WR_REQ --> WR_WAIT : gnt
+    WR_WAIT --> WR_REQ : rvalid & n < N−1 (n++)
+    WR_WAIT --> COMPUTE_CLR : rvalid & n == N−1 & m < M−1 (n=0, m++)
+    WR_WAIT --> IDLE : rvalid & n == N−1 & m == M−1 (DONE)
 ```
 
 **Weight preload:** before asserting GO, software writes each B[k][n] element by setting `WEIGHT_ADDR = (k << 3) | n` then writing `WEIGHT_DATA`. This fires `set_w_i` on the matching PE immediately. Weights persist across GO pulses; only a SOFT_RESET or a new weight write changes them.

@@ -41,10 +41,11 @@ conv2d.sv (control registers + DMA FSM)
 
 Three flip-flop arrays of depth `MAX_WIDTH` (default 64), each holding one row of INT8 pixels. The three rows are indexed modulo 3 — the accelerator rotates which physical slot corresponds to the "oldest", "middle", and "newest" row as it advances through the image. Written one pixel per cycle; read combinationally as a full `[3][MAX_WIDTH]` array. Cleared synchronously on `clr_i` (SOFT_RESET).
 
-```
-Row slot 0  [ p[0]  p[1]  p[2]  ...  p[63] ]
-Row slot 1  [ p[0]  p[1]  p[2]  ...  p[63] ]   ──► pixels_o [3][64]
-Row slot 2  [ p[0]  p[1]  p[2]  ...  p[63] ]
+```mermaid
+flowchart LR
+    s0["Row slot 0 — p[0] … p[63]"] --> out["pixels_o [3][64]"]
+    s1["Row slot 1 — p[0] … p[63]"] --> out
+    s2["Row slot 2 — p[0] … p[63]"] --> out
 ```
 
 The FSM selects which physical slot is oldest/middle/newest via modular arithmetic on `cur_row_q`:
@@ -59,16 +60,18 @@ newest_slot =  cur_row_q      % 3
 
 Nine parallel signed INT8×INT8 multipliers, producing nine INT16 products. The products are sign-extended to INT32 and summed. The output is purely combinational; `conv2d.sv` registers the result before issuing the DMA write.
 
-```
-window[0][0]×w[0] ──┐
-window[0][1]×w[1] ──┤
-window[0][2]×w[2] ──┤
-window[1][0]×w[3] ──┤
-window[1][1]×w[4] ──┼──► result_o (INT32)
-window[1][2]×w[5] ──┤
-window[2][0]×w[6] ──┤
-window[2][1]×w[7] ──┤
-window[2][2]×w[8] ──┘
+```mermaid
+flowchart LR
+    m0["window[0][0] × w[0]"] --> sum["Σ (sign-extend to INT32)"]
+    m1["window[0][1] × w[1]"] --> sum
+    m2["window[0][2] × w[2]"] --> sum
+    m3["window[1][0] × w[3]"] --> sum
+    m4["window[1][1] × w[4]"] --> sum
+    m5["window[1][2] × w[5]"] --> sum
+    m6["window[2][0] × w[6]"] --> sum
+    m7["window[2][1] × w[7]"] --> sum
+    m8["window[2][2] × w[8]"] --> sum
+    sum --> result_o["result_o (INT32)"]
 ```
 
 No overflow is possible: the worst case is `9 × 127 × 127 = 145,161`, which is well within INT32 range.
@@ -91,45 +94,21 @@ The accelerator uses a 7-state FSM. The image is processed in two phases:
 
 **SLIDE phase** — reads one pixel per position, computes the PE output when the column window is valid (`cur_col_q ≥ lag`), and writes the result. Virtual pixels (zero-padded borders in same mode) skip the DMA read.
 
-```
-                  GO
-IDLE ──────────────────► FILL_RD_REQ
-                              │
-                            gnt
-                              │
-                              ▼
-                         FILL_RD_WAIT ◄─────────────────┐
-                              │                          │
-                           rvalid                        │ more fill cols/rows
-                              │                          │
-                     fill complete? ─────────────────────┘
-                              │ yes
-                              ▼
-                         SLIDE_RD_REQ ◄─────────────────────────────────┐
-                              │                                          │
-                     virtual? │ no: assert dma_req                      │
-                              │    wait for gnt                         │
-                              ▼                                          │
-                         SLIDE_RD_WAIT                                   │
-                              │                                          │
-                    virtual or rvalid                                    │
-                              │                                          │
-                   write lb; should_output?                              │
-                       ┌─yes──┴──no──┐                                  │
-                       ▼             └──── advance col/row ─────────────┘
-                  SLIDE_WR_REQ
-                       │
-                     gnt
-                       │
-                       ▼
-                  SLIDE_WR_WAIT
-                       │
-                     rvalid
-                       │
-              last output? ─────────────────── advance col/row ─────────┘
-                       │ yes
-                       ▼
-                      IDLE (DONE)
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> FILL_RD_REQ : GO
+    FILL_RD_REQ --> FILL_RD_WAIT : gnt
+    FILL_RD_WAIT --> FILL_RD_REQ : rvalid & more fill cols/rows
+    FILL_RD_WAIT --> SLIDE_RD_REQ : rvalid & fill complete
+    SLIDE_RD_REQ : SLIDE_RD_REQ — assert dma_req unless virtual pixel
+    SLIDE_RD_REQ --> SLIDE_RD_WAIT : gnt (or virtual)
+    SLIDE_RD_WAIT : SLIDE_RD_WAIT — on virtual or rvalid, write line buffer
+    SLIDE_RD_WAIT --> SLIDE_WR_REQ : should_output
+    SLIDE_RD_WAIT --> SLIDE_RD_REQ : ~should_output (advance col/row)
+    SLIDE_WR_REQ --> SLIDE_WR_WAIT : gnt
+    SLIDE_WR_WAIT --> SLIDE_RD_REQ : rvalid & not last output (advance col/row)
+    SLIDE_WR_WAIT --> IDLE : rvalid & last output (DONE)
 ```
 
 **`should_output`** is asserted when `cur_col_q ≥ lag_q` — meaning the full left side of the 3-column window falls within the image (or virtual zero region).
@@ -175,11 +154,11 @@ Base address: `0x400A0000`.
 
 **Kernel weight layout** (row-major, top-left to bottom-right):
 
-```
-W[0]  W[1]  W[2]
-W[3]  W[4]  W[5]
-W[6]  W[7]  W[8]
-```
+| | left | center | right |
+|---|---|---|---|
+| **top** | W[0] | W[1] | W[2] |
+| **middle** | W[3] | W[4] | W[5] |
+| **bottom** | W[6] | W[7] | W[8] |
 
 ### CTRL Register (0x00)
 
@@ -241,10 +220,11 @@ One INT32 beat is emitted per output pixel. The FSM holds in `STREAM_OUT` until 
 
 Conv2D's stream output is OR-muxed with Conv1D's into ReLU's stream input, then ReLU's stream output feeds Softmax's stream input:
 
-```
-Conv1D m_axis ─┐
-               ├─(OR mux)─► ReLU s_axis ──► ReLU m_axis ──► Softmax s_axis
-Conv2D m_axis ─┘
+```mermaid
+flowchart LR
+    c1["Conv1D m_axis"] --> mux["OR mux"]
+    c2["Conv2D m_axis"] --> mux
+    mux --> relu_in["ReLU s_axis"] --> relu_out["ReLU m_axis"] --> smax["Softmax s_axis"]
 ```
 
 Only one config runs at a time; the inactive upstream holds `tvalid = 0`. The mux selects Conv1D's data when Conv1D is active, Conv2D's otherwise.
