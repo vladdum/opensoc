@@ -36,12 +36,16 @@ vec_mac.sv (control + DMA FSM)
 
 ### Data Path
 
-```
-a_data_i[31:0]  ──┬── a[7:0]  × b[7:0]  ── product[0] ──┐
-                   ├── a[15:8] × b[15:8] ── product[1] ──┤
-                   ├── a[23:16]× b[23:16]── product[2] ──┼──► partial_sum ──► accum_q (33-bit)
-                   └── a[31:24]× b[31:24]── product[3] ──┘          │             │
-b_data_i[31:0]  ──┘                                                 └── saturate ─┘
+```mermaid
+flowchart LR
+    a["a_data_i [31:0]"] --> l0["a[7:0] × b[7:0]<br>product[0]"]
+    a --> l1["a[15:8] × b[15:8]<br>product[1]"]
+    a --> l2["a[23:16] × b[23:16]<br>product[2]"]
+    a --> l3["a[31:24] × b[31:24]<br>product[3]"]
+    b["b_data_i [31:0]"] --> l0 & l1 & l2 & l3
+    l0 & l1 & l2 & l3 --> psum["partial_sum"]
+    psum --> sat["saturate"] --> acc["accum_q (33-bit)"]
+    acc --> sat
 ```
 
 - **4 parallel lanes**: each unpacks one signed INT8 byte from A and B, multiplies to produce a signed 16-bit product
@@ -55,18 +59,18 @@ Elements are packed little-endian: lane 0 reads `word[7:0]`, lane 1 reads `word[
 
 ## FSM
 
-```
-         GO (LEN>0)
-IDLE ──────── RD_A_REQ ──► RD_A_WAIT ──► RD_B_REQ ──► RD_B_WAIT
-                                                           │
-                                                           ▼
-                                                       COMPUTE
-                                                           │
-                                          remaining > 0? ──yes──► RD_A_REQ (loop)
-                                                           │
-                                                           no
-                                                           ▼
-                                                       WR_REQ ──► WR_WAIT ──► IDLE
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> RD_A_REQ : GO (LEN > 0)
+    RD_A_REQ --> RD_A_WAIT
+    RD_A_WAIT --> RD_B_REQ
+    RD_B_REQ --> RD_B_WAIT
+    RD_B_WAIT --> COMPUTE
+    COMPUTE --> RD_A_REQ : remaining > 0
+    COMPUTE --> WR_REQ : remaining == 0
+    WR_REQ --> WR_WAIT
+    WR_WAIT --> IDLE
 ```
 
 8 states. The DMA port is time-multiplexed: each iteration reads one word from A, then one word from B, then computes. After all words are processed, the result is written to the destination address.

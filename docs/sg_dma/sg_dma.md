@@ -50,15 +50,12 @@ Each descriptor is a 5-word (20-byte) struct stored in DRAM at a word-aligned ad
 
 ### Descriptor Chaining
 
-```
-Descriptor 0          Descriptor 1          Descriptor 2
-┌────────────┐        ┌────────────┐        ┌────────────┐
-│ src_addr   │        │ src_addr   │        │ src_addr   │
-│ dst_addr   │        │ dst_addr   │        │ dst_addr   │
-│ word_len   │        │ word_len   │        │ word_len   │
-│ ctrl=CHAIN │──next─►│ ctrl=CHAIN │──next─►│ ctrl=0     │
-│ next_desc  │        │ next_desc  │        │ next_desc  │
-└────────────┘        └────────────┘        └────────────┘
+```mermaid
+flowchart LR
+    d0["Descriptor 0<br>src_addr<br>dst_addr<br>word_len<br>ctrl = CHAIN<br>next_desc"]
+    d1["Descriptor 1<br>src_addr<br>dst_addr<br>word_len<br>ctrl = CHAIN<br>next_desc"]
+    d2["Descriptor 2<br>src_addr<br>dst_addr<br>word_len<br>ctrl = 0<br>next_desc"]
+    d0 -- next --> d1 -- next --> d2
 ```
 
 ### Zero-Length Descriptors
@@ -67,24 +64,19 @@ If `word_len` is 0, the DMA engine skips the copy phase entirely: it increments 
 
 ## FSM
 
-```
-                 GO
-IDLE ──────── FETCH_REQ ──► FETCH_WAIT ──► (repeat 5x for descriptor fields)
-                                │
-                                ▼
-                          COPY_RD_REQ ──► COPY_RD_WAIT ──► COPY_WR_REQ ──► COPY_WR_WAIT
-                                                                              │
-                                              ┌───────────────────────────────┘
-                                              ▼
-                                         remaining > 1? ──yes──► COPY_RD_REQ (loop)
-                                              │
-                                              no
-                                              ▼
-                                         CHAIN? ──yes──► FETCH_REQ (next descriptor)
-                                              │
-                                              no
-                                              ▼
-                                            IDLE (done)
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> FETCH_REQ : GO
+    FETCH_REQ --> FETCH_WAIT
+    FETCH_WAIT --> FETCH_REQ : more descriptor fields (5 reads total)
+    FETCH_WAIT --> COPY_RD_REQ : descriptor loaded
+    COPY_RD_REQ --> COPY_RD_WAIT
+    COPY_RD_WAIT --> COPY_WR_REQ
+    COPY_WR_REQ --> COPY_WR_WAIT
+    COPY_WR_WAIT --> COPY_RD_REQ : remaining > 1
+    COPY_WR_WAIT --> FETCH_REQ : remaining ≤ 1 & CHAIN (next descriptor)
+    COPY_WR_WAIT --> IDLE : remaining ≤ 1 & ~CHAIN (done)
 ```
 
 7 states, single DMA master port shared between descriptor fetch and data copy.

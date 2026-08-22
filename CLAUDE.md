@@ -32,6 +32,35 @@ When executing implementation plans with subagent-driven development, independen
 
 **Rule:** if two tasks edit different files and neither depends on the other's output, they can run in parallel. Dispatch them as a single multi-agent call using `superpowers:dispatching-parallel-agents`.
 
+## Subagent Models
+
+The main conversation (brainstorming, plan writing, orchestration) runs on the session model — never downgrade it.
+
+When dispatching subagents, always set the `model` parameter on the Agent call:
+
+- Implementation / execution subagents (task implementers, test writers, fix-up agents): `model: "sonnet"`.
+- Exploration and search subagents (Explore, codebase lookups): `model: "sonnet"`.
+- Code-review, spec-review, and plan-review subagents: omit the `model` parameter so they inherit the main-session model.
+
+Do not set `CLAUDE_CODE_SUBAGENT_MODEL` in settings — it would override the per-dispatch routing above.
+
+## Development Loop
+
+Feature and accelerator implementation follows this loop:
+
+1. **Brainstorm → spec → plan** (superpowers:brainstorming, spec review against the existing architecture docs, superpowers:writing-plans at full-runnable-code depth). Stop for user review after the spec and after the plan.
+2. **Execute with superpowers:subagent-driven-development**: fresh implementer subagent per task (sonnet, per Subagent Models above), task briefs extracted to files, TDD with *observed* fail-then-pass evidence quoted in a per-task report file.
+3. **Independent review after every task** (main-session model): spec compliance AND code quality, with the reviewer given the brief, the report, and the full diff as files. Findings enter scoped fix rounds (fix → scoped re-review), never silent discards; minors go to the ledger.
+4. **Ledger everything** in `.superpowers/sdd/<plan>/progress.md`: completions, fix rounds, deferred minors, carry-overs between tasks, and user decisions. The ledger survives context loss; trust it and `git log` over recollection.
+5. **Synthesis gates**: re-run `make synth` after RTL-touching tasks when the change could move timing or resources. On a timing miss: analyze failing-path classes first, try zero-RTL directive escalation before RTL changes, and make every RTL timing fix behavior-identical and sim-gated.
+6. **Final whole-branch review** (most capable model) with the ledger's deferred-minors list for merge triage; ONE fix wave + one scoped re-review.
+7. **Board last**: `make lint` and the full Verilator regression must be green before any KV260 run, and every board scenario must already have an equivalent simulation twin at the same scale (same data sizes, descriptor counts, and iteration/loop counts — bugs like boundary-crossing effects only appear at real scale). Predict register/counter values before each command; on mismatch stop and decode, never guess.
+8. **Update the checked-in documentation as part of closing the work** — a change is not done until the docs that describe it are true again: `README.md`, the module doc under `docs/<module>/`, and the Architecture / Repository Structure sections of this file. This is a closing step, not an optional follow-up.
+
+## Diagrams
+
+Use Mermaid fenced code blocks (` ```mermaid `) for all block diagrams, FSMs, and dataflow diagrams in the markdown docs — GitHub renders them natively, no build step. Bit-field encodings and register layouts are markdown tables. Do not use ASCII art diagrams.
+
 ## SW Tests
 
 When creating a new SW test under `sw/tests/`, always update `sw/tests/tests.mk`:

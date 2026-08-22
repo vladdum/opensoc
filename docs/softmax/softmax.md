@@ -105,24 +105,23 @@ The LUT-based approximation matches the mathematical softmax within ±2 LSB for 
 
 ## FSM
 
-```
-         GO (LEN>0)
-IDLE ──────── P1_RD_REQ ──► P1_RD_WAIT ──► (loop for all words)
-                                │
-                                ▼
-                          P2_COMPUTE ──► (1 element/cycle, N cycles)
-                                │
-                                ▼
-                          P2_RECIP ──► (17 cycles, sequential divider)
-                                │
-                                ▼
-                          P3_NORM ──► (pack 4 bytes)
-                                │
-                                ▼
-                          P3_WR_REQ ──► P3_WR_WAIT ──► (loop for all words)
-                                                           │
-                                                           ▼
-                                                     DONE_STATE ──► IDLE
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> P1_RD_REQ : GO (LEN > 0)
+    P1_RD_REQ --> P1_RD_WAIT
+    P1_RD_WAIT --> P1_RD_REQ : more words
+    P1_RD_WAIT --> P2_COMPUTE : last word
+    P2_COMPUTE : P2_COMPUTE — 1 element/cycle, N cycles
+    P2_COMPUTE --> P2_RECIP
+    P2_RECIP : P2_RECIP — 17 cycles, sequential divider
+    P2_RECIP --> P3_NORM
+    P3_NORM : P3_NORM — pack 4 bytes
+    P3_NORM --> P3_WR_REQ
+    P3_WR_REQ --> P3_WR_WAIT
+    P3_WR_WAIT --> P3_NORM : more words
+    P3_WR_WAIT --> DONE_STATE : last word
+    DONE_STATE --> IDLE
 ```
 
 9 states. Pass 2 and the reciprocal divider are fully internal (no DMA transactions).

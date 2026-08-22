@@ -55,18 +55,19 @@ The PIO block occupies the GPIO slot in the AXI4 crossbar:
 
 ### Pin I/O
 
-```
-                    ┌──────────────────┐
-    gpio_i[31:0] ──►│  2-FF Sync       │──► synced_pins ──► SM IN sources
-                    └──────────────────┘                ──► GPIO_IN register
-
-   SM0 out ──┐
-   SM1 out ──┤     ┌──────────────────┐
-   SM2 out ──┼────►│  Pin Mux (reg'd) │──► gpio_o[31:0]
-   SM3 out ──┘     │  SM3>SM2>SM1>SM0 │──► gpio_oe[31:0]
-   GPIO_OUT ──────►│  >GPIO compat    │
-   GPIO_DIR ──────►│                  │
-                   └──────────────────┘
+```mermaid
+flowchart LR
+    gpio_i["gpio_i [31:0]"] --> sync["2-FF Sync"] --> synced["synced_pins"]
+    synced --> smin["SM IN sources"]
+    synced --> gin["GPIO_IN register"]
+    sm0["SM0 out"] --> mux["Pin Mux (registered)<br>SM3 > SM2 > SM1 > SM0<br>> GPIO compat"]
+    sm1["SM1 out"] --> mux
+    sm2["SM2 out"] --> mux
+    sm3["SM3 out"] --> mux
+    gout["GPIO_OUT"] --> mux
+    gdir["GPIO_DIR"] --> mux
+    mux --> gpio_o["gpio_o [31:0]"]
+    mux --> gpio_oe["gpio_oe [31:0]"]
 ```
 
 **Pin mux priority:** SM3 > SM2 > SM1 > SM0 > GPIO compat registers. A pin belongs to an SM's driven set if it falls within that SM's configured OUT, SET, or SIDE-SET pin range and the SM is enabled. Pins not claimed by any enabled SM are controlled by GPIO compat registers.
@@ -153,12 +154,9 @@ Threshold value of 0 means 32 bits.
 
 All instructions are 16 bits wide:
 
-```
-┌───────────┬───────────────┬─────────────────────┐
-│  15:13    │    12:8       │       7:0           │
-│  Opcode   │ Delay/Sideset │ Instruction operands│
-└───────────┴───────────────┴─────────────────────┘
-```
+| 15:13 | 12:8 | 7:0 |
+|---|---|---|
+| Opcode | Delay/Sideset | Instruction operands |
 
 ### Delay and Side-set Field (bits 12:8)
 
@@ -179,12 +177,9 @@ Side-set values are applied to consecutive pins starting from `SIDESET_BASE`.
 
 Conditional branch.
 
-```
-┌─────┬───────────┬─────────┬───────────┐
-│ 000 │ delay/ss  │  cond   │  address  │
-│15:13│   12:8    │  7:5    │   4:0     │
-└─────┴───────────┴─────────┴───────────┘
-```
+| 15:13 | 12:8 | 7:5 | 4:0 |
+|---|---|---|---|
+| 000 | delay/ss | cond | address |
 
 | Condition (7:5) | Mnemonic | Description |
 |-----------------|----------|-------------|
@@ -203,12 +198,9 @@ Target address in bits 4:0.
 
 Stall until a condition is met.
 
-```
-┌─────┬───────────┬────┬────────┬───────────┐
-│ 001 │ delay/ss  │ pol│ source │   index   │
-│15:13│   12:8    │ 7  │  6:5   │   4:0     │
-└─────┴───────────┴────┴────────┴───────────┘
-```
+| 15:13 | 12:8 | 7 | 6:5 | 4:0 |
+|---|---|---|---|---|
+| 001 | delay/ss | pol | source | index |
 
 | Source (6:5) | Description |
 |-------------|-------------|
@@ -224,12 +216,9 @@ For `WAIT IRQ`, once the condition is met, the flag is automatically cleared.
 
 Shift bits into ISR from a source.
 
-```
-┌─────┬───────────┬──────────┬───────────┐
-│ 010 │ delay/ss  │  source  │ bit_count │
-│15:13│   12:8    │   7:5    │   4:0     │
-└─────┴───────────┴──────────┴───────────┘
-```
+| 15:13 | 12:8 | 7:5 | 4:0 |
+|---|---|---|---|
+| 010 | delay/ss | source | bit_count |
 
 | Source (7:5) | Description |
 |-------------|-------------|
@@ -246,12 +235,9 @@ Bit count in bits 4:0 (value 0 means 32 bits). Bits are shifted into ISR accordi
 
 Shift bits from OSR to a destination.
 
-```
-┌─────┬───────────┬─────────────┬───────────┐
-│ 011 │ delay/ss  │ destination │ bit_count │
-│15:13│   12:8    │    7:5      │   4:0     │
-└─────┴───────────┴─────────────┴───────────┘
-```
+| 15:13 | 12:8 | 7:5 | 4:0 |
+|---|---|---|---|
+| 011 | delay/ss | destination | bit_count |
 
 | Destination (7:5) | Description |
 |-------------------|-------------|
@@ -270,12 +256,9 @@ Bit count in bits 4:0 (value 0 means 32 bits). Bits are shifted out of OSR accor
 
 Transfer data between shift registers and FIFOs.
 
-```
-┌─────┬───────────┬────┬────┬────┬─────────┐
-│ 100 │ delay/ss  │ P  │ IF │ BLK│  (rsvd) │
-│15:13│   12:8    │ 7  │ 6  │  5 │  4:0    │
-└─────┴───────────┴────┴────┴────┴─────────┘
-```
+| 15:13 | 12:8 | 7 | 6 | 5 | 4:0 |
+|---|---|---|---|---|---|
+| 100 | delay/ss | P | IF | BLK | (rsvd) |
 
 | Bit | Name | Description |
 |-----|------|-------------|
@@ -290,12 +273,9 @@ Transfer data between shift registers and FIFOs.
 
 Copy data between registers with optional transformation.
 
-```
-┌─────┬───────────┬─────────────┬──────┬──────────┐
-│ 101 │ delay/ss  │ destination │  op  │  source  │
-│15:13│   12:8    │    7:5      │ 4:3  │   2:0    │
-└─────┴───────────┴─────────────┴──────┴──────────┘
-```
+| 15:13 | 12:8 | 7:5 | 4:3 | 2:0 |
+|---|---|---|---|---|
+| 101 | delay/ss | destination | op | source |
 
 **Sources (2:0):**
 
@@ -333,12 +313,9 @@ Copy data between registers with optional transformation.
 
 Set, clear, or wait on IRQ flags.
 
-```
-┌─────┬───────────┬─────┬────┬─────┬───────────┐
-│ 110 │ delay/ss  │(rsvd)│WAIT│ CLR │   index  │
-│15:13│   12:8    │  7  │  6 │  5  │   4:0     │
-└─────┴───────────┴─────┴────┴─────┴───────────┘
-```
+| 15:13 | 12:8 | 7 | 6 | 5 | 4:0 |
+|---|---|---|---|---|---|
+| 110 | delay/ss | (rsvd) | WAIT | CLR | index |
 
 | Bit | Name | Description |
 |-----|------|-------------|
@@ -352,12 +329,9 @@ Set, clear, or wait on IRQ flags.
 
 Write a 5-bit immediate value to a destination.
 
-```
-┌─────┬───────────┬─────────────┬───────────┐
-│ 111 │ delay/ss  │ destination │   data    │
-│15:13│   12:8    │    7:5      │   4:0     │
-└─────┴───────────┴─────────────┴───────────┘
-```
+| 15:13 | 12:8 | 7:5 | 4:0 |
+|---|---|---|---|
+| 111 | delay/ss | destination | data |
 
 | Destination (7:5) | Description |
 |-------------------|-------------|
