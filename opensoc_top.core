@@ -191,7 +191,6 @@ targets:
           - "-Wall"
           - "-Wno-REDEFMACRO"
           - "-Wno-SYNCASYNCNET"
-          - "-Wno-UNOPTFLAT"
           - "--unroll-count 72"
 
   sim:
@@ -224,7 +223,6 @@ targets:
           - "-Wall"
           - "-Wno-REDEFMACRO"
           - "-Wno-SYNCASYNCNET"
-          - "-Wno-UNOPTFLAT"
           - "--unroll-count 72"
           - "--trace-fst"
           - "--trace-structs"
