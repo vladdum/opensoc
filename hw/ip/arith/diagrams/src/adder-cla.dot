@@ -1,0 +1,141 @@
+digraph adder_cla {
+  // ────────────────────────────────────────────────────────────────
+  // adder_cla — Carry-Lookahead Adder, 4-bit blocks chained.
+  //
+  // Layout: neato -n2 (pinned positions).
+  //
+  // Shows 3 CLA blocks of 4 bits each (W=12 example), chained via
+  // block carry-out. Inside each block: G/P generation, CLA carry
+  // computation, sum bits.
+  // Formula note: G_k = g_k | (p_k & G_{k-1}), P_k = p_k & P_{k-1}
+  // ────────────────────────────────────────────────────────────────
+  graph [
+    splines     = spline,
+    pad         = 0.3,
+    outputorder = edgesfirst,
+    fontname    = "Helvetica",
+  ];
+
+  node [
+    shape    = box,
+    style    = "filled,rounded",
+    fontname = "Helvetica",
+    fontsize = 13,
+    penwidth = 2,
+  ];
+
+  edge [
+    fontname = "Helvetica",
+    fontsize = 11,
+    penwidth = 2,
+    color    = "#111827",
+  ];
+
+  // Title
+  title [pos="600,520!", label="adder_cla — Carry-Lookahead Adder (example: W=12, three 4-bit blocks chained)",
+         shape=plaintext, style="", fontsize=18, fontcolor="#111827"];
+
+  // Carry-in
+  cin [pos="-60,240!", label="c_in=0", fillcolor="#f5f5f5", color="#9ca3af", fontsize=12,
+       width=1.0, height=0.6, fixedsize=true];
+
+  // Block 0 (bits 0-3)
+  subgraph cluster_blk0 {
+    label="CLA Block 0\nbits [3:0]";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    b0_in   [pos="120,420!", label="a[3:0]\nb[3:0]", fillcolor="#bbf7d0", color="#22c55e", fontsize=12,
+             width=1.2, height=0.7, fixedsize=true];
+    b0_gp   [pos="120,300!", label="g/p gen\ng_i=a&b p_i=a|b",
+             fillcolor="#bfdbfe", color="#3b82f6", fontsize=12,
+             width=2.0, height=0.7, fixedsize=true];
+    b0_cla  [pos="120,200!", label="CLA carry\nc_1..c_3 lookahead",
+             fillcolor="#bfdbfe", color="#3b82f6", fontsize=12,
+             width=2.2, height=0.7, fixedsize=true];
+    b0_sum  [pos="120,100!", label="sum[3:0]",
+             fillcolor="#fca5a5", color="#ef4444", fontsize=12,
+             width=1.4, height=0.6, fixedsize=true];
+    b0_cout [pos="300,200!", label="C_out0\n(block G/P)",
+             fillcolor="#bfdbfe", color="#3b82f6", fontsize=12,
+             width=1.4, height=0.7, fixedsize=true];
+  }
+
+  // Block 1 (bits 4-7)
+  subgraph cluster_blk1 {
+    label="CLA Block 1\nbits [7:4]";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    b1_in   [pos="480,420!", label="a[7:4]\nb[7:4]", fillcolor="#bbf7d0", color="#22c55e", fontsize=12,
+             width=1.2, height=0.7, fixedsize=true];
+    b1_gp   [pos="480,300!", label="g/p gen",
+             fillcolor="#bfdbfe", color="#3b82f6", fontsize=12,
+             width=2.0, height=0.7, fixedsize=true];
+    b1_cla  [pos="480,200!", label="CLA carry\nc_5..c_7 lookahead",
+             fillcolor="#bfdbfe", color="#3b82f6", fontsize=12,
+             width=2.2, height=0.7, fixedsize=true];
+    b1_sum  [pos="480,100!", label="sum[7:4]",
+             fillcolor="#fca5a5", color="#ef4444", fontsize=12,
+             width=1.4, height=0.6, fixedsize=true];
+    b1_cout [pos="660,200!", label="C_out1",
+             fillcolor="#bfdbfe", color="#3b82f6", fontsize=12,
+             width=1.2, height=0.7, fixedsize=true];
+  }
+
+  // Block 2 (bits 8-11)
+  subgraph cluster_blk2 {
+    label="CLA Block 2\nbits [11:8]  (…to W-1)";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    b2_in   [pos="840,420!", label="a[11:8]\nb[11:8]", fillcolor="#bbf7d0", color="#22c55e", fontsize=12,
+             width=1.2, height=0.7, fixedsize=true];
+    b2_gp   [pos="840,300!", label="g/p gen",
+             fillcolor="#bfdbfe", color="#3b82f6", fontsize=12,
+             width=2.0, height=0.7, fixedsize=true];
+    b2_cla  [pos="840,200!", label="CLA carry\nc_9..c_11 lookahead",
+             fillcolor="#bfdbfe", color="#3b82f6", fontsize=12,
+             width=2.2, height=0.7, fixedsize=true];
+    b2_sum  [pos="840,100!", label="sum[11:8]",
+             fillcolor="#fca5a5", color="#ef4444", fontsize=12,
+             width=1.4, height=0.6, fixedsize=true];
+  }
+
+  // Formula note
+  formula [pos="600,-40!",
+           label="G_k = g_k | (p_k & G_{k-1})   P_k = p_k & P_{k-1}   C_out = G_k | (P_k & C_in)\nDepth: O(W/B + B)  with block size B=4  |  Fan-out: O(B)",
+           shape=plaintext, style="", fontsize=12, fontcolor="#374151"];
+
+  // Edges
+  cin    -> b0_cla [tailport=e, headport=w, penwidth=2];
+  b0_in  -> b0_gp  [tailport=s, headport=n];
+  b0_gp  -> b0_cla [tailport=s, headport=n];
+  b0_gp  -> b0_cout;
+  b0_cla -> b0_sum [tailport=s, headport=n];
+  b0_cla -> b0_cout;
+  b0_cout -> b1_cla [tailport=e, headport=w, color="#3b82f6", penwidth=3];
+
+  b1_in  -> b1_gp  [tailport=s, headport=n];
+  b1_gp  -> b1_cla [tailport=s, headport=n];
+  b1_gp  -> b1_cout;
+  b1_cla -> b1_sum [tailport=s, headport=n];
+  b1_cla -> b1_cout;
+  b1_cout -> b2_cla [tailport=e, headport=w, color="#3b82f6", penwidth=3];
+
+  b2_in  -> b2_gp  [tailport=s, headport=n];
+  b2_gp  -> b2_cla [tailport=s, headport=n];
+  b2_cla -> b2_sum [tailport=s, headport=n];
+}

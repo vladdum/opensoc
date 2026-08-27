@@ -1,0 +1,122 @@
+digraph adder_brent_kung {
+  // ────────────────────────────────────────────────────────────────
+  // adder_brent_kung — Two-phase parallel prefix tree for W=8.
+  //
+  // Layout: dot (top-down rankdir, level-by-level).
+  //
+  // Phase 1 (up-sweep): builds sparse backbone at 2^k-1 positions.
+  //   Levels: 8 input → merge at {1,3,5,7} → merge at {3,7} → root {7}.
+  // Phase 2 (down-sweep): fills gaps between backbone nodes.
+  //
+  // Fewer total cells than Kogge-Stone (~2W vs W*log2W), same depth.
+  // Fan-out = 2. Latency: 2*log2(W) - 1 levels total.
+  // ────────────────────────────────────────────────────────────────
+  graph [
+    rankdir    = TB,
+    splines    = spline,
+    pad        = 0.4,
+    fontname   = "Helvetica",
+    nodesep    = 0.5,
+    ranksep    = 1.0,
+  ];
+
+  node [
+    shape    = box,
+    style    = "filled,rounded",
+    fontname = "Helvetica",
+    fontsize = 11,
+    penwidth = 2,
+    width    = 0.9,
+    height   = 0.65,
+    fixedsize = true,
+  ];
+
+  edge [
+    fontname = "Helvetica",
+    fontsize = 10,
+    penwidth = 1.5,
+    color    = "#374151",
+  ];
+
+  // Title
+  { rank=same;
+    title [label="adder_brent_kung — Two-Phase Prefix (example: W=8, 3 forward + 2 reverse)",
+           shape=plaintext, style="", fontsize=16, fontcolor="#111827",
+           width=5, height=0.6, fixedsize=false];
+  }
+  title -> i0 [style=invis];
+
+  // Input row
+  { rank=same;
+    i0 [label="g0p0", fillcolor="#bbf7d0", color="#22c55e"];
+    i1 [label="g1p1", fillcolor="#bbf7d0", color="#22c55e"];
+    i2 [label="g2p2", fillcolor="#bbf7d0", color="#22c55e"];
+    i3 [label="g3p3", fillcolor="#bbf7d0", color="#22c55e"];
+    i4 [label="g4p4", fillcolor="#bbf7d0", color="#22c55e"];
+    i5 [label="g5p5", fillcolor="#bbf7d0", color="#22c55e"];
+    i6 [label="g6p6", fillcolor="#bbf7d0", color="#22c55e"];
+    i7 [label="g7p7", fillcolor="#bbf7d0", color="#22c55e"];
+  }
+
+  // Phase 1 level 1 (stride 1): merge at odd positions {1,3,5,7}
+  { rank=same;
+    ph1 [label="Phase 1\nUp-sweep", shape=plaintext, style="", fontsize=12, fontcolor="#1e3a8a",
+         width=1.2, height=0.5, fixedsize=false];
+    up1_1 [label="G0:1\nP0:1", fillcolor="#bfdbfe", color="#3b82f6"];
+    up1_3 [label="G2:3\nP2:3", fillcolor="#bfdbfe", color="#3b82f6"];
+    up1_5 [label="G4:5\nP4:5", fillcolor="#bfdbfe", color="#3b82f6"];
+    up1_7 [label="G6:7\nP6:7", fillcolor="#bfdbfe", color="#3b82f6"];
+  }
+
+  // Phase 1 level 2 (stride 2): merge at {3, 7}
+  { rank=same;
+    up2_3 [label="G0:3\nP0:3", fillcolor="#bfdbfe", color="#3b82f6"];
+    up2_7 [label="G0:7\nP0:7", fillcolor="#bfdbfe", color="#3b82f6"];
+  }
+
+  // Phase 2 level 1 (down): fill position 5 using G0:3 + G4:5
+  { rank=same;
+    ph2 [label="Phase 2\nDown-sweep", shape=plaintext, style="", fontsize=12, fontcolor="#f97316",
+         width=1.4, height=0.5, fixedsize=false];
+    dn1_5 [label="G0:5\nP0:5", fillcolor="#bfdbfe", color="#3b82f6"];
+  }
+
+  // Phase 2 level 2 (down): fill positions {2, 4, 6} + passthroughs
+  { rank=same;
+    dn2_2 [label="G0:2", fillcolor="#bfdbfe", color="#3b82f6"];
+    dn2_4 [label="G0:4", fillcolor="#bfdbfe", color="#3b82f6"];
+    dn2_6 [label="G0:6", fillcolor="#bfdbfe", color="#3b82f6"];
+    pt0   [label="G0",   fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    pt1   [label="G0:1", fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    pt3   [label="G0:3", fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    pt7   [label="G0:7", fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+  }
+
+  note [label="Depth: 2*log2(W)-1  |  Cells: ~2W (vs W*log2W for Kogge-Stone)  |  Fan-out: 2",
+        shape=plaintext, style="", fontsize=12, fontcolor="#374151",
+        width=6, height=0.5, fixedsize=false];
+  { rank=same; note }
+  pt0 -> note [style=invis];
+
+  // Phase 1 up-sweep edges
+  i0 -> up1_1 [color="#3b82f6"]; i1 -> up1_1 [color="#3b82f6"];
+  i2 -> up1_3 [color="#3b82f6"]; i3 -> up1_3 [color="#3b82f6"];
+  i4 -> up1_5 [color="#3b82f6"]; i5 -> up1_5 [color="#3b82f6"];
+  i6 -> up1_7 [color="#3b82f6"]; i7 -> up1_7 [color="#3b82f6"];
+
+  up1_1 -> up2_3 [color="#3b82f6"]; up1_3 -> up2_3 [color="#3b82f6"];
+  up1_5 -> up2_7 [color="#3b82f6"]; up1_7 -> up2_7 [color="#3b82f6"];
+
+  // Phase 2 down-sweep edges
+  up2_3 -> dn1_5 [color="#f97316"]; up1_5 -> dn1_5 [color="#f97316"];
+
+  up1_1 -> dn2_2 [color="#f97316"]; i2 -> dn2_2 [color="#f97316"];
+  up2_3 -> dn2_4 [color="#f97316"]; i4 -> dn2_4 [color="#f97316"];
+  dn1_5 -> dn2_6 [color="#f97316"]; i6 -> dn2_6 [color="#f97316"];
+
+  // Passthroughs
+  i0 -> pt0;
+  up1_1 -> pt1 [style=dashed, color="#9ca3af"];
+  up2_3 -> pt3 [style=dashed, color="#9ca3af"];
+  up2_7 -> pt7 [style=dashed, color="#9ca3af"];
+}

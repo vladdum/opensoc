@@ -1,0 +1,25 @@
+{
+  "signal": [
+    { "name": "clk_i",           "wave": "P........." },
+    { "name": "rst_ni",          "wave": "01........." },
+    {},
+    { "name": "valid_i",         "wave": "0.10......" },
+    {},
+    { "name": "valid_pipe[0]",   "wave": "0.10......" },
+    { "name": "valid_pipe[1]",   "wave": "0..10....." },
+    { "name": "valid_pipe[2]",   "wave": "0...10...." },
+    {},
+    { "name": "accum_update",    "wave": "0...10...." },
+    {},
+    { "name": "accum_q",         "wave": "x....=....",
+      "data": ["accum + Σ(a·b)"] }
+  ],
+  "config": { "hscale": 2 },
+  "head": {
+    "text": "vec_mac_core — valid_pipe propagation (MUL_PIPE_STAGES=1, ADD_PIPE_STAGES=1, TOTAL_PIPE=2)",
+    "tick": 0
+  },
+  "foot": {
+    "text": "valid_i pulse at cycle 1 → propagates through TOTAL_PIPE=2 registered stages → accum_update fires at cycle 3. accum_q updates one cycle later."
+  }
+}

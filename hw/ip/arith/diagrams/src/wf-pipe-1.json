@@ -1,0 +1,28 @@
+{
+  "signal": [
+    { "name": "clk_i",  "wave": "P......." },
+    { "name": "rst_ni", "wave": "0.1....." },
+    {},
+    { "name": "a_i",    "wave": "xx=.=.=.",
+      "data": ["A₀", "A₁", "A₂"] },
+    { "name": "b_i",    "wave": "xx=.=.=.",
+      "data": ["B₀", "B₁", "B₂"] },
+    {},
+    { "name": "s_o",    "wave": "xxxx=.=.",
+      "data": ["A₀+B₀", "A₁+B₁"] },
+    {},
+    { "name": "latency", "wave": "0..01.0.",
+      "node": "....a.b." }
+  ],
+  "edge": [
+    "a~b 1 cycle"
+  ],
+  "config": { "hscale": 2 },
+  "head": {
+    "text": "PIPE_STAGES = 1 — Registered output (1-cycle latency)",
+    "tick": 0
+  },
+  "foot": {
+    "text": "s_o appears 1 cycle after the inputs. rst_ni clears the pipeline register; clk_i is active. Body modules remain purely combinational."
+  }
+}

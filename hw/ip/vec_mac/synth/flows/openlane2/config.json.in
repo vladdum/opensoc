@@ -1,0 +1,25 @@
+{
+    "DESIGN_NAME": "@TOP@",
+    "VERILOG_FILES": [
+        "dir::../../../../../hw/ip/arith/rtl/arith_pkg.sv",
+        "dir::../../../../../hw/ip/arith/rtl/adder_ripple.sv",
+        "dir::../../../../../hw/ip/arith/rtl/adder_cla.sv",
+        "dir::../../../../../hw/ip/arith/rtl/adder_kogge_stone.sv",
+        "dir::../../../../../hw/ip/arith/rtl/adder_brent_kung.sv",
+        "dir::../../../../../hw/ip/arith/rtl/adder_sklansky.sv",
+        "dir::../../../../../hw/ip/arith/rtl/adder.sv",
+        "dir::../../../../../hw/ip/arith/rtl/mul_array.sv",
+        "dir::../../../../../hw/ip/arith/rtl/mul_booth4.sv",
+        "dir::../../../../../hw/ip/arith/rtl/mul_wallace.sv",
+        "dir::../../../../../hw/ip/arith/rtl/mul_dadda.sv",
+        "dir::../../../../../hw/ip/arith/rtl/mul_signed.sv",
+        "dir::../../../../../hw/ip/vec_mac/rtl/vec_mac_core.sv",
+        "@WRAPPER@"
+
+    ],
+    "CLOCK_PORT": "clk_i",
+    "CLOCK_PERIOD": 5.0,
+    "SYNTH_STRATEGY": "AREA 0",
+    "ERROR_ON_SYNTH_CHECKS": false,
+    "RUN_HEURISTIC_DIODE_INSERTION": false
+}

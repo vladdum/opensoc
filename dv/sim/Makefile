@@ -61,6 +61,122 @@ $(eval $(call TB_TEMPLATE,axi-lite-to-tlul,\
 # 	$(RTL_DIR)/my_module.sv,\
 # 	$(TB_DIR)/tb_my_module.sv))
 
+$(eval $(call TB_TEMPLATE,arith-unit,\
+    $(REPO_ROOT)/hw/ip/arith/rtl/arith_pkg.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_ripple.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_cla.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_kogge_stone.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_brent_kung.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_sklansky.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_array.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_booth4.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_wallace.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_dadda.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_signed.sv,\
+    $(TB_DIR)/tb_arith_unit.sv))
+
+.PHONY: tb-arith-unit-sweep
+tb-arith-unit-sweep:
+	@for unit in 0 1; do \
+	  if [ "$$unit" = "0" ]; then kids="0 1 2 3 4 5"; else kids="0 1 2 3 4"; fi; \
+	  for kid in $$kids; do \
+	    for pipe in 0 1; do \
+	      out=$(BUILD_DIR)/arith-unit-$$unit-$$kid-$$pipe; \
+	      mkdir -p $$out; \
+	      echo "=== UNIT=$$unit KID=$$kid PIPE=$$pipe ==="; \
+	      $(VERILATOR) $(VERILATOR_FLAGS) -Wno-UNUSEDSIGNAL -Wno-SELRANGE \
+	        -GUNIT_KIND=$$unit -GK_ID=$$kid -GPIPE=$$pipe \
+	        --Mdir $$out -o Vtb_arith_unit \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/arith_pkg.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_ripple.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_cla.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_kogge_stone.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_brent_kung.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_sklansky.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_array.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_booth4.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_wallace.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_dadda.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_signed.sv \
+	        $(TB_DIR)/tb_arith_unit.sv >/dev/null 2>&1; \
+	      $$out/Vtb_arith_unit || exit 1; \
+	    done; \
+	  done; \
+	done
+
+$(eval $(call TB_TEMPLATE,vec-mac-core,\
+    $(REPO_ROOT)/hw/ip/arith/rtl/arith_pkg.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_ripple.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_cla.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_kogge_stone.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_brent_kung.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_sklansky.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_array.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_booth4.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_wallace.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_dadda.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_signed.sv \
+    $(REPO_ROOT)/hw/ip/vec_mac/rtl/vec_mac_core.sv,\
+    $(TB_DIR)/tb_vec_mac_core.sv))
+
+# vec_mac_core uses a generate-loop tree array that Verilator flags as
+# UNOPTFLAT (false positive on the combinational adder tree structure).
+# Override the build recipe for this TB to suppress it.
+VEC_MAC_CORE_SRCS := \
+    $(REPO_ROOT)/hw/ip/arith/rtl/arith_pkg.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_ripple.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_cla.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_kogge_stone.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_brent_kung.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder_sklansky.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/adder.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_array.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_booth4.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_wallace.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_dadda.sv \
+    $(REPO_ROOT)/hw/ip/arith/rtl/mul_signed.sv \
+    $(REPO_ROOT)/hw/ip/vec_mac/rtl/vec_mac_core.sv
+
+$(BUILD_DIR)/vec-mac-core/Vtb_vec_mac_core: $(VEC_MAC_CORE_SRCS) $(TB_DIR)/tb_vec_mac_core.sv | $(BUILD_DIR)/vec-mac-core
+	$(VERILATOR) $(VERILATOR_FLAGS) -Wno-UNOPTFLAT -Wno-UNUSEDSIGNAL -Wno-SELRANGE \
+		--Mdir $(BUILD_DIR)/vec-mac-core \
+		-o Vtb_vec_mac_core \
+		$(VEC_MAC_CORE_SRCS) $(TB_DIR)/tb_vec_mac_core.sv
+
+.PHONY: tb-vec-mac-core-sweep
+tb-vec-mac-core-sweep:
+	@for add in 0 1 2 3 4 5; do \
+	  for mul in 0 1 2 3 4; do \
+	    for pipe in 0 1; do \
+	      out=$(BUILD_DIR)/vec-mac-core-$$add-$$mul-$$pipe; \
+	      mkdir -p $$out; \
+	      echo "=== ADD=$$add MUL=$$mul PIPE=$$pipe ==="; \
+	      $(VERILATOR) $(VERILATOR_FLAGS) -Wno-UNOPTFLAT -Wno-UNUSEDSIGNAL -Wno-SELRANGE \
+	        -GADD_KID=$$add -GMUL_KID=$$mul \
+	        -GMUL_PIPE=$$pipe -GADD_PIPE=$$pipe \
+	        --Mdir $$out -o Vtb_vec_mac_core \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/arith_pkg.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_ripple.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_cla.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_kogge_stone.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_brent_kung.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder_sklansky.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/adder.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_array.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_booth4.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_wallace.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_dadda.sv \
+	        $(REPO_ROOT)/hw/ip/arith/rtl/mul_signed.sv \
+	        $(REPO_ROOT)/hw/ip/vec_mac/rtl/vec_mac_core.sv \
+	        $(TB_DIR)/tb_vec_mac_core.sv >/dev/null 2>&1; \
+	      $$out/Vtb_vec_mac_core || exit 1; \
+	    done; \
+	  done; \
+	done
+
 # -----------------------------------------------------------------------
 # Aggregate targets
 # -----------------------------------------------------------------------

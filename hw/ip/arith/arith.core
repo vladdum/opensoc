@@ -1,0 +1,27 @@
+CAPI=2:
+# Copyright OpenSoC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+name: "opensoc:ip:arith"
+description: "Parameterized adder and signed-multiplier library with selectable microarchitectures"
+filesets:
+  rtl:
+    files:
+      - rtl/arith_pkg.sv
+      - rtl/adder_ripple.sv
+      - rtl/adder_cla.sv
+      - rtl/adder_kogge_stone.sv
+      - rtl/adder_brent_kung.sv
+      - rtl/adder_sklansky.sv
+      - rtl/adder.sv
+      - rtl/mul_array.sv
+      - rtl/mul_booth4.sv
+      - rtl/mul_wallace.sv
+      - rtl/mul_dadda.sv
+      - rtl/mul_signed.sv
+    file_type: systemVerilogSource
+
+targets:
+  default:
+    filesets:
+      - rtl

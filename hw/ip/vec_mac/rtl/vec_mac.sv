@@ -25,8 +25,14 @@
  * LEN must be a multiple of NUM_LANES. Hardware masks off low bits.
  * GO while BUSY is silently ignored.
  */
-module vec_mac #(
-  parameter int unsigned NUM_LANES = 4
+module vec_mac
+  import arith_pkg::*;
+#(
+  parameter int unsigned NUM_LANES       = 4,
+  parameter add_kind_e   ADD_KIND        = ADD_OPERATOR,
+  parameter mul_kind_e   MUL_KIND        = MUL_OPERATOR,
+  parameter int unsigned MUL_PIPE_STAGES = 0,
+  parameter int unsigned ADD_PIPE_STAGES = 0
 ) (
   input  logic        clk_i,
   input  logic        rst_ni,
@@ -70,6 +76,10 @@ module vec_mac #(
   // Bits per lane (for LEN -> word count conversion)
   localparam int unsigned LOG2_LANES = $clog2(NUM_LANES);
 
+  // Pipeline drain count
+  localparam int unsigned TOTAL_PIPE = MUL_PIPE_STAGES + ADD_PIPE_STAGES;
+  localparam int unsigned DRAIN_W    = (TOTAL_PIPE == 0) ? 1 : $clog2(TOTAL_PIPE + 1);
+
   // ---------------------------------------------------------------------------
   // Configuration registers
   // ---------------------------------------------------------------------------
@@ -92,18 +102,20 @@ module vec_mac #(
   // ---------------------------------------------------------------------------
   // FSM
   // ---------------------------------------------------------------------------
-  typedef enum logic [2:0] {
+  typedef enum logic [3:0] {
     IDLE,
     RD_A_REQ,
     RD_A_WAIT,
     RD_B_REQ,
     RD_B_WAIT,
     COMPUTE,
+    DRAIN,
     WR_REQ,
     WR_WAIT
   } state_e;
 
   state_e state_q, state_d;
+  logic [DRAIN_W-1:0] drain_q;
 
   // GO pulse: valid only when not busy
   logic go;
@@ -134,7 +146,11 @@ module vec_mac #(
   // MAC compute core
   // ---------------------------------------------------------------------------
   vec_mac_core #(
-    .NUM_LANES (NUM_LANES)
+    .NUM_LANES       (NUM_LANES),
+    .ADD_KIND        (ADD_KIND),
+    .MUL_KIND        (MUL_KIND),
+    .MUL_PIPE_STAGES (MUL_PIPE_STAGES),
+    .ADD_PIPE_STAGES (ADD_PIPE_STAGES)
   ) u_mac_core (
     .clk_i,
     .rst_ni,
@@ -244,10 +260,16 @@ module vec_mac #(
         // b_data_q is now valid — trigger MAC accumulate
         mac_valid = 1'b1;
         if (remaining_q == 32'd0) begin
-          state_d = WR_REQ;
+          state_d = DRAIN;
         end else begin
           state_d = RD_A_REQ;
         end
+      end
+
+      DRAIN: begin
+        // Wait for the last accumulate to land (TOTAL_PIPE cycles after mac_valid).
+        // At TOTAL_PIPE == 0, drain_q starts at 0 and we transition immediately.
+        if (drain_q == '0) state_d = WR_REQ;
       end
 
       WR_REQ: begin
@@ -281,6 +303,7 @@ module vec_mac #(
       remaining_q      <= 32'd0;
       a_data_q         <= 32'd0;
       b_data_q         <= 32'd0;
+      drain_q          <= '0;
     end else begin
       state_q <= state_d;
 
@@ -316,6 +339,16 @@ module vec_mac #(
             cur_src_b_q <= cur_src_b_q + 32'd4;
             remaining_q <= remaining_q - 32'd1;
           end
+        end
+
+        COMPUTE: begin
+          if (remaining_q == 32'd0) begin
+            drain_q <= DRAIN_W'(TOTAL_PIPE);
+          end
+        end
+
+        DRAIN: begin
+          if (drain_q != '0) drain_q <= drain_q - 1'b1;
         end
 
         WR_WAIT: begin

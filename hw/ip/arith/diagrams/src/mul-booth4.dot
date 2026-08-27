@@ -1,0 +1,117 @@
+digraph mul_booth4 {
+  // ────────────────────────────────────────────────────────────────
+  // mul_booth4 — Radix-4 (Modified Booth) multiplier.
+  //
+  // Layout: dot (hierarchical, top-down).
+  //
+  // For B_W=8 signed multiply:
+  //   B is padded: b[-1]=0, so the digit string is 9 bits.
+  //   ceil(B_W/2) = 4 windows of 3 bits: b[2i+1], b[2i], b[2i-1].
+  //   Each window encodes: {-2A, -A, 0, +A, +2A}.
+  //   5 partial products for B_W=8 (ceil(8/2)+1 for sign).
+  //   PPs are sign-extended and summed via ripple-add chain.
+  // ────────────────────────────────────────────────────────────────
+  graph [
+    rankdir  = TB,
+    splines  = spline,
+    pad      = 0.4,
+    fontname = "Helvetica",
+    nodesep  = 0.5,
+    ranksep  = 1.0,
+  ];
+
+  node [
+    shape    = box,
+    style    = "filled,rounded",
+    fontname = "Helvetica",
+    fontsize = 13,
+    penwidth = 2,
+  ];
+
+  edge [
+    fontname = "Helvetica",
+    fontsize = 11,
+    penwidth = 2,
+    color    = "#111827",
+  ];
+
+  // Title
+  title [label="mul_booth4 — Radix-4 Booth Encoder (8×8 → 16-bit, 5 PPs)",
+         shape=plaintext, style="", fontsize=17, fontcolor="#111827"];
+
+  // Inputs
+  inp_a [label="a_i [7:0] (signed)",  fillcolor="#bbf7d0", color="#22c55e"];
+  inp_b [label="b_i [7:0] (signed)",  fillcolor="#bbf7d0", color="#22c55e"];
+
+  // Padding
+  pad_b [label="Pad B: append b[-1]=0\nb_pad = {b[7:0], 1'b0}  (9 bits)",
+         fillcolor="#f5f5f5", color="#9ca3af", fontsize=12];
+
+  // Windows
+  subgraph cluster_windows {
+    label="Digit windows  (3 bits each, overlap by 1)";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    w0 [label="Window 0: {b[1], b[0], b[-1]}", fillcolor="#bbf7d0", color="#22c55e", fontsize=12];
+    w1 [label="Window 1: {b[3], b[2], b[1]}",  fillcolor="#bbf7d0", color="#22c55e", fontsize=12];
+    w2 [label="Window 2: {b[5], b[4], b[3]}",  fillcolor="#bbf7d0", color="#22c55e", fontsize=12];
+    w3 [label="Window 3: {b[7], b[6], b[5]}",  fillcolor="#bbf7d0", color="#22c55e", fontsize=12];
+  }
+
+  // Booth encoders
+  subgraph cluster_enc {
+    label="Booth Encoders  →  {-2A, -A, 0, +A, +2A}";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    enc0 [label="Enc₀: sel ∈ {-2A,-A,0,+A,+2A}\n× 2⁰", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    enc1 [label="Enc₁: sel ∈ {-2A,-A,0,+A,+2A}\n× 2²", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    enc2 [label="Enc₂: sel ∈ {-2A,-A,0,+A,+2A}\n× 2⁴", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    enc3 [label="Enc₃: sel ∈ {-2A,-A,0,+A,+2A}\n× 2⁶", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+  }
+
+  // Partial products
+  subgraph cluster_pp {
+    label="Partial Products (sign-extended to 16 bits)";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    pp0 [label="PP[0] (shifted << 0)", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    pp1 [label="PP[1] (shifted << 2)", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    pp2 [label="PP[2] (shifted << 4)", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+    pp3 [label="PP[3] (shifted << 6)", fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+  }
+
+  // Final sum
+  adder [label="Ripple adder chain\n(ceil(B_W/2) − 1 = 3 additions)",
+         fillcolor="#bfdbfe", color="#3b82f6", fontsize=13];
+  outp  [label="p_o [15:0]", fillcolor="#fca5a5", color="#ef4444", fontsize=14];
+
+  // Note
+  note [label="Booth-4 halves the number of partial products vs array multiplier.\nOnly ceil(B_W/2) = 4 PPs regardless of A_W.",
+        shape=plaintext, style="", fontsize=12, fontcolor="#374151"];
+
+  // Edges
+  inp_a -> pad_b [style=invis];
+  inp_b -> pad_b;
+  inp_a -> enc0; inp_a -> enc1; inp_a -> enc2; inp_a -> enc3;
+
+  pad_b -> w0; pad_b -> w1; pad_b -> w2; pad_b -> w3;
+  w0 -> enc0; w1 -> enc1; w2 -> enc2; w3 -> enc3;
+  enc0 -> pp0; enc1 -> pp1; enc2 -> pp2; enc3 -> pp3;
+  pp0 -> adder; pp1 -> adder; pp2 -> adder; pp3 -> adder;
+  adder -> outp;
+}

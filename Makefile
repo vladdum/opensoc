@@ -13,6 +13,7 @@ JOBS   ?= $(shell nproc)
 CORES_ROOT_BASE := --cores-root=. \
                    --cores-root=hw/ip/kronos_riscv \
                    --cores-root=hw/ip/common_cells \
+                   --cores-root=hw/ip/arith \
                    --cores-root=hw/ip/pulp_axi \
                    --cores-root=hw/ip/pio \
                    --cores-root=hw/ip/i2c_controller \
@@ -137,6 +138,7 @@ clean:
 	rm -rf build
 	rm -rf .Xil cong
 	rm -f vivado.jou vivado.log vivado_*.backup.jou vivado_*.backup.log
+	rm -f iter_*.txt tight_setup_hold_pins.txt
 	rm -f opensoc_top.log trace_core_00000000.log clockInfo.txt
 
 # ── Regression ────────────────────────────────────────────────────────────────
@@ -283,3 +285,13 @@ synth-setup-kv260:
 	  fi; \
 	  exec 9>&-; \
 	fi
+
+.PHONY: vec-mac-sweep vec-mac-report
+vec-mac-sweep:
+	$(MAKE) -f hw/ip/vec_mac/synth/sweep.mk REPO_ROOT=$(CURDIR) FLOW=$(FLOW) \
+	  $(if $(ADDS),ADDS="$(ADDS)") $(if $(MULS),MULS="$(MULS)") $(if $(PIPES),PIPES="$(PIPES)") \
+	  vec-mac-sweep
+
+vec-mac-report:
+	$(MAKE) -f hw/ip/vec_mac/synth/sweep.mk REPO_ROOT=$(CURDIR) FLOW=$(FLOW) \
+	  vec-mac-report

@@ -1,0 +1,13 @@
+hw/ip/arith/rtl/arith_pkg.sv
+hw/ip/arith/rtl/adder_ripple.sv
+hw/ip/arith/rtl/adder_cla.sv
+hw/ip/arith/rtl/adder_kogge_stone.sv
+hw/ip/arith/rtl/adder_brent_kung.sv
+hw/ip/arith/rtl/adder_sklansky.sv
+hw/ip/arith/rtl/adder.sv
+hw/ip/arith/rtl/mul_array.sv
+hw/ip/arith/rtl/mul_booth4.sv
+hw/ip/arith/rtl/mul_wallace.sv
+hw/ip/arith/rtl/mul_dadda.sv
+hw/ip/arith/rtl/mul_signed.sv
+hw/ip/vec_mac/rtl/vec_mac_core.sv

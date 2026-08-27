@@ -1,0 +1,149 @@
+digraph adder_kogge_stone {
+  // ────────────────────────────────────────────────────────────────
+  // adder_kogge_stone — Parallel prefix tree for W=8.
+  //
+  // Layout: dot (top-down rankdir, level-by-level).
+  //
+  // Row 0: input G/P bits (g_i, p_i).
+  // Level 1: stride-1 merges (bits 1..7 each merge with bit k-1).
+  // Level 2: stride-2 merges.
+  // Level 3: stride-4 merges — prefix G complete for all 8 bits.
+  // Sum: s[i] = p_i XOR G[0:i-1] (XOR with carry-in prefix).
+  //
+  // Blue = merge cell  (G_hi|P_hi&G_lo, P_hi&P_lo).
+  // Gray = passthrough (already complete at this level).
+  // ────────────────────────────────────────────────────────────────
+  graph [
+    rankdir    = TB,
+    splines    = spline,
+    pad        = 0.4,
+    fontname   = "Helvetica",
+    nodesep    = 0.5,
+    ranksep    = 1.2,
+  ];
+
+  node [
+    shape    = box,
+    style    = "filled,rounded",
+    fontname = "Helvetica",
+    fontsize = 11,
+    penwidth = 2,
+    width    = 0.9,
+    height   = 0.65,
+    fixedsize = true,
+  ];
+
+  edge [
+    fontname = "Helvetica",
+    fontsize = 10,
+    penwidth = 1.5,
+    color    = "#374151",
+  ];
+
+  // Title (invisible rank-aligner)
+  title [label="adder_kogge_stone — Parallel Prefix Tree (example: W=8, 3 levels)",
+         shape=plaintext, style="", fontsize=16, fontcolor="#111827",
+         width=5, height=0.7, fixedsize=false];
+
+  // Force top rank for title
+  { rank=same; title }
+
+  // Input row
+  { rank=same;
+    i0 [label="g0p0", fillcolor="#bbf7d0", color="#22c55e"];
+    i1 [label="g1p1", fillcolor="#bbf7d0", color="#22c55e"];
+    i2 [label="g2p2", fillcolor="#bbf7d0", color="#22c55e"];
+    i3 [label="g3p3", fillcolor="#bbf7d0", color="#22c55e"];
+    i4 [label="g4p4", fillcolor="#bbf7d0", color="#22c55e"];
+    i5 [label="g5p5", fillcolor="#bbf7d0", color="#22c55e"];
+    i6 [label="g6p6", fillcolor="#bbf7d0", color="#22c55e"];
+    i7 [label="g7p7", fillcolor="#bbf7d0", color="#22c55e"];
+    ll0 [label="Input G/P", shape=plaintext, style="", fontsize=12, fontcolor="#166534",
+         width=1.2, height=0.5, fixedsize=false];
+  }
+
+  // Level 1 (stride 1)
+  { rank=same;
+    l1_0 [label="G0",     fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    l1_1 [label="G0:1\nP0:1", fillcolor="#bfdbfe", color="#3b82f6"];
+    l1_2 [label="G1:2\nP1:2", fillcolor="#bfdbfe", color="#3b82f6"];
+    l1_3 [label="G2:3\nP2:3", fillcolor="#bfdbfe", color="#3b82f6"];
+    l1_4 [label="G3:4\nP3:4", fillcolor="#bfdbfe", color="#3b82f6"];
+    l1_5 [label="G4:5\nP4:5", fillcolor="#bfdbfe", color="#3b82f6"];
+    l1_6 [label="G5:6\nP5:6", fillcolor="#bfdbfe", color="#3b82f6"];
+    l1_7 [label="G6:7\nP6:7", fillcolor="#bfdbfe", color="#3b82f6"];
+    ll1 [label="Level 1\nstride 1", shape=plaintext, style="", fontsize=12, fontcolor="#1e3a8a",
+         width=1.2, height=0.5, fixedsize=false];
+  }
+
+  // Level 2 (stride 2)
+  { rank=same;
+    l2_0 [label="G0",     fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    l2_1 [label="G0:1",   fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    l2_2 [label="G0:2\nP0:2", fillcolor="#bfdbfe", color="#3b82f6"];
+    l2_3 [label="G0:3\nP0:3", fillcolor="#bfdbfe", color="#3b82f6"];
+    l2_4 [label="G0:4\nP0:4", fillcolor="#bfdbfe", color="#3b82f6"];
+    l2_5 [label="G0:5\nP0:5", fillcolor="#bfdbfe", color="#3b82f6"];
+    l2_6 [label="G0:6\nP0:6", fillcolor="#bfdbfe", color="#3b82f6"];
+    l2_7 [label="G0:7\nP0:7", fillcolor="#bfdbfe", color="#3b82f6"];
+    ll2 [label="Level 2\nstride 2", shape=plaintext, style="", fontsize=12, fontcolor="#1e3a8a",
+         width=1.2, height=0.5, fixedsize=false];
+  }
+
+  // Level 3 (stride 4) — prefix complete
+  { rank=same;
+    l3_0 [label="G0",     fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    l3_1 [label="G0:1",   fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    l3_2 [label="G0:2",   fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    l3_3 [label="G0:3",   fillcolor="#f5f5f5", color="#9ca3af", style="filled"];
+    l3_4 [label="G0:4\nP0:4", fillcolor="#bfdbfe", color="#3b82f6"];
+    l3_5 [label="G0:5\nP0:5", fillcolor="#bfdbfe", color="#3b82f6"];
+    l3_6 [label="G0:6\nP0:6", fillcolor="#bfdbfe", color="#3b82f6"];
+    l3_7 [label="G0:7\nP0:7", fillcolor="#bfdbfe", color="#3b82f6"];
+    ll3 [label="Level 3\nstride 4", shape=plaintext, style="", fontsize=12, fontcolor="#1e3a8a",
+         width=1.2, height=0.5, fixedsize=false];
+  }
+
+  // Complexity note
+  note [label="Depth O(log2 W) = 3  |  Cells W*log2W = 24  |  Max fan-out = 2\nMerge: G_hi | (P_hi & G_lo)   P_hi & P_lo",
+        shape=plaintext, style="", fontsize=12, fontcolor="#374151",
+        width=6, height=0.7, fixedsize=false];
+
+  { rank=same; note }
+
+  // Title spacing
+  title -> i0 [style=invis];
+
+  // L0 → L1 edges
+  i0 -> l1_0;
+  i0 -> l1_1 [color="#3b82f6"]; i1 -> l1_1;
+  i1 -> l1_2 [color="#3b82f6"]; i2 -> l1_2;
+  i2 -> l1_3 [color="#3b82f6"]; i3 -> l1_3;
+  i3 -> l1_4 [color="#3b82f6"]; i4 -> l1_4;
+  i4 -> l1_5 [color="#3b82f6"]; i5 -> l1_5;
+  i5 -> l1_6 [color="#3b82f6"]; i6 -> l1_6;
+  i6 -> l1_7 [color="#3b82f6"]; i7 -> l1_7;
+
+  // L1 → L2 edges (stride 2)
+  l1_0 -> l2_0;
+  l1_1 -> l2_1;
+  l1_0 -> l2_2 [color="#3b82f6"]; l1_2 -> l2_2;
+  l1_1 -> l2_3 [color="#3b82f6"]; l1_3 -> l2_3;
+  l1_2 -> l2_4 [color="#3b82f6"]; l1_4 -> l2_4;
+  l1_3 -> l2_5 [color="#3b82f6"]; l1_5 -> l2_5;
+  l1_4 -> l2_6 [color="#3b82f6"]; l1_6 -> l2_6;
+  l1_5 -> l2_7 [color="#3b82f6"]; l1_7 -> l2_7;
+
+  // L2 → L3 edges (stride 4)
+  l2_0 -> l3_0;
+  l2_1 -> l3_1;
+  l2_2 -> l3_2;
+  l2_3 -> l3_3;
+  l2_0 -> l3_4 [color="#3b82f6"]; l2_4 -> l3_4;
+  l2_1 -> l3_5 [color="#3b82f6"]; l2_5 -> l3_5;
+  l2_2 -> l3_6 [color="#3b82f6"]; l2_6 -> l3_6;
+  l2_3 -> l3_7 [color="#3b82f6"]; l2_7 -> l3_7;
+
+  // Bottom spacing
+  l3_0 -> note [style=invis];
+}

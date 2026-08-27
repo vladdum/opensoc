@@ -1,0 +1,133 @@
+digraph mul_dadda {
+  // ────────────────────────────────────────────────────────────────
+  // mul_dadda — Dadda tree multiplier.
+  //
+  // Layout: dot (hierarchical, top-down).
+  //
+  // Same height sequence as Wallace (8→6→4→3→2) but uses the minimum
+  // number of CSAs at each level to just reach the next Dadda height.
+  // Produces identical numerical results; typically fewer CSAs at early
+  // levels but the same final adder structure.
+  // ────────────────────────────────────────────────────────────────
+  graph [
+    rankdir  = TB,
+    splines  = spline,
+    pad      = 0.4,
+    fontname = "Helvetica",
+    nodesep  = 0.5,
+    ranksep  = 1.0,
+  ];
+
+  node [
+    shape    = box,
+    style    = "filled,rounded",
+    fontname = "Helvetica",
+    fontsize = 13,
+    penwidth = 2,
+  ];
+
+  edge [
+    fontname = "Helvetica",
+    fontsize = 11,
+    penwidth = 2,
+    color    = "#111827",
+  ];
+
+  // Title
+  title [label="mul_dadda — Dadda-Tree CSA Reduction (8×8 → 16-bit, minimum-CSA principle)",
+         shape=plaintext, style="", fontsize=17, fontcolor="#111827"];
+
+  // Inputs
+  inp_a [label="a_i [7:0] (signed)", fillcolor="#bbf7d0", color="#22c55e"];
+  inp_b [label="b_i [7:0] (signed)", fillcolor="#bbf7d0", color="#22c55e"];
+
+  // Partial products
+  subgraph cluster_pp {
+    label="8 Partial Products (sign-extended rows)";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    pp [label="PP[0]  PP[1]  PP[2]  PP[3]\nPP[4]  PP[5]  PP[6]  PP[7]",
+        fillcolor="#bbf7d0", color="#22c55e", fontsize=13];
+  }
+
+  // Dadda target heights: 2, 3, 4, 6 (largest Dadda height ≤ current)
+  // Level 1: 8→6 — add minimum CSAs to reduce max column height from 8 to 6
+  subgraph cluster_l1 {
+    label="Level 1 — minimum CSAs to reach height 6  (8→6)";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    l1 [label="Dadda CSAs: apply CSA only where column > 6\n(fewer CSAs than Wallace at this level)",
+        fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+  }
+
+  // Level 2: 6→4
+  subgraph cluster_l2 {
+    label="Level 2 — minimum CSAs to reach height 4  (6→4)";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    l2 [label="Dadda CSAs: apply CSA where column > 4",
+        fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+  }
+
+  // Level 3: 4→3
+  subgraph cluster_l3 {
+    label="Level 3 — reach height 3  (4→3)";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    l3 [label="Dadda CSAs: apply CSA where column > 3",
+        fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+  }
+
+  // Level 4: 3→2
+  subgraph cluster_l4 {
+    label="Level 4 — reach height 2  (3→2)";
+    style="filled,rounded";
+    fillcolor="#eff6ff";
+    color="#3b82f6";
+    penwidth=2;
+    fontsize=12;
+    fontname="Helvetica";
+
+    l4 [label="Final CSA stage: all columns → 2 vectors",
+        fillcolor="#bfdbfe", color="#3b82f6", fontsize=12];
+  }
+
+  // Final adder + output
+  fadd [label="Final Adder\nS_final + C_final → product",
+        fillcolor="#fca5a5", color="#ef4444", fontsize=13];
+  outp [label="p_o [15:0]", fillcolor="#fca5a5", color="#ef4444", fontsize=14];
+
+  compare [label="vs Wallace: same height sequence (8→6→4→3→2), same final adder.\nDadda uses minimum CSAs per level → fewer gates, same latency.",
+           shape=plaintext, style="", fontsize=12, fontcolor="#374151"];
+  note [label="Depth: O(log₁.₅ B_W)  |  Cells: fewer than Wallace (minimum-CSA principle)  |  Identical numerical result",
+        shape=plaintext, style="", fontsize=12, fontcolor="#374151"];
+
+  // Edges
+  inp_a -> pp; inp_b -> pp;
+  pp -> l1;
+  l1 -> l2;
+  l2 -> l3;
+  l3 -> l4;
+  l4 -> fadd;
+  fadd -> outp;
+}
